@@ -85,9 +85,7 @@ foreach ( $torrent in $torrents_list ) {
         Write-Output ( 'Нажмите любую клавищу, исправьте и начните заново !')
         $ok = $false
     }
-    else {
-        $used_locs += $torrent.content_path
-    }
+    else { $used_locs += $torrent.content_path }
 }
 If ( $ok -eq $false)  {
     pause

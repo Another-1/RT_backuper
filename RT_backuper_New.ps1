@@ -29,7 +29,6 @@ $lv_750gb = 740 * 1024 * 1024 * 1024
 
 Write-Output 'Смотрим, что уже заархивировано'
 $dones = @{}
-# ( get-childitem( $google_folder ) | Where-Object { $_.name -like 'ArchRuT*' } ) | ForEach-Object { Get-ChildItem( $_ ) } | ForEach-Object { $dones[$_.Name.split('_')[0]] = 1 }
 ( get-childitem( $google_folder ) | Where-Object { $_.name -like 'ArchRuT*' } ) | ForEach-Object { Get-ChildItem( $_ ) } | ForEach-Object { $dones[$_.BaseName.ToLower()] = 1 }
 
 Write-Output 'Авторизуемся в клиенте'

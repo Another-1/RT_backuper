@@ -75,20 +75,23 @@ $proc_cnt = 0
 $uploads_all = @{}
 $sum_size = ( $torrents_list | Measure-Object -sum size ).Sum
 $sum_cnt = $torrents_list.count
-$used_locs = @{}
+$used_locs = [System.Collections.ArrayList]::new()
+$ok = $true
 
 Write-Output 'Проверяем уникальность путей сохранения раздач'
 foreach ( $torrent in $torrents_list ) {
-    $zip_name = $google_folder + $folder_name + $torrent.state + '_' + $torrent.hash.ToLower() + '.7z'
     if ( $used_locs.keys -contains $torrent.content_path ) {
         Write-Output ( 'Несколько раздач хранятся по пути "' + $torrent.content_path + '" !')
         Write-Output ( 'Нажмите любую клавищу, исправьте и начните заново !')
-        pause
-        Exit
+        $ok = $false
     }
     else {
-        $used_locs += @{ $torrent.content_path = $torrent.state }
+        $used_locs += $torrent.content_path
     }
+}
+If ( $ok -eq $false)  {
+    pause
+    Exit
 }
 
 foreach ( $torrent in $torrents_list ) {

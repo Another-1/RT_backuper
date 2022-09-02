@@ -44,6 +44,8 @@ if ( $args.Count -eq 0) {
     $torrents_list = $all_torrents_list | Where-Object { $_.state -ne 'downloading' -and $_.state -ne 'stalledDL' -and $_.state -ne 'queuedDL' -and $_.state -ne 'error' -and $_.state -ne 'missingFiles' }
     Write-Output 'Получаем номера топиков по раздачам'
 }
+
+# отбросим раздачи, для которых уже есть архив с тем же хэшем
 else {
     Write-Output 'Получаем общую информацию о раздаче из клиента'
     $reqdata = 'hashes=' + $args[0]

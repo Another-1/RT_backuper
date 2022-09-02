@@ -45,7 +45,6 @@ if ( $args.Count -eq 0) {
     Write-Output 'Получаем номера топиков по раздачам'
 }
 
-# отбросим раздачи, для которых уже есть архив с тем же хэшем
 else {
     Write-Output 'Получаем общую информацию о раздаче из клиента'
     $reqdata = 'hashes=' + $args[0]
@@ -60,6 +59,8 @@ foreach ( $torrent in $torrents_list ) {
     catch { pause }
     $torrent.state = ( Select-String "\d*$" -InputObject $torprops.comment).Matches.Value
 }
+
+# отбросим раздачи, для которых уже есть архив с тем же хэшем
 if ( $args.Count -eq 0) {
     $torrents_list_required = [System.Collections.ArrayList]::new()
     Write-Output 'Пропускаем уже заархивированные раздачи'

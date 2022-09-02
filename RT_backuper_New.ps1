@@ -81,6 +81,7 @@ $sum_cnt = $torrents_list.count
 $used_locs = [System.Collections.ArrayList]::new()
 $ok = $true
 
+# проверяем, что никакие раздачи не пересекаются по именам файлов (если файл один) или каталогов (если файлов много), чтобы не заархивировать не то
 Write-Output 'Проверяем уникальность путей сохранения раздач'
 foreach ( $torrent in $torrents_list ) {
     if ( $used_locs.keys -contains $torrent.content_path ) {

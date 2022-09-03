@@ -1,3 +1,6 @@
+# флаг удаления завешённых раздач. Если 1, то скачанные раздачи после архивации удаляются из клиента. Если 0, то нет.
+$delete_processed = 0
+
 # тут указываем каталог общих папок Google Drive. Слэш на конце добавлять не надо.
 $google_folder = 'M:\Shared drives'
 
@@ -146,6 +149,16 @@ foreach ( $torrent in $torrents_list ) {
         Write-Output 'Не удалось отправить файл на гугл-диск'
         Pause
     }
+    
+    if( $delete_processed -eq 1 ) {
+        try {
+            Write-Output ( 'Удаляем раздачу ' + $torrent.state )
+            $reqdata = 'hashes=' + $torrent.hash + '&deleteFiles=true'
+            Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/delete' ) -Body $reqdata  -WebSession $sid -Method POST > $nul
+     }
+        catch { Write-Output 'Почему-то не получилось удалить раздачу ' + $torrent.state }
+    }
+    
     Write-Output ( 'Обработано ' + $proc_cnt + ' раздач (' + ( [math]::Round( $proc_size / 1024 / 1024 / 1024 ) ).ToString() + ' Гб) из ' + $sum_cnt + ' (' + ( [math]::Round( $sum_size / 1000 / 1000 / 1000 ) ).ToString() + ' Гб)' )
     $proc_size += $torrent.size
     $proc_cnt++

@@ -32,10 +32,10 @@ ForEach ( $id in $torrents_list.Keys ) {
     $hash = (( Invoke-WebRequest -Uri ( 'http://api.rutracker.org/v1/get_tor_hash?by=topic_id&val=' + $id ) ).content | ConvertFrom-Json -AsHashtable ).result[$id]
     $folder_name = '\ArchRuT_' + ( 300000 * [math]::Truncate(( $id - 1 ) / 300000) + 1 ) + '-' + 300000 * ( [math]::Truncate(( $id - 1 ) / 300000) + 1 ) + '\'
     $zip_name = $google_folder + $folder_name + $id + '_' + $hash.ToLower() + '.7z'
+    # закачиваем только если ещё нет на гугле
     if ( -not ( test-path -Path $zip_name ) ) {
-        # закачиваем только если ещё нет на гугле
-        $status = (( Invoke-WebRequest -uri 'http://api.rutracker.org/v1/get_tor_topic_data' -body $reqdata).content | ConvertFrom-Json -AsHashtable ).result[$id].tor_status
         # поглощённые раздачи пропускаем
+        $status = (( Invoke-WebRequest -uri 'http://api.rutracker.org/v1/get_tor_topic_data' -body $reqdata).content | ConvertFrom-Json -AsHashtable ).result[$id].tor_status
         if ( -not ( $status -eq 7 ) ) {
             $reqdata = 'urls=magnet:?xt=urn:btih:' + $hash
             Invoke-WebRequest  -Uri ( $client_url + '/api/v2/torrents/add' ) -Body $reqdata -WebSession $sid -Method Post > $nul

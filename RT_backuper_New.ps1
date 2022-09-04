@@ -108,7 +108,7 @@ foreach ( $torrent in $torrents_list ) {
     $folder_name = '\ArchRuT_' + ( 300000 * [math]::Truncate(( $torrent.state - 1 ) / 300000) + 1 ) + '-' + 300000 * ( [math]::Truncate(( $torrent.state - 1 ) / 300000) + 1 ) + '\'
     $zip_name = $google_folder + $folder_name + $torrent.state + '_' + $torrent.hash.ToLower() + '.7z'
     if ( -not ( test-path -Path $zip_name ) ) {
-        if ( $PSVersionTable.OS.ToLower.contains('windows')) {
+        if ( $PSVersionTable.OS.ToLower().contains('windows')) {
             $tmp_zip_name = ( $tmp_drive + ':\' + $torrent.state + '_' + $torrent.hash + '.7z' )
         }
         else {

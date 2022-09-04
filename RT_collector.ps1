@@ -5,6 +5,12 @@ $client_url = 'http://192.168.0.232:8082'
 $webui_login = 'login'
 $webui_password = 'password'
 
+# тут указываем каталог общих папок Google Drive.
+$google_folder = 'M:\Shared drives'
+
+##### Дальше начинается собственно код, там в идеале ничего менять не нужно.
+##### разве что при желании можно скорректировать опции архивации.
+
 $choice = ( Read-Host -Prompt 'Выберите раздел' ).ToString()
 
 Write-Output 'Авторизуемся в клиенте'

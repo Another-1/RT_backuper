@@ -23,11 +23,14 @@ if ( $torrents_list.count -eq 0) {
 
 Write-Output 'Ставим раздачи на закачку'
 ForEach ( $id in $torrents_list.Keys ) {
-    $hash = (( Invoke-WebRequest -Uri ( 'http://api.rutracker.org/v1/get_tor_hash?by=topic_id&val=' + $id ) ).content | ConvertFrom-Json -AsHashtable ).result[$id]
-    # $reqdata = 'urls=magnet:?xt=urn:btih:' + $hash + '&tr=http://bt.t-ru.org/ann?magnet&tr=http://bt2.t-ru.org/ann?magnet&tr=http://bt3.t-ru.org/ann?magnet&tr=http://bt4.t-ru.org/ann?magnet'
-    $reqdata = 'urls=magnet:?xt=urn:btih:' + $hash
-    Invoke-WebRequest  -Uri ( $client_url + '/api/v2/torrents/add' ) -Body $reqdata -WebSession $sid -Method Post > $nul
-    Start-Sleep -Seconds 2
-    $reqdata = 'hash=' + $hash + '&urls=http%3A%2F%2Fbt.t-ru.org%2Fann%3Fmagnet%0Ahttp%3A%2F%2Fbt2.t-ru.org%2Fann%3Fmagnet%0Ahttp%3A%2F%2Fbt3.t-ru.org%2Fann%3Fmagnet%0Ahttp%3A%2F%2Fbt4.t-ru.org%2Fann%3Fmagnet'
-    Invoke-WebRequest  -Uri ( $client_url + '/api/v2/torrents/addTrackers' ) -Body $reqdata -WebSession $sid -Method Post > $nul
+    $reqdata = @{'by' = 'topic_id'; 'val' = $id.ToString() }
+    $status = (( Invoke-WebRequest -uri 'http://api.rutracker.org/v1/get_tor_topic_data' -body $reqdata).content | ConvertFrom-Json -AsHashtable ).result[$id].tor_status
+    if ( -not ( @(7, 1) -contains $status ) ) {
+        $hash = (( Invoke-WebRequest -Uri ( 'http://api.rutracker.org/v1/get_tor_hash?by=topic_id&val=' + $id ) ).content | ConvertFrom-Json -AsHashtable ).result[$id]
+        $reqdata = 'urls=magnet:?xt=urn:btih:' + $hash
+        Invoke-WebRequest  -Uri ( $client_url + '/api/v2/torrents/add' ) -Body $reqdata -WebSession $sid -Method Post > $nul
+        Start-Sleep -Seconds 2
+        $reqdata = 'hash=' + $hash + '&urls=http%3A%2F%2Fbt.t-ru.org%2Fann%3Fmagnet%0Ahttp%3A%2F%2Fbt2.t-ru.org%2Fann%3Fmagnet%0Ahttp%3A%2F%2Fbt3.t-ru.org%2Fann%3Fmagnet%0Ahttp%3A%2F%2Fbt4.t-ru.org%2Fann%3Fmagnet'
+        Invoke-WebRequest  -Uri ( $client_url + '/api/v2/torrents/addTrackers' ) -Body $reqdata -WebSession $sid -Method Post > $nul
+    }
 }

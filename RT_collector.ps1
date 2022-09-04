@@ -25,5 +25,5 @@ Write-Output 'Ставим раздачи на закачку'
 ForEach ( $id in $torrents_list.Keys ) {
     $hash = (( Invoke-WebRequest -Uri ( 'http://api.rutracker.org/v1/get_tor_hash?by=topic_id&val=' + $id ) ).content | ConvertFrom-Json -AsHashtable ).result[$id]
     $reqdata = 'urls=magnet:?xt=urn:btih:' + $hash
-    Invoke-WebRequest  -Uri ( $client_url + '/api/v2/torrents/add' ) -Body $reqdata -WebSession $sid -Method Post
+    Invoke-WebRequest  -Uri ( $client_url + '/api/v2/torrents/add' ) -Body $reqdata -WebSession $sid -Method Post > nul
 }

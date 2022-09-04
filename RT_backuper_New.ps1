@@ -60,22 +60,32 @@ foreach ( $torrent in $torrents_list ) {
     try { $torprops = ( Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/properties' ) -Body $reqdata  -WebSession $sid -Method POST ).Content | ConvertFrom-Json }
     catch { pause }
     $torrent.state = ( Select-String "\d*$" -InputObject $torprops.comment).Matches.Value
+    # если не удалось получить информацию об ID из коммента, сходим в API и попробуем получить там
+    if ( $torrent.state -eq '' ) {
+        $torrent.state = ( ( Invoke-WebRequest ( 'http://api.rutracker.org/v1/get_topic_id?by=hash&val=' + $torrent.hash ) ).content |ConvertFrom-Json ).result.($torrent.hash)
+    }
 }
 
 # отбросим раздачи, для которых уже есть архив с тем же хэшем
-if ( $args.Count -eq 0) {
     $torrents_list_required = [System.Collections.ArrayList]::new()
     Write-Output 'Пропускаем уже заархивированные раздачи'
     $torrents_list | ForEach-Object {
-        if ( $_.state -ne '' -and $nul -eq $dones[( $_.state + '_' + $_.hash.ToLower())] ) {
+        if ( $_.state -ne '' -and $nul -eq $dones[( $_.state.ToString() + '_' + $_.hash.ToLower())] ) {
             $torrents_list_required += $_
+        }
+        elseif ( $_.state -ne '' -and $nul -ne $dones[( $_.state.ToString() + '_' + $_.hash.ToLower())] -and $delete_processed -eq 1 ) {
+            try {
+                Write-Output ( 'Удаляем раздачу ' + $torrent.state + ' так как она заархивирована ранее')
+                $reqdata = 'hashes=' + $torrent.hash + '&deleteFiles=true'
+                Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/delete' ) -Body $reqdata  -WebSession $sid -Method POST > $nul
+            }
+            catch { Write-Output 'Почему-то не получилось удалить раздачу ' + $torrent.state }
         }
     }
     Write-Output( 'Пропущено ' + ( $torrents_list.count - $torrents_list_required.count ) + ' раздач')
     $torrents_list = $torrents_list_required
-}
 
-$proc_size = 0
+    $proc_size = 0
 $proc_cnt = 0
 $uploads_all = @{}
 $sum_size = ( $torrents_list | Measure-Object -sum size ).Sum
@@ -129,7 +139,7 @@ foreach ( $torrent in $torrents_list ) {
         }
         $uploads_all[$folder_name] = $uploads
 
-        if ( $PSVersionTable.OS.ToLower().contains('windows')) {
+        if ( $PSVersionTable.OS.ToLower -contains 'windows') {
             $fs = ( Get-PSDrive $drive_fs | Select-Object Free ).free
             while ( $zip_size -gt ( $fs - 10000000 ) ) {
                 Write-Output ( 'Мало места на временном диске, подождём пока станет больше чем ' + ([int]($zip_size / 1024 / 1024)).ToString() + ' Мб')
@@ -144,7 +154,7 @@ foreach ( $torrent in $torrents_list ) {
     }
     try {
         Write-Output 'Перемещаем архив на гугл-диск...'
-        Move-Item -path $tmp_zip_name -destination ( $zip_name ) -Force
+        Move-Item -path $tmp_zip_name -destination ( $zip_name ) -Force -ErrorAction Stop
         Write-Output 'Готово.'
     }
     catch {
@@ -164,4 +174,3 @@ foreach ( $torrent in $torrents_list ) {
     $proc_cnt++
 }   Write-Output ( 'Обработано ' + $proc_cnt + ' раздач (' + ( [math]::Round( $proc_size / 1024 / 1024 / 1024 ) ).ToString() + ' Гб) из ' + $sum_cnt + ' (' + ( [math]::Round( $sum_size / 1000 / 1000 / 1000 ) ).ToString() + ' Гб)' )
 $proc_size += $torrent.size
- 

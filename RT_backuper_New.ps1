@@ -44,9 +44,9 @@ if ( $args.Count -eq 0) {
     Write-Output 'Получаем список раздач из клиента'
     $all_torrents_list = ( Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/info' ) -WebSession $sid ).Content | ConvertFrom-Json | Select-Object name, hash, content_path, state, size, category, completion_on, added_on  | sort-object -Property size
     $torrents_list = $all_torrents_list | Where-Object { $_.state -ne 'downloading' -and $_.state -ne 'stalledDL' -and $_.state -ne 'queuedDL' -and $_.state -ne 'error' -and $_.state -ne 'missingFiles' }
+    
     Write-Output 'Получаем номера топиков по раздачам'
 }
-
 else {
     Write-Output 'Получаем общую информацию о раздаче из клиента'
     $reqdata = 'hashes=' + $args[0]
@@ -129,11 +129,13 @@ foreach ( $torrent in $torrents_list ) {
         }
         $uploads_all[$folder_name] = $uploads
 
-        $fs = ( Get-PSDrive $drive_fs | Select-Object Free ).free
-        while ( $zip_size -gt ( $fs - 10000000 ) ) {
-            Write-Output ( 'Мало места на временном диске, подождём пока станет больше чем ' + ([int]($zip_size / 1024 / 1024)).ToString() + ' Мб')
-            Start-Sleep -Seconds 600
+        if ( $PSVersionTable.OS.ToLower -contains 'windows') {
             $fs = ( Get-PSDrive $drive_fs | Select-Object Free ).free
+            while ( $zip_size -gt ( $fs - 10000000 ) ) {
+                Write-Output ( 'Мало места на временном диске, подождём пока станет больше чем ' + ([int]($zip_size / 1024 / 1024)).ToString() + ' Мб')
+                Start-Sleep -Seconds 600
+                $fs = ( Get-PSDrive $drive_fs | Select-Object Free ).free
+            }
         }
         Write-Output ( ( [math]::Round( $today_size / 1024 / 1024 / 1024 ) ).ToString() + ' пока ещё меньше чем ' + ( $lv_750gb / 1024 / 1024 / 1024 ).ToString() + ', продолжаем' )
     }
@@ -149,17 +151,17 @@ foreach ( $torrent in $torrents_list ) {
         Write-Output 'Не удалось отправить файл на гугл-диск'
         Pause
     }
-    
-    if( $delete_processed -eq 1 ) {
+
+    if ( $delete_processed -eq 1 ) {
         try {
             Write-Output ( 'Удаляем раздачу ' + $torrent.state )
             $reqdata = 'hashes=' + $torrent.hash + '&deleteFiles=true'
             Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/delete' ) -Body $reqdata  -WebSession $sid -Method POST > $nul
-     }
+        }
         catch { Write-Output 'Почему-то не получилось удалить раздачу ' + $torrent.state }
     }
-    
-    Write-Output ( 'Обработано ' + $proc_cnt + ' раздач (' + ( [math]::Round( $proc_size / 1024 / 1024 / 1024 ) ).ToString() + ' Гб) из ' + $sum_cnt + ' (' + ( [math]::Round( $sum_size / 1000 / 1000 / 1000 ) ).ToString() + ' Гб)' )
-    $proc_size += $torrent.size
+
     $proc_cnt++
-}
+}   Write-Output ( 'Обработано ' + $proc_cnt + ' раздач (' + ( [math]::Round( $proc_size / 1024 / 1024 / 1024 ) ).ToString() + ' Гб) из ' + $sum_cnt + ' (' + ( [math]::Round( $sum_size / 1000 / 1000 / 1000 ) ).ToString() + ' Гб)' )
+$proc_size += $torrent.size
+ 

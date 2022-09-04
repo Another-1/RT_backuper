@@ -24,6 +24,6 @@ if ( $torrents_list.count -eq 0) {
 Write-Output 'Ставим раздачи на закачку'
 ForEach ( $id in $torrents_list.Keys ) {
     $hash = (( Invoke-WebRequest -Uri ( 'http://api.rutracker.org/v1/get_tor_hash?by=topic_id&val=' + $id ) ).content | ConvertFrom-Json -AsHashtable ).result[$id]
-    $reqdata = 'urls=magnet:?xt=urn:btih:' + $hash
+    $reqdata = 'urls=magnet:?xt=urn:btih:' + $hash + '&tr=http://bt.t-ru.org/ann?magnet&tr=http://bt2.t-ru.org/ann?magnet&tr=http://bt3.t-ru.org/ann?magnet&tr=http://bt4.t-ru.org/ann?magnet'
     Invoke-WebRequest  -Uri ( $client_url + '/api/v2/torrents/add' ) -Body $reqdata -WebSession $sid -Method Post > nul
 }

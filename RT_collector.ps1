@@ -30,5 +30,4 @@ ForEach ( $id in $torrents_list.Keys ) {
     Start-Sleep -Seconds 2
     $reqdata = 'hash=' + $hash + '&urls=http%3A%2F%2Fbt.t-ru.org%2Fann%3Fmagnet%0Ahttp%3A%2F%2Fbt2.t-ru.org%2Fann%3Fmagnet%0Ahttp%3A%2F%2Fbt3.t-ru.org%2Fann%3Fmagnet%0Ahttp%3A%2F%2Fbt4.t-ru.org%2Fann%3Fmagnet'
     Invoke-WebRequest  -Uri ( $client_url + '/api/v2/torrents/addTrackers' ) -Body $reqdata -WebSession $sid -Method Post > $nul
-
 }

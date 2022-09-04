@@ -76,14 +76,6 @@ if ( $args.count -eq 0 ) {
         if ( $_.state -ne '' -and $nul -eq $dones[( $_.state.ToString() + '_' + $_.hash.ToLower())] ) {
             $torrents_list_required += $_
         }
-        #     elseif ( $_.state -ne '' -and $nul -ne $dones[( $_.state.ToString() + '_' + $_.hash.ToLower())] -and $delete_processed -eq 1 ) {
-        #         try {
-        #             Write-Output ( 'Удаляем раздачу ' + $torrent.state + ' так как она заархивирована ранее')
-        #             $reqdata = 'hashes=' + $torrent.hash + '&deleteFiles=true'
-        #             Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/delete' ) -Body $reqdata  -WebSession $sid -Method POST > $nul
-        #         }
-        #         catch { Write-Output 'Почему-то не получилось удалить раздачу ' + $torrent.state }
-        #     }
     }
     Write-Output( 'Пропущено ' + ( $torrents_list.count - $torrents_list_required.count ) + ' раздач')
     $torrents_list = $torrents_list_required

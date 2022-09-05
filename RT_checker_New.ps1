@@ -1,4 +1,4 @@
-$logindata = "username=admin&password=mainstreet"
+$logindata = "username=login&password=password"
 $loginheader = @{Referer = 'http://192.168.0.232:8082' }
 
 $save_disks = @( 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'L', 'N' )

@@ -46,6 +46,7 @@ if ( $args.Count -eq 0) {
     Write-Output 'Получаем список раздач из клиента'
     $all_torrents_list = ( Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/info' ) -WebSession $sid ).Content | ConvertFrom-Json | Select-Object name, hash, content_path, state, size, category, completion_on, added_on  | sort-object -Property size
     $torrents_list = $all_torrents_list | Where-Object { $_.state -ne 'downloading' -and $_.state -ne 'stalledDL' -and $_.state -ne 'queuedDL' -and $_.state -ne 'error' -and $_.state -ne 'missingFiles' }
+    
     Write-Output 'Получаем номера топиков по раздачам'
 }
 else {
@@ -57,6 +58,11 @@ else {
 
 # по каждой раздаче получаем коммент, чтобы достать из него номер топика
 foreach ( $torrent in $torrents_list ) {
+    if ($torrent_hash -eq 'ef2e448354974824f11ee0ee7df7d6581fb1f748') {
+        Write-Output ('А вот и она! У неё статус ' + $torrent.state)
+        Pause
+        Exit
+    }
     $reqdata = 'hash=' + $torrent.hash
     try { $torprops = ( Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/properties' ) -Body $reqdata  -WebSession $sid -Method POST ).Content | ConvertFrom-Json }
     catch { pause }

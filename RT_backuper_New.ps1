@@ -45,7 +45,7 @@ Invoke-WebRequest -Headers $loginheader -Body $logindata ( $client_url + '/api/v
 if ( $args.Count -eq 0) {
     Write-Output 'Получаем список раздач из клиента'
     $all_torrents_list = ( Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/info' ) -WebSession $sid ).Content | ConvertFrom-Json | Select-Object name, hash, content_path, state, size, category, completion_on, added_on  | sort-object -Property size
-    $torrents_list = $all_torrents_list | Where-Object { $_.state -ne 'downloading' -and $_.state -ne 'stalledDL' -and $_.state -ne 'queuedDL' -and $_.state -ne 'error' -and $_.state -ne 'missingFiles' }
+    $torrents_list = $all_torrents_list | Where-Object { $_.state -ne 'downloading' -and $_.state -ne 'stalledDL' -and $_.state -ne 'queuedDL' -and $_.state -ne 'error' -and $_.state -ne 'missingFiles' $_.state -ne 'movning'}
     
     Write-Output 'Получаем номера топиков по раздачам'
 }
@@ -57,22 +57,18 @@ else {
 }
 
 # по каждой раздаче получаем коммент, чтобы достать из него номер топика
-$statuses = @{}
 foreach ( $torrent in $torrents_list ) {
     $reqdata = 'hash=' + $torrent.hash
     try { $torprops = ( Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/properties' ) -Body $reqdata  -WebSession $sid -Method POST ).Content | ConvertFrom-Json }
     catch { pause }
     
-    try {$statuses += @{$torrent.state = 1}} catch {}
-
     $torrent.state = ( Select-String "\d*$" -InputObject $torprops.comment).Matches.Value
     # если не удалось получить информацию об ID из коммента, сходим в API и попробуем получить там
     if ( $torrent.state -eq '' ) {
         $torrent.state = ( ( Invoke-WebRequest ( 'http://api.rutracker.org/v1/get_topic_id?by=hash&val=' + $torrent.hash ) ).content | ConvertFrom-Json ).result.($torrent.hash)
     }
 }
-$statuses
-Pause
+
 # отбросим раздачи, для которых уже есть архив с тем же хэшем
 if ( $args.count -eq 0 ) {
     $torrents_list_required = [System.Collections.ArrayList]::new()
@@ -82,6 +78,7 @@ if ( $args.count -eq 0 ) {
             $torrents_list_required += $_
         }
         elseif( $delete_processed -eq 1 ) {
+            Write-Output ( 'Удаляем из клиента раздачу ' + $torrent.state )
             $reqdata = 'hashes=' + $_.hash + '&deleteFiles=true'
             Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/delete' ) -Body $reqdata -WebSession $sid -Method POST > $nul
         }

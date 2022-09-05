@@ -14,8 +14,8 @@ $google_folder = 'M:\Shared drives'
 $client_url = 'http://192.168.0.232:8082'
 
 # учётные данные для WebUI qBittorrent.
-$webui_login = 'admin'
-$webui_password = 'mainstreet'
+$webui_login = 'login'
+$webui_password = 'password'
 
 # ссылка на архиватор 7z
 $7z_path = 'c:\Program Files\7-Zip\7z.exe'
@@ -24,8 +24,8 @@ $7z_path = 'c:\Program Files\7-Zip\7z.exe'
 $archive_password = '20RuTracker.ORG22'
 
 # учётные данные форума
-$rutracker_login = 'Another-one'
-$rutracker_password = ''
+$rutracker_login = 'forum_login'
+$rutracker_password = 'forum_password'
 
 # адрес и пароль прокси-сервера
 $proxy_address = 'http://45.8.144.130:3128'

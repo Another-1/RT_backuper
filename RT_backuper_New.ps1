@@ -57,22 +57,22 @@ else {
 }
 
 # по каждой раздаче получаем коммент, чтобы достать из него номер топика
+$statuses = @{}
 foreach ( $torrent in $torrents_list ) {
-    if ($torrent.hash -eq 'ef2e448354974824f11ee0ee7df7d6581fb1f748') {
-        Write-Output ('А вот и она! У неё статус ' + $torrent.state)
-        Pause
-        Exit
-    }
     $reqdata = 'hash=' + $torrent.hash
     try { $torprops = ( Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/properties' ) -Body $reqdata  -WebSession $sid -Method POST ).Content | ConvertFrom-Json }
     catch { pause }
+    
+    try {$statuses += @{$torrent.state = 1}} catch {}
+
     $torrent.state = ( Select-String "\d*$" -InputObject $torprops.comment).Matches.Value
     # если не удалось получить информацию об ID из коммента, сходим в API и попробуем получить там
     if ( $torrent.state -eq '' ) {
         $torrent.state = ( ( Invoke-WebRequest ( 'http://api.rutracker.org/v1/get_topic_id?by=hash&val=' + $torrent.hash ) ).content | ConvertFrom-Json ).result.($torrent.hash)
     }
 }
-
+$statuses
+Pause
 # отбросим раздачи, для которых уже есть архив с тем же хэшем
 if ( $args.count -eq 0 ) {
     $torrents_list_required = [System.Collections.ArrayList]::new()

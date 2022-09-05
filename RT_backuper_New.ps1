@@ -45,7 +45,7 @@ Invoke-WebRequest -Headers $loginheader -Body $logindata ( $client_url + '/api/v
 if ( $args.Count -eq 0) {
     Write-Output 'Получаем список раздач из клиента'
     $all_torrents_list = ( Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/info' ) -WebSession $sid ).Content | ConvertFrom-Json | Select-Object name, hash, content_path, state, size, category, completion_on, added_on  | sort-object -Property size
-    $torrents_list = $all_torrents_list | Where-Object { $_.state -ne 'downloading' -and $_.state -ne 'stalledDL' -and $_.state -ne 'queuedDL' -and $_.state -ne 'error' -and $_.state -ne 'missingFiles' $_.state -ne 'movning'}
+    $torrents_list = $all_torrents_list | Where-Object { $_.state -ne 'downloading' -and $_.state -ne 'stalledDL' -and $_.state -ne 'queuedDL' -and $_.state -ne 'error' -and $_.state -ne 'missingFiles' $_.state -ne 'movning' }
     
     Write-Output 'Получаем номера топиков по раздачам'
 }
@@ -77,7 +77,7 @@ if ( $args.count -eq 0 ) {
         if ( $_.state -ne '' -and $nul -eq $dones[( $_.state.ToString() + '_' + $_.hash.ToLower())] ) {
             $torrents_list_required += $_
         }
-        elseif( $delete_processed -eq 1 ) {
+        elseif ( $delete_processed -eq 1 ) {
             Write-Output ( 'Удаляем из клиента раздачу ' + $torrent.state )
             $reqdata = 'hashes=' + $_.hash + '&deleteFiles=true'
             Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/delete' ) -Body $reqdata -WebSession $sid -Method POST > $nul
@@ -120,54 +120,58 @@ foreach ( $torrent in $torrents_list ) {
         else {
             $tmp_zip_name = ( $tmp_drive + '/' + $torrent.state + '_' + $torrent.hash + '.7z' )
         }
-        Remove-Item -path $tmp_zip_name -Force -ErrorAction SilentlyContinue
-        Write-Output ( "`n$($psstyle.Foreground.Cyan ) Архивируем " + $torrent.category + ', ' + $torrent.name + $psstyle.Reset)
-        $param_sting = "-p$archive_password"
-        if ( $args.Count -eq 0 ) {
-            & $7z_path a $tmp_zip_name $torrent.content_path $param_sting -mx2 -mmt4 -mhe -sccUTF-8 -bb0
-            $zip_size = (Get-Item $tmp_zip_name).Length
-            $now = Get-date
-            $daybefore = $now.AddDays( -1 )
-            $uploads_tmp = @{}
-            $uploads = $uploads_all[ $folder_name ]
-            $uploads.keys | Where-Object { $_ -ge $daybefore } | ForEach-Object { $uploads_tmp += @{ $_ = $uploads[$_] } }
-            $uploads = $uploads_tmp
-            $uploads += @{ $now = $zip_size }
-            $today_size = ( $uploads.values | Measure-Object -sum ).Sum
-            while ( $today_size -gt $lv_750gb ) {
-                Write-Output ( "Дневной трафик по диску " + $folder_name + " уже " + [math]::Round( $today_size / 1024 / 1024 / 1024 ) )
-                Write-Output 'Подождём часик чтобы не выйти за 750 Гб. (сообщение будет повторяться пока не выйдем)'
-                Start-Sleep -Seconds (60 * 60 )
+        If ( Test-Path -path $tmp_zip_name ) {
+            Write-Output 'Похоже, такой архив уже пишется в параллельной сессии/ Пропускаем'
+        }
+        else {
+            Write-Output ( "`n$($psstyle.Foreground.Cyan ) Архивируем " + $torrent.category + ', ' + $torrent.name + $psstyle.Reset)
+            $param_sting = "-p$archive_password"
+            if ( $args.Count -eq 0 ) {
+                & $7z_path a $tmp_zip_name $torrent.content_path $param_sting -mx2 -mmt4 -mhe -sccUTF-8 -bb0
+                $zip_size = (Get-Item $tmp_zip_name).Length
                 $now = Get-date
                 $daybefore = $now.AddDays( -1 )
                 $uploads_tmp = @{}
+                $uploads = $uploads_all[ $folder_name ]
                 $uploads.keys | Where-Object { $_ -ge $daybefore } | ForEach-Object { $uploads_tmp += @{ $_ = $uploads[$_] } }
                 $uploads = $uploads_tmp
+                $uploads += @{ $now = $zip_size }
                 $today_size = ( $uploads.values | Measure-Object -sum ).Sum
-            }
-            $uploads_all[$folder_name] = $uploads
-
-            if ( $PSVersionTable.OS.ToLower -contains 'windows') {
-                $fs = ( Get-PSDrive $drive_fs | Select-Object Free ).free
-                while ( $zip_size -gt ( $fs - 10000000 ) ) {
-                    Write-Output ( 'Мало места на временном диске, подождём пока станет больше чем ' + ([int]($zip_size / 1024 / 1024)).ToString() + ' Мб')
-                    Start-Sleep -Seconds 600
-                    $fs = ( Get-PSDrive $drive_fs | Select-Object Free ).free
+                while ( $today_size -gt $lv_750gb ) {
+                    Write-Output ( "Дневной трафик по диску " + $folder_name + " уже " + [math]::Round( $today_size / 1024 / 1024 / 1024 ) )
+                    Write-Output 'Подождём часик чтобы не выйти за 750 Гб. (сообщение будет повторяться пока не выйдем)'
+                    Start-Sleep -Seconds (60 * 60 )
+                    $now = Get-date
+                    $daybefore = $now.AddDays( -1 )
+                    $uploads_tmp = @{}
+                    $uploads.keys | Where-Object { $_ -ge $daybefore } | ForEach-Object { $uploads_tmp += @{ $_ = $uploads[$_] } }
+                    $uploads = $uploads_tmp
+                    $today_size = ( $uploads.values | Measure-Object -sum ).Sum
                 }
+                $uploads_all[$folder_name] = $uploads
+
+                if ( $PSVersionTable.OS.ToLower -contains 'windows') {
+                    $fs = ( Get-PSDrive $drive_fs | Select-Object Free ).free
+                    while ( $zip_size -gt ( $fs - 10000000 ) ) {
+                        Write-Output ( 'Мало места на временном диске, подождём пока станет больше чем ' + ([int]($zip_size / 1024 / 1024)).ToString() + ' Мб')
+                        Start-Sleep -Seconds 600
+                        $fs = ( Get-PSDrive $drive_fs | Select-Object Free ).free
+                    }
+                }
+                Write-Output ( ( [math]::Round( $today_size / 1024 / 1024 / 1024 ) ).ToString() + ' пока ещё меньше чем ' + ( $lv_750gb / 1024 / 1024 / 1024 ).ToString() + ', продолжаем' )
             }
-            Write-Output ( ( [math]::Round( $today_size / 1024 / 1024 / 1024 ) ).ToString() + ' пока ещё меньше чем ' + ( $lv_750gb / 1024 / 1024 / 1024 ).ToString() + ', продолжаем' )
-        }
-        else {
-            & $7z_path a $tmp_zip_name $torrent.content_path $param_sting -mx0 -mmt4 -mhe -sccUTF-8 -bb0
-        }
-        try {
-            Write-Output 'Перемещаем архив на гугл-диск...'
-            Move-Item -path $tmp_zip_name -destination ( $zip_name ) -Force -ErrorAction Stop
-            Write-Output 'Готово.'
-        }
-        catch {
-            Write-Output 'Не удалось отправить файл на гугл-диск'
-            Pause
+            else {
+                & $7z_path a $tmp_zip_name $torrent.content_path $param_sting -mx0 -mmt4 -mhe -sccUTF-8 -bb0
+            }
+            try {
+                Write-Output 'Перемещаем архив на гугл-диск...'
+                Move-Item -path $tmp_zip_name -destination ( $zip_name ) -Force -ErrorAction Stop
+                Write-Output 'Готово.'
+            }
+            catch {
+                Write-Output 'Не удалось отправить файл на гугл-диск'
+                Pause
+            }
         }
     }
     if ( $delete_processed -eq 1 ) {

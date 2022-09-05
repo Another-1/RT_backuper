@@ -29,7 +29,7 @@ $rutracker_password = 'forum_password'
 
 # адрес и пароль прокси-сервера
 $proxy_address = 'http://45.8.144.130:3128'
-$proxy_password = 'Sgssqb19Ijg'
+$proxy_password = 'proxy_password'
 
 ##### Дальше начинается собственно код, там в идеале ничего менять не нужно.
 $secure_pass = ConvertTo-SecureString -String $proxy_password -AsPlainText -Force

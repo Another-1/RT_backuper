@@ -46,7 +46,6 @@ if ( $args.Count -eq 0) {
     Write-Output 'Получаем список раздач из клиента'
     $all_torrents_list = ( Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/info' ) -WebSession $sid ).Content | ConvertFrom-Json | Select-Object name, hash, content_path, state, size, category, completion_on, added_on  | sort-object -Property size
     $torrents_list = $all_torrents_list | Where-Object { $_.state -ne 'downloading' -and $_.state -ne 'stalledDL' -and $_.state -ne 'queuedDL' -and $_.state -ne 'error' -and $_.state -ne 'missingFiles' }
-    
     Write-Output 'Получаем номера топиков по раздачам'
 }
 else {
@@ -75,6 +74,10 @@ if ( $args.count -eq 0 ) {
     $torrents_list | ForEach-Object {
         if ( $_.state -ne '' -and $nul -eq $dones[( $_.state.ToString() + '_' + $_.hash.ToLower())] ) {
             $torrents_list_required += $_
+        }
+        elseif( $delete_processed -eq 1 ) {
+            $reqdata = 'hashes=' + $_.hash + '&deleteFiles=true'
+            Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/delete' ) -Body $reqdata -WebSession $sid -Method POST > $nul
         }
     }
     Write-Output( 'Пропущено ' + ( $torrents_list.count - $torrents_list_required.count ) + ' раздач')
@@ -168,7 +171,7 @@ foreach ( $torrent in $torrents_list ) {
         try {
             Write-Output ( 'Удаляем из клиента раздачу ' + $torrent.state )
             $reqdata = 'hashes=' + $torrent.hash + '&deleteFiles=true'
-            Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/delete' ) -Body $reqdata  -WebSession $sid -Method POST > $nul
+            Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/delete' ) -Body $reqdata -WebSession $sid -Method POST > $nul
         }
         catch { Write-Output 'Почему-то не получилось удалить раздачу ' + $torrent.state }
     }

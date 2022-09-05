@@ -58,7 +58,7 @@ else {
 
 # по каждой раздаче получаем коммент, чтобы достать из него номер топика
 foreach ( $torrent in $torrents_list ) {
-    if ($torrent_hash -eq 'ef2e448354974824f11ee0ee7df7d6581fb1f748') {
+    if ($torrent.hash -eq 'ef2e448354974824f11ee0ee7df7d6581fb1f748') {
         Write-Output ('А вот и она! У неё статус ' + $torrent.state)
         Pause
         Exit

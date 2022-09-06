@@ -46,6 +46,11 @@ foreach ( $torrent in $torrents_list ) {
     if ( $torrent.state -eq '' ) {
         $torrent.state = ( ( Invoke-WebRequest ( 'http://api.rutracker.org/v1/get_topic_id?by=hash&val=' + $torrent.hash ) ).content | ConvertFrom-Json ).result.($torrent.hash)
     }
+    # исправление путей для кривых раздач с одним файлом в папке
+    if ( ( $torrent.content_path.Replace( $torrent.save_path.ToString(), '') -replace ('^[\\/]', '')) -match ('[\\/]') ) {
+        $separator = $matches[0]
+        $torrent.content_path = $torrent.save_path + $separator + ( $torrent.content_path.Replace( $torrent.save_path.ToString(), '') -replace ('^[\\/]', '') -replace ('[\\/].*$', '') )
+    }
 }
 
 # отбросим раздачи, для которых уже есть архив с тем же хэшем
@@ -78,11 +83,6 @@ if ( $args.count -eq 0 ) {
     Write-Output 'Проверяем уникальность путей сохранения раздач'
 
     foreach ( $torrent in $torrents_list ) {
-        # исправление путей для кривых раздач с одним файлом в папке
-        if ( ( $torrent.content_path.Replace( $torrent.save_path.ToString(), '') -replace ('^[\\/]', '')) -match ('[\\/]') ) {
-            $separator = $matches[0]
-            $torrent.content_path = $torrent.save_path + $separator + ( $torrent.content_path.Replace( $torrent.save_path.ToString(), '') -replace ('^[\\/]','') -replace ('[\\/].*$','') )
-        }
         if ( $used_locs.keys -contains $torrent.content_path ) {
             Write-Output ( 'Несколько раздач хранятся по пути "' + $torrent.content_path + '" !')
             Write-Output ( 'Нажмите любую клавищу, исправьте и начните заново !')

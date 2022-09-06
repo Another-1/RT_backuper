@@ -16,6 +16,11 @@ $rutracker_password = 'forum_password'
 $proxy_address = 'http://45.8.144.130:3128'
 $proxy_password = 'proxy_password'
 
+# адрес, логин и пароль прокси-сервера
+$proxy_address = 'http://45.8.144.130:3128'
+$proxy_login = 'keepers'
+$proxy_password = 'Sgssqb19Ijg'
+
 # осздавать ли подкаталоги по ID для раздачи при восстановлении из архивов. 1 - создавать, 0 - не надо
 $torrent_folders = 0
 

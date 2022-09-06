@@ -23,15 +23,15 @@ Invoke-WebRequest -Headers $loginheader -Body $logindata ( $client_url + '/api/v
 # получаем список раздач из клиента
 if ( $args.Count -eq 0) {
     Write-Output 'Получаем список раздач из клиента'
-    $all_torrents_list = ( Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/info' ) -WebSession $sid ).Content | ConvertFrom-Json | Select-Object name, hash, content_path, state, size, category, completion_on, added_on  | sort-object -Property size
-    $torrents_list = $all_torrents_list | Where-Object {  $_.state -eq 'uploading' -or $_.state -eq 'pausedUP' -or $_.state -eq 'queuedUP' -or $_.state -eq 'stalledUP' }
-    
+    $all_torrents_list = ( Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/info' ) -WebSession $sid ).Content | ConvertFrom-Json | Select-Object name, hash, content_path, save_path, state, size, category | sort-object -Property size
+    $torrents_list = $all_torrents_list | Where-Object { $_.state -eq 'uploading' -or $_.state -eq 'pausedUP' -or $_.state -eq 'queuedUP' -or $_.state -eq 'stalledUP' }
+    Remove-Variable -Name all_torrents_list
     Write-Output 'Получаем номера топиков по раздачам'
 }
 else {
     Write-Output 'Получаем общую информацию о раздаче из клиента'
     $reqdata = 'hashes=' + $args[0]
-    $torrents_list = ( Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/info?' + $reqdata) -WebSession $sid ).Content | ConvertFrom-Json | Select-Object name, hash, content_path, state, size, category, completion_on | Where-Object { $_.state -ne 'downloading' -and $_.state -ne 'stalledDL' -and $_.state -ne 'queuedDL' -and $_.state -ne 'error' -and $_.state -ne 'missingFiles' } | sort-object -Property size
+    $torrents_list = ( Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/info?' + $reqdata) -WebSession $sid ).Content | ConvertFrom-Json | Select-Object name, hash, content_path, state, size, category | Where-Object { $_.state -ne 'downloading' -and $_.state -ne 'stalledDL' -and $_.state -ne 'queuedDL' -and $_.state -ne 'error' -and $_.state -ne 'missingFiles' } | sort-object -Property size
     Write-Output 'Получаем номер топика из раздачи'
 }
 
@@ -77,11 +77,11 @@ if ( $args.count -eq 0 ) {
     # проверяем, что никакие раздачи не пересекаются по именам файлов (если файл один) или каталогов (если файлов много), чтобы не заархивировать не то
     Write-Output 'Проверяем уникальность путей сохранения раздач'
 
-    # исправление путей для кривых раздач с одним файлом в папке
-    if ( ( $torrent.content_path.Replace( $torrent.save_path.ToString(),'') -replace ('^[\\/]','')) -match ('[\\/]') ) {
-        $torrent.content_path = $torrent.content_path.Replace( $torrent.save_path.ToString(),'') -replace ('^[\\/]','') -replace ('[\\/][^\\/]*$','')
-    }
     foreach ( $torrent in $torrents_list ) {
+        # исправление путей для кривых раздач с одним файлом в папке
+        if ( ( $torrent.content_path.Replace( $torrent.save_path.ToString(), '') -replace ('^[\\/]', '')) -match ('[\\/]') ) {
+            $torrent.content_path = $torrent.content_path.Replace( $torrent.save_path.ToString(), '') -replace ('^[\\/]', '') -replace ('[\\/][^\\/]*$', '')
+        }
         if ( $used_locs.keys -contains $torrent.content_path ) {
             Write-Output ( 'Несколько раздач хранятся по пути "' + $torrent.content_path + '" !')
             Write-Output ( 'Нажмите любую клавищу, исправьте и начните заново !')

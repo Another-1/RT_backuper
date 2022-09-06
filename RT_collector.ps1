@@ -1,5 +1,11 @@
 . "$PSScriptRoot\RT_settings.ps1"
 
+if ($client_url -eq '' -or $nul -eq $client_url ) {
+    Write-Output 'Проверьте наличие и заполненность файла настроек в каталоге скрипта'
+    Pause
+    exit
+}
+
 $choice = ( Read-Host -Prompt 'Выберите раздел' ).ToString()
 
 Write-Output 'Авторизуемся в клиенте'

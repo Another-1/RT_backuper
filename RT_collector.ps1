@@ -63,6 +63,7 @@ ForEach ( $id in $tracker_torrents_list.Keys ) {
                     torrents = get-item 'C:\temp\temp.torrent'
                     savepath = $extract_path
                     category = $category
+                    root_folder = 'false'
                 }
                 Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/add' ) -form $dl_url -WebSession $sid -Method POST -ContentType 'application/x-bittorrent' | Out-Null
             }

@@ -106,7 +106,8 @@ foreach ( $torrent in $torrents_list ) {
             $tmp_zip_name = ( $tmp_drive + '/' + $torrent.state + '_' + $torrent.hash + '.7z' )
         }
         If ( Test-Path -path $tmp_zip_name ) {
-            Write-Output 'Похоже, такой архив уже пишется в параллельной сессии/ Пропускаем'
+            Write-Output 'Похоже, такой архив уже пишется в параллельной сессии. Пропускаем'
+            continue
         }
         else {
             Write-Output ( "`n$($psstyle.Foreground.Cyan ) Архивируем " + $torrent.category + ', ' + $torrent.name + $psstyle.Reset)

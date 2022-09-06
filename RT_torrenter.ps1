@@ -11,6 +11,9 @@ $ids = @(
     3463348
 )
 
+$secure_pass = ConvertTo-SecureString -String $proxy_password -AsPlainText -Force
+$proxyCreds = New-Object System.Management.Automation.PSCredential -ArgumentList $proxy_login, $secure_pass
+
 Write-Output 'Авторизуемся на форуме'
 $headers = @{'User-Agent' = 'Mozilla/5.0' }
 $payload = @{'login_username' = $rutracker_login; 'login_password' = $rutracker_password; 'login' = '%E2%F5%EE%E4' }

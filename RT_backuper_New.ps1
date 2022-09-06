@@ -1,31 +1,10 @@
-# флаг удаления завешённых раздач. Если 1, то скачанные раздачи после архивации удаляются из клиента. Если 0, то нет.
-$delete_processed = 0
+. "$PSScriptRoot\RT_settings.ps1"
 
-# тут указываем каталог общих папок Google Drive. Слэш на конце добавлять не надо.
-$google_folder = 'M:\Shared drives'
-
-# тут указываем диск, на котором находится папка временных файлов клиента Google Drive (можно посмотреть и передвинуть в "Настройки" - Шестерёнка справа-сверху - "Локальная папка для хранения файлов из кеша").
-# нужно для того, чтобы сделать паузу на закачивание при архивировании, если эта папка переполнится, и скинуть очередной архив будет некуда.
-$drive_fs = 'K'
-
-# тут нужно указать временный локальный диск, на котором будут создаваться архивы до того, как будут переложены в папку гуглодиска, чтобы оне не пытался начинать закачку по мере архивации. Возможно, это и не требуется. 
-$tmp_drive = 'E'
-
-# ссылка на WebUI qBittorrent.
-$client_url = 'http://192.168.0.232:8082'
-
-# учётные данные для WebUI qBittorrent.
-$webui_login = 'login'
-$webui_password = 'password'
-
-# ссылка на архиватор 7z
-$7z_path = 'c:\Program Files\7-Zip\7z.exe'
-
-#  пароль на создаваемые архивы. Следует оставить как есть если не требуется иное в явном виде.
-$archive_password = '20RuTracker.ORG22'
-
-##### Дальше начинается собственно код, там в идеале ничего менять не нужно.
-##### разве что при желании можно скорректировать опции архивации.
+if ($client_url -eq '' -or $nul -eq $client_url ) {
+    Write-Output 'Проверьте наличие и заполненность файла настроек в каталоге скрипта'
+    Pause
+    exit
+}
 
 # лимит закачки на один диск в сутки
 $lv_750gb = 740 * 1024 * 1024 * 1024
@@ -45,7 +24,7 @@ Invoke-WebRequest -Headers $loginheader -Body $logindata ( $client_url + '/api/v
 if ( $args.Count -eq 0) {
     Write-Output 'Получаем список раздач из клиента'
     $all_torrents_list = ( Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/info' ) -WebSession $sid ).Content | ConvertFrom-Json | Select-Object name, hash, content_path, state, size, category, completion_on, added_on  | sort-object -Property size
-    $torrents_list = $all_torrents_list | Where-Object { $_.state -ne 'downloading' -and $_.state -ne 'stalledDL' -and $_.state -ne 'queuedDL' -and $_.state -ne 'error' -and $_.state -ne 'missingFiles' -and $_.state -ne 'movning' }
+    $torrents_list = $all_torrents_list | Where-Object { $_.state -ne 'downloading' -and ( $_.state -ne 'stalledDL' -and $_.state -eq 'uploading' -or $_.state -eq 'pausedUP' -or $_.state -eq 'queuedUP' -or $_.state -ne 'stalledUP' ) }
     
     Write-Output 'Получаем номера топиков по раздачам'
 }
@@ -97,6 +76,11 @@ $ok = $true
 if ( $args.count -eq 0 ) {
     # проверяем, что никакие раздачи не пересекаются по именам файлов (если файл один) или каталогов (если файлов много), чтобы не заархивировать не то
     Write-Output 'Проверяем уникальность путей сохранения раздач'
+
+    # исправление путей для кривых раздач с одним файлом в папке
+    if ( ( $torrent.content_path.Replace( $torrent.save_path.ToString(),'') -replace ('^[\\/]','')) -match ('[\\/]') ) {
+        $torrent.content_path = $torrent.content_path.Replace( $torrent.save_path.ToString(),'') -replace ('^[\\/]','') -replace ('[\\/][^\\/]*$','')
+    }
     foreach ( $torrent in $torrents_list ) {
         if ( $used_locs.keys -contains $torrent.content_path ) {
             Write-Output ( 'Несколько раздач хранятся по пути "' + $torrent.content_path + '" !')

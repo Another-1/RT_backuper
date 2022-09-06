@@ -82,7 +82,7 @@ foreach ( $hash in $hashes.Keys ) {
 
         Write-Output "Скачиваем торрент с форума"
         $forum_torrent_path = 'https://rutracker.org/forum/dl.php?t=' + $id
-        Invoke-WebRequest -uri $forum_torrent_path -WebSession $forum_login -OutFile ( $temp_folder + '\temp.torrent') | Out-Null
+        Invoke-WebRequest -uri $forum_torrent_path -WebSession $forum_login -OutFile ( $tmp_drive + '\temp.torrent') | Out-Null
 
         Write-Output "Добавляем торрент в клиент"
         $dl_url = @{

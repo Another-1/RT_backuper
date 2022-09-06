@@ -7,7 +7,7 @@ if ($client_url -eq '' -or $nul -eq $client_url ) {
 }
 
 $secure_pass = ConvertTo-SecureString -String $proxy_password -AsPlainText -Force
-$proxyCreds = New-Object System.Management.Automation.PSCredential -ArgumentList "keepers", $secure_pass
+$proxyCreds = New-Object System.Management.Automation.PSCredential -ArgumentList $proxy_login, $secure_pass
 
 Write-Output 'Смотрим, что уже заархивировано'
 $archives = @{}
@@ -66,30 +66,37 @@ $headers = @{'User-Agent' = 'Mozilla/5.0' }
 $payload = @{'login_username' = $rutracker_login; 'login_password' = $rutracker_password; 'login' = '%E2%F5%EE%E4' }
 Invoke-WebRequest -uri 'https://rutracker.org/forum/login.php' -SessionVariable forum_login -Method Post -body $payload -Headers $headers -Proxy $proxy_address -ProxyCredential $proxyCreds | Out-Null
 
+if ( $PSVersionTable.OS.ToLower().contains('windows')) {
+    $separator = '\'
+    $drive_separator = ':\'
+}
+else {
+    $separator = '/'
+    $drive_separator = '/'
+}
+
 foreach ( $hash in $hashes.Keys ) {
     if ( $nul -eq ( $client_torrents_list[$hash])) {
         $id = $hashes[$hash]
         $filename = $archives[$id]
-        if ( $torrent_folders -eq 1 ) {
-            $extract_path = $store_path + '\' + $id
-        }
-        else {
-            $extract_path = $store_path
-        }
         Write-Output "Распаковываем $filename"
+
+        if ( $torrent_folders -eq 1 ) { $extract_path = $store_path + $separator + $id }
+        else { $extract_path = $store_path }
+
         New-Item -path $extract_path -ErrorAction SilentlyContinue
         & $7z_path e "$filename" "-p$archive_password" "-o$extract_path"
 
         Write-Output "Скачиваем торрент с форума"
         $forum_torrent_path = 'https://rutracker.org/forum/dl.php?t=' + $id
-        Invoke-WebRequest -uri $forum_torrent_path -WebSession $forum_login -OutFile ( $tmp_drive + '\temp.torrent') | Out-Null
+        Invoke-WebRequest -uri $forum_torrent_path -WebSession $forum_login -OutFile ( $tmp_drive + $drive_separator + 'temp.torrent') | Out-Null
 
         Write-Output "Добавляем торрент в клиент"
         $dl_url = @{
-            name     = 'torrents'
-            torrents = get-item 'C:\temp\temp.torrent'
-            savepath = $extract_path
-            category = $category
+            name        = 'torrents'
+            torrents    = get-item ( $tmp_drive + $drive_separator + 'temp.torrent' )
+            savepath    = $extract_path
+            category    = $category
             root_folder = 'false'
         }
         Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/add' ) -form $dl_url -WebSession $sid -Method POST -ContentType 'application/x-bittorrent' | Out-Null

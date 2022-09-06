@@ -53,7 +53,7 @@ ForEach ( $id in $tracker_torrents_list.Keys ) {
 
                 # Скачиваем торрент с форума
                 $forum_torrent_path = 'https://rutracker.org/forum/dl.php?t=' + $id
-                Invoke-WebRequest -uri $forum_torrent_path -WebSession $forum_login -OutFile ( $temp_folder + '\temp.torrent') | Out-Null
+                Invoke-WebRequest -uri $forum_torrent_path -WebSession $forum_login -OutFile ( $tmp_drive + '\temp.torrent') | Out-Null
 
                 # и добавляем торрент в клиент
                 if ( $torrent_folders -eq 1 ) { $extract_path = $store_path + '\' + $id }

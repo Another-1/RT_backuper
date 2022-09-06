@@ -12,38 +12,57 @@ Write-Output 'Авторизуемся в клиенте'
 $logindata = "username=$webui_login&password=$webui_password"
 $loginheader = @{Referer = $client_url }
 Invoke-WebRequest -Headers $loginheader -Body $logindata ( $client_url + '/api/v2/auth/login' ) -Method POST -SessionVariable sid > $nul
-Write-Output 'Получаем список завершённых раздач из клиента'
+Write-Output 'Получаем список раздач из клиента'
 $client_torrents_list = ( Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/info' )-WebSession $sid ).Content | ConvertFrom-Json | Select-Object hash
 
-
 Write-Output 'Запрашиваем список раздач в разделе'
-$torrents_list = ( ( Invoke-WebRequest -Uri ( 'http://api.rutracker.org/v1/static/pvc/f/' + $choice ) ).content | ConvertFrom-Json -AsHashtable ).result
+$tracker_torrents_list = ( ( Invoke-WebRequest -Uri ( 'http://api.rutracker.org/v1/static/pvc/f/' + $choice ) ).content | ConvertFrom-Json -AsHashtable ).result
+if ( $default_category -ne '' ){
+$category = ( ( Invoke-WebRequest -Uri ( 'http://api.rutracker.org/v1/get_forum_name?by=forum_id&val=' + $choice ) ).content | ConvertFrom-Json -AsHashtable ).result[$choice]
+}
+else { $category = $default_category }
 
-if ( $torrents_list.count -eq 0) {
+if ( $tracker_torrents_list.count -eq 0) {
     Write-Output 'Не получено ни одной раздачи'
     Pause
     Exit
 }
 
+Write-Output 'Авторизуемся на форуме'
+$headers = @{'User-Agent' = 'Mozilla/5.0' }
+$payload = @{'login_username' = $rutracker_login; 'login_password' = $rutracker_password; 'login' = '%E2%F5%EE%E4' }
+Invoke-WebRequest -uri 'https://rutracker.org/forum/login.php' -SessionVariable forum_login -Method Post -body $payload -Headers $headers -Proxy $proxy_address -ProxyCredential $proxyCreds | Out-Null
+
 Write-Output 'Ставим раздачи на закачку'
-ForEach ( $id in $torrents_list.Keys ) {
+ForEach ( $id in $tracker_torrents_list.Keys ) {
     $reqdata = @{'by' = 'topic_id'; 'val' = $id.ToString() }
+    # по каждой раздаче с трекера ищем её hash
     $hash = (( Invoke-WebRequest -Uri ( 'http://api.rutracker.org/v1/get_tor_hash?by=topic_id&val=' + $id ) ).content | ConvertFrom-Json -AsHashtable ).result[$id]
     if ( $client_torrents_list -notcontains $hash ) {
+        # если такого hash ещё нет в клиенте, то:
+        # проверяем, что такая ещё не заархивирована
         $folder_name = '\ArchRuT_' + ( 300000 * [math]::Truncate(( $id - 1 ) / 300000) + 1 ) + '-' + 300000 * ( [math]::Truncate(( $id - 1 ) / 300000) + 1 ) + '\'
         $zip_name = $google_folder + $folder_name + $id + '_' + $hash.ToLower() + '.7z'
-        # закачиваем только если ещё нет на гугле
         if ( -not ( test-path -Path $zip_name ) ) {
             # поглощённые раздачи пропускаем
             $status = (( Invoke-WebRequest -uri 'http://api.rutracker.org/v1/get_tor_topic_data' -body $reqdata).content | ConvertFrom-Json -AsHashtable ).result[$id].tor_status
             if ( -not ( $status -eq 7 ) ) {
-                $reqdata = 'urls=magnet:?xt=urn:btih:' + $hash
-                Invoke-WebRequest  -Uri ( $client_url + '/api/v2/torrents/add' ) -Body $reqdata -WebSession $sid -Method Post > $nul
-                Start-Sleep -Seconds 2
-                $reqdata = 'hash=' + $hash + '&urls=http%3A%2F%2Fbt.t-ru.org%2Fann%3Fmagnet'
-                Invoke-WebRequest  -Uri ( $client_url + '/api/v2/torrents/addTrackers' ) -Body $reqdata -WebSession $sid -Method Post > $nul
+
+                # Скачиваем торрент с форума
+                $forum_torrent_path = 'https://rutracker.org/forum/dl.php?t=' + $id
+                Invoke-WebRequest -uri $forum_torrent_path -WebSession $forum_login -OutFile ( $temp_folder + '\temp.torrent') | Out-Null
+
+                # и добавляем торрент в клиент
+                if ( $torrent_folders -eq 1 ) { $extract_path = $store_path + '\' + $id }
+                else { $extract_path = $store_path }
+                $dl_url = @{
+                    name     = 'torrents'
+                    torrents = get-item 'C:\temp\temp.torrent'
+                    savepath = $extract_path
+                    category = $category
+                }
+                Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/add' ) -form $dl_url -WebSession $sid -Method POST -ContentType 'application/x-bittorrent' | Out-Null
             }
         }
     }
 }
- 

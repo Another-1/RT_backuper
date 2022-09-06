@@ -14,7 +14,7 @@ if ( $PSVersionTable.OS.ToLower().contains('windows')) {
 }
 else {
     $separator = '/'
-    $drive_separator = '\'
+    $drive_separator = '/'
 }
 
 $secure_pass = ConvertTo-SecureString -String $proxy_password -AsPlainText -Force
@@ -69,7 +69,7 @@ ForEach ( $id in $tracker_torrents_list.Keys ) {
                 else { $extract_path = $store_path }
                 $dl_url = @{
                     name        = 'torrents'
-                    torrents    = get-item ( $tmp_drive + $separator + 'temp.torrent' )
+                    torrents    = get-item ( $tmp_drive + $drive_separator + 'temp.torrent' )
                     savepath    = $extract_path
                     category    = $category
                     root_folder = 'false'

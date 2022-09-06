@@ -8,6 +8,9 @@ if ($client_url -eq '' -or $nul -eq $client_url ) {
 
 $choice = ( Read-Host -Prompt 'Выберите раздел' ).ToString()
 
+$secure_pass = ConvertTo-SecureString -String $proxy_password -AsPlainText -Force
+$proxyCreds = New-Object System.Management.Automation.PSCredential -ArgumentList "keepers", $secure_pass
+
 Write-Output 'Авторизуемся в клиенте'
 $logindata = "username=$webui_login&password=$webui_password"
 $loginheader = @{Referer = $client_url }
@@ -21,6 +24,7 @@ $category = $default_category
 if ( $default_category -eq '' ) {
     $category = ( ( Invoke-WebRequest -Uri ( 'http://api.rutracker.org/v1/get_forum_name?by=forum_id&val=' + $choice ) ).content | ConvertFrom-Json -AsHashtable ).result[$choice]
 }
+
 if ( $tracker_torrents_list.count -eq 0) {
     Write-Output 'Не получено ни одной раздачи'
     Pause

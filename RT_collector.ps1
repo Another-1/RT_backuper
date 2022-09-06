@@ -8,8 +8,11 @@ if ($client_url -eq '' -or $nul -eq $client_url ) {
 
 $choice = ( Read-Host -Prompt 'Выберите раздел' ).ToString()
 
+if ( $PSVersionTable.OS.ToLower().contains('windows')) { $separator = '\' }
+else { $separator = '/' }
+
 $secure_pass = ConvertTo-SecureString -String $proxy_password -AsPlainText -Force
-$proxyCreds = New-Object System.Management.Automation.PSCredential -ArgumentList "keepers", $secure_pass
+$proxyCreds = New-Object System.Management.Automation.PSCredential -ArgumentList $proxy_login, $secure_pass
 
 Write-Output 'Авторизуемся в клиенте'
 $logindata = "username=$webui_login&password=$webui_password"
@@ -53,14 +56,14 @@ ForEach ( $id in $tracker_torrents_list.Keys ) {
 
                 # Скачиваем торрент с форума
                 $forum_torrent_path = 'https://rutracker.org/forum/dl.php?t=' + $id
-                Invoke-WebRequest -uri $forum_torrent_path -WebSession $forum_login -OutFile ( $tmp_drive + '\temp.torrent') | Out-Null
+                Invoke-WebRequest -uri $forum_torrent_path -WebSession $forum_login -OutFile ( $tmp_drive + $separator + 'temp.torrent') | Out-Null
 
                 # и добавляем торрент в клиент
                 if ( $torrent_folders -eq 1 ) { $extract_path = $store_path + '\' + $id }
                 else { $extract_path = $store_path }
                 $dl_url = @{
                     name     = 'torrents'
-                    torrents = get-item 'C:\temp\temp.torrent'
+                    torrents = get-item ( $tmp_drive + $separator + 'temp.torrent' )
                     savepath = $extract_path
                     category = $category
                     root_folder = 'false'

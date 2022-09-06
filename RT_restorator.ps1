@@ -1,37 +1,11 @@
-# осздавать ли подкаталоги по ID для раздачи. 1 - создавать, 0 - не надо
-$torrent_folders = 0
+. "$PSScriptRoot\RT_settings.ps1"
 
-# каталог временных файлов для скачивания .torrent
-$temp_folder = 'C:\TEMP'
+if ($client_url -eq '' -or $nul -eq $client_url ) {
+    Write-Output 'Проверьте наличие и заполненность файла настроек в каталоге скрипта'
+    Pause
+    exit
+}
 
-# каталог для распаковки добавляемых раздач
-$store_path = 'E:\Хранимое\Прочее'
-
-# тут указываем каталог общих папок Google Drive.
-$google_folder = 'M:\Shared drives'
-
-# ссылка на WebUI qBittorrent.
-$client_url = 'http://192.168.0.232:8082'
-
-# учётные данные для WebUI qBittorrent.
-$webui_login = 'login'
-$webui_password = 'password'
-
-# ссылка на архиватор 7z
-$7z_path = 'c:\Program Files\7-Zip\7z.exe'
-
-# пароль на распаковку архивов. Следует оставить как есть если не требуется иное в явном виде.
-$archive_password = '20RuTracker.ORG22'
-
-# учётные данные форума
-$rutracker_login = 'forum_login'
-$rutracker_password = 'forum_password'
-
-# адрес и пароль прокси-сервера
-$proxy_address = 'http://45.8.144.130:3128'
-$proxy_password = 'proxy_password'
-
-##### Дальше начинается собственно код, там в идеале ничего менять не нужно.
 $secure_pass = ConvertTo-SecureString -String $proxy_password -AsPlainText -Force
 $proxyCreds = New-Object System.Management.Automation.PSCredential -ArgumentList "keepers", $secure_pass
 
@@ -50,6 +24,11 @@ $hashes_tmp.keys | ForEach-Object { $hashes[$hashes_tmp[$_]] = $_ }
 $hashes_tmp = @{}
 
 $choice = ( Read-Host -Prompt 'Выберите раздел' ).ToString()
+
+$category = $default_category
+if ( $default_category -eq '' ) {
+    $category = ( ( Invoke-WebRequest -Uri ( 'http://api.rutracker.org/v1/get_forum_name?by=forum_id&val=' + $choice ) ).content | ConvertFrom-Json -AsHashtable ).result[$choice]
+}
 
 Write-Output 'Запрашиваем c трекера список раздач в разделе'
 $tracker_torrents_list = ( ( Invoke-WebRequest -Uri ( 'http://api.rutracker.org/v1/static/pvc/f/' + $choice ) ).content | ConvertFrom-Json -AsHashtable ).result
@@ -110,6 +89,8 @@ foreach ( $hash in $hashes.Keys ) {
             name     = 'torrents'
             torrents = get-item 'C:\temp\temp.torrent'
             savepath = $extract_path
+            category = $category
+            root_folder = 'false'
         }
         Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/add' ) -form $dl_url -WebSession $sid -Method POST -ContentType 'application/x-bittorrent' | Out-Null
     }

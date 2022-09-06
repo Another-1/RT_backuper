@@ -80,7 +80,8 @@ if ( $args.count -eq 0 ) {
     foreach ( $torrent in $torrents_list ) {
         # исправление путей для кривых раздач с одним файлом в папке
         if ( ( $torrent.content_path.Replace( $torrent.save_path.ToString(), '') -replace ('^[\\/]', '')) -match ('[\\/]') ) {
-            $torrent.content_path = $torrent.content_path -replace ('[\\/][^\\/]*$', '')
+            $separator = $matches[0]
+            $torrent.content_path = $torrent.save_path + $separator + ( $torrent.content_path.Replace( $torrent.save_path.ToString(), '') -replace ('^[\\/]','') -replace ('[\\/].*$','') )
         }
         if ( $used_locs.keys -contains $torrent.content_path ) {
             Write-Output ( 'Несколько раздач хранятся по пути "' + $torrent.content_path + '" !')

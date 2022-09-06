@@ -24,7 +24,7 @@ Invoke-WebRequest -Headers $loginheader -Body $logindata ( $client_url + '/api/v
 if ( $args.Count -eq 0) {
     Write-Output 'Получаем список раздач из клиента'
     $all_torrents_list = ( Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/info' ) -WebSession $sid ).Content | ConvertFrom-Json | Select-Object name, hash, content_path, state, size, category, completion_on, added_on  | sort-object -Property size
-    $torrents_list = $all_torrents_list | Where-Object { $_.state -ne 'downloading' -and ( $_.state -ne 'stalledDL' -and $_.state -eq 'uploading' -or $_.state -eq 'pausedUP' -or $_.state -eq 'queuedUP' -or $_.state -ne 'stalledUP' ) }
+    $torrents_list = $all_torrents_list | Where-Object {  $_.state -eq 'uploading' -or $_.state -eq 'pausedUP' -or $_.state -eq 'queuedUP' -or $_.state -eq 'stalledUP' }
     
     Write-Output 'Получаем номера топиков по раздачам'
 }

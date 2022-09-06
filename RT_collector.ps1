@@ -17,11 +17,10 @@ $client_torrents_list = ( Invoke-WebRequest -uri ( $client_url + '/api/v2/torren
 
 Write-Output 'Запрашиваем список раздач в разделе'
 $tracker_torrents_list = ( ( Invoke-WebRequest -Uri ( 'http://api.rutracker.org/v1/static/pvc/f/' + $choice ) ).content | ConvertFrom-Json -AsHashtable ).result
-if ( $default_category -ne '' ){
-$category = ( ( Invoke-WebRequest -Uri ( 'http://api.rutracker.org/v1/get_forum_name?by=forum_id&val=' + $choice ) ).content | ConvertFrom-Json -AsHashtable ).result[$choice]
+$category = $default_category
+if ( $default_category -eq '' ) {
+    $category = ( ( Invoke-WebRequest -Uri ( 'http://api.rutracker.org/v1/get_forum_name?by=forum_id&val=' + $choice ) ).content | ConvertFrom-Json -AsHashtable ).result[$choice]
 }
-else { $category = $default_category }
-
 if ( $tracker_torrents_list.count -eq 0) {
     Write-Output 'Не получено ни одной раздачи'
     Pause

@@ -59,7 +59,7 @@ ForEach ( $id in $tracker_torrents_list.Keys ) {
                 Invoke-WebRequest -uri $forum_torrent_path -WebSession $forum_login -OutFile ( $tmp_drive + $separator + 'temp.torrent') | Out-Null
 
                 # и добавляем торрент в клиент
-                if ( $torrent_folders -eq 1 ) { $extract_path = $store_path + '\' + $id }
+                if ( $torrent_folders -eq 1 ) { $extract_path = $store_path + $separator + $id }
                 else { $extract_path = $store_path }
                 $dl_url = @{
                     name     = 'torrents'

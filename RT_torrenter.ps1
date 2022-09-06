@@ -12,7 +12,7 @@ $ids = @(
 )
 
 $secure_pass = ConvertTo-SecureString -String $proxy_password -AsPlainText -Force
-$proxyCreds = New-Object System.Management.Automation.PSCredential -ArgumentList $proxy_login, $secure_pass
+$proxyCreds = New-Object System.Management.Automation.PSCredential -ArgumentList "keepers", $secure_pass
 
 Write-Output 'Авторизуемся на форуме'
 $headers = @{'User-Agent' = 'Mozilla/5.0' }
@@ -28,5 +28,6 @@ else {
 }
 
 foreach ($id in $ids) {
+    $forum_torrent_path = 'https://rutracker.org/forum/dl.php?t=' + $id
     Invoke-WebRequest -uri $forum_torrent_path -WebSession $forum_login -OutFile ( $temp_folder + $separator + "$id.torrent") | Out-Null
 }

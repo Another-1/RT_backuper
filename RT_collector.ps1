@@ -38,7 +38,7 @@ $tracker_torrents_list = ( ( Invoke-WebRequest -Uri ( 'http://api.rutracker.org/
 if ($min_id -ne '0') {
     $tracker_torrents_list_required = @{}
     foreach( $key in $tracker_torrents_list.keys ) {
-        if( $key.ToInt32($null) -ge $min_id -and $_-le $max_id ) {
+        if( $key.ToInt32($null) -ge $min_id -and $key.ToInt32($null) -le $max_id ) {
             $tracker_torrents_list_required[$key] = $tracker_torrents_list[$key]
         }
     }

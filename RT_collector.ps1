@@ -7,6 +7,10 @@ if ($client_url -eq '' -or $nul -eq $client_url ) {
 }
 
 $choice = ( Read-Host -Prompt 'Выберите раздел' ).ToString()
+$min_id = ( Read-Host -Prompt 'Минимальный ID ( 0 если не нужно проверять ID)' ).ToString()
+if ( $min_id -ne '0' ) {
+    $max_id = ( Read-Host -Prompt 'Максимальный ID' ).ToString()
+}
 
 if ( $PSVersionTable.OS.ToLower().contains('windows')) {
     $separator = '\'
@@ -29,6 +33,16 @@ $client_torrents_list = ( Invoke-WebRequest -uri ( $client_url + '/api/v2/torren
 
 Write-Output 'Запрашиваем список раздач в разделе'
 $tracker_torrents_list = ( ( Invoke-WebRequest -Uri ( 'http://api.rutracker.org/v1/static/pvc/f/' + $choice ) ).content | ConvertFrom-Json -AsHashtable ).result
+if ($min_id -ne '0') {
+    $tracker_torrents_list_required = @{}
+    $tracker_torrents_list.keys | ForEach-Object {
+        if( $_ -ge $min_id -and $_-le $max_id ) {
+            $tracker_torrents_list_required[$_] = $tracker_torrents_list[$_]
+        }
+    }
+    $tracker_torrents_list = $tracker_torrents_list_required
+}
+
 $category = $default_category
 if ( $default_category -eq '' ) {
     $category = ( ( Invoke-WebRequest -Uri ( 'http://api.rutracker.org/v1/get_forum_name?by=forum_id&val=' + $choice ) ).content | ConvertFrom-Json -AsHashtable ).result[$choice]

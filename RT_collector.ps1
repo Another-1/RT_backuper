@@ -7,9 +7,11 @@ if ($client_url -eq '' -or $nul -eq $client_url ) {
 }
 
 $choice = ( Read-Host -Prompt 'Выберите раздел' ).ToString()
-$min_id = ( Read-Host -Prompt 'Минимальный ID ( 0 если не нужно проверять ID)' ).ToString()
+$min_id = ( Read-Host -Prompt 'Минимальный ID ( 0 если не нужно проверять ID)' )
 if ( $min_id -ne '0' ) {
-    $max_id = ( Read-Host -Prompt 'Максимальный ID' ).ToString()
+    $min_id = $min_id.ToInt32($null)
+    $max_id = ( Read-Host -Prompt 'Максимальный ID' )
+    $max_id = $max_id.ToInt32($null)
 }
 
 if ( $PSVersionTable.OS.ToLower().contains('windows')) {
@@ -35,9 +37,9 @@ Write-Output 'Запрашиваем список раздач в разделе
 $tracker_torrents_list = ( ( Invoke-WebRequest -Uri ( 'http://api.rutracker.org/v1/static/pvc/f/' + $choice ) ).content | ConvertFrom-Json -AsHashtable ).result
 if ($min_id -ne '0') {
     $tracker_torrents_list_required = @{}
-    $tracker_torrents_list.keys | ForEach-Object {
-        if( $_ -ge $min_id -and $_-le $max_id ) {
-            $tracker_torrents_list_required[$_] = $tracker_torrents_list[$_]
+    foreach( $key in $tracker_torrents_list.keys ) {
+        if( $key.ToInt32($null) -ge $min_id -and $_-le $max_id ) {
+            $tracker_torrents_list_required[$key] = $tracker_torrents_list[$key]
         }
     }
     $tracker_torrents_list = $tracker_torrents_list_required

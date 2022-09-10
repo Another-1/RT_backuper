@@ -31,7 +31,7 @@ if ( $args.Count -eq 0) {
 else {
     Write-Output 'Получаем общую информацию о раздаче из клиента'
     $reqdata = 'hashes=' + $args[0]
-    $torrents_list = ( Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/info?' + $reqdata) -WebSession $sid ).Content | ConvertFrom-Json | Select-Object name, hash, content_path, state, size, category | Where-Object { $_.state -ne 'downloading' -and $_.state -ne 'stalledDL' -and $_.state -ne 'queuedDL' -and $_.state -ne 'error' -and $_.state -ne 'missingFiles' } | sort-object -Property size
+    $torrents_list = ( Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/info?' + $reqdata) -WebSession $sid ).Content | ConvertFrom-Json | Select-Object name, hash, content_path, save_path, state, size, category | Where-Object { $_.state -ne 'downloading' -and $_.state -ne 'stalledDL' -and $_.state -ne 'queuedDL' -and $_.state -ne 'error' -and $_.state -ne 'missingFiles' } | sort-object -Property size
     Write-Output 'Получаем номер топика из раздачи'
 }
 
@@ -110,10 +110,18 @@ foreach ( $torrent in $torrents_list ) {
             continue
         }
         else {
+            if( -$nul -eq $default_compression ) { $compression = '1' }
+            else {
+                $topic_id = ( ( Invoke-WebRequest ( 'http://api.rutracker.org/v1/get_tor_topic_data?by=hash&val=' + $torrent.hash ) ).content | ConvertFrom-Json -AsHashtable ).result[$torrent.state].forum_id
+                $compression = $sections_compression[$topic_id.ToInt32($nul)]
+            }
+            if ( $nul -eq $compression ) {
+                $compression = $default_compression
+            }
             Write-Output ( "`n$($psstyle.Foreground.Cyan ) Архивируем " + $torrent.category + ', ' + $torrent.name + $psstyle.Reset)
             $param_sting = "-p$archive_password"
             if ( $args.Count -eq 0 ) {
-                & $7z_path a $tmp_zip_name $torrent.content_path $param_sting -mx2 -mmt4 -mhe -sccUTF-8 -bb0
+                & $7z_path a $tmp_zip_name $torrent.content_path $param_sting "-mx$compression" -mmt6 -mhe -sccUTF-8 -bb0
                 $zip_size = (Get-Item $tmp_zip_name).Length
                 $now = Get-date
                 $daybefore = $now.AddDays( -1 )
@@ -147,7 +155,7 @@ foreach ( $torrent in $torrents_list ) {
                 Write-Output ( ( [math]::Round( $today_size / 1024 / 1024 / 1024 ) ).ToString() + ' пока ещё меньше чем ' + ( $lv_750gb / 1024 / 1024 / 1024 ).ToString() + ', продолжаем' )
             }
             else {
-                & $7z_path a $tmp_zip_name $torrent.content_path $param_sting -mx0 -mmt4 -mhe -sccUTF-8 -bb0
+                & $7z_path a $tmp_zip_name $torrent.content_path $param_sting "-mx$compression" -mmt6 -mhe -sccUTF-8 -bb0
             }
             try {
                 Write-Output 'Перемещаем архив на гугл-диск...'

@@ -15,10 +15,6 @@ $google_folders = @(
 $rutracker_login = 'forum_login'
 $rutracker_password = 'forum_password'
 
-# адрес и пароль прокси-сервера
-$proxy_address = 'http://45.8.144.130:3128'
-$proxy_password = 'proxy_password'
-
 # адрес, логин и пароль прокси-сервера
 $proxy_address = 'http://45.8.144.130:3128'
 $proxy_login = 'keepers'

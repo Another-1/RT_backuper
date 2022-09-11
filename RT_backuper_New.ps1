@@ -126,14 +126,16 @@ foreach ( $torrent in $torrents_list ) {
                 $now = Get-date
                 $daybefore = $now.AddDays( -1 )
                 $uploads_tmp = @{}
-                $uploads = $uploads_all[ $folder_name ]
+                # $uploads = $uploads_all[ $folder_name ]
+                $uploads = $uploads_all[ 'all_disks' ]
                 $uploads.keys | Where-Object { $_ -ge $daybefore } | ForEach-Object { $uploads_tmp += @{ $_ = $uploads[$_] } }
                 $uploads = $uploads_tmp
                 $uploads += @{ $now = $zip_size }
                 $today_size = ( $uploads.values | Measure-Object -sum ).Sum
                 while ( $today_size -gt $lv_750gb ) {
-                    Write-Output ( "Дневной трафик по диску " + $folder_name + " уже " + [math]::Round( $today_size / 1024 / 1024 / 1024 ) )
-                    Write-Output 'Подождём часик чтобы не выйти за 750 Гб. (сообщение будет повторяться пока не выйдем)'
+                    # Write-Output ( "Дневной трафик по диску " + $folder_name + " уже " + [math]::Round( $today_size / 1024 / 1024 / 1024 ) )
+                    Write-Output ( "Дневной трафик уже " + [math]::Round( $today_size / 1024 / 1024 / 1024 ) )
+                    Write-Output 'Подождём часик чтобы не выйти за ' + [math]::Round( $today_size / 1024 / 1024 / 1024 ) + '. (сообщение будет повторяться пока не вернёмся в лимит)'
                     Start-Sleep -Seconds (60 * 60 )
                     $now = Get-date
                     $daybefore = $now.AddDays( -1 )
@@ -142,7 +144,8 @@ foreach ( $torrent in $torrents_list ) {
                     $uploads = $uploads_tmp
                     $today_size = ( $uploads.values | Measure-Object -sum ).Sum
                 }
-                $uploads_all[$folder_name] = $uploads
+                # $uploads_all[$folder_name] = $uploads
+                $uploads_all['all_disks'] = $uploads
 
                 if ( $PSVersionTable.OS.ToLower -contains 'windows') {
                     $fs = ( Get-PSDrive $drive_fs | Select-Object Free ).free

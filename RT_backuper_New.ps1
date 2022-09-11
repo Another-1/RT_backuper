@@ -10,6 +10,7 @@ if ($client_url -eq '' -or $nul -eq $client_url ) {
 $lv_750gb = 740 * 1024 * 1024 * 1024
 
 if ( $args.count -eq 0 ) {
+    $google_folder = $google_folders[0]
     Write-Output 'Смотрим, что уже заархивировано'
     $dones = @{}
 ( get-childitem( $google_folder ) | Where-Object { $_.name -like 'ArchRuT*' } ) | ForEach-Object { Get-ChildItem( $_ ) } | ForEach-Object { $dones[$_.BaseName.ToLower()] = 1 }

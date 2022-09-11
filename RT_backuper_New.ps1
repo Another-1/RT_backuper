@@ -125,7 +125,7 @@ foreach ( $torrent in $torrents_list ) {
             Write-Output ( "`n$($psstyle.Foreground.Cyan ) Архивируем " + $torrent.category + ', ' + $torrent.name + $psstyle.Reset)
             $param_sting = "-p$archive_password"
             if ( $args.Count -eq 0 ) {
-                & $7z_path a $tmp_zip_name $torrent.content_path $param_sting "-mx$compression" -mmt6 -mhe=on -sccUTF-8 -bb0
+                & $7z_path a $tmp_zip_name $torrent.content_path $param_sting "-mx$compression" "-mmt$cores" -mhe=on -sccUTF-8 -bb0
                 $zip_size = (Get-Item $tmp_zip_name).Length
                 $now = Get-date
                 $daybefore = $now.AddDays( -1 )
@@ -162,7 +162,7 @@ foreach ( $torrent in $torrents_list ) {
                 Write-Output ( ( [math]::Round( $today_size / 1024 / 1024 / 1024 ) ).ToString() + ' пока ещё меньше чем ' + ( $lv_750gb / 1024 / 1024 / 1024 ).ToString() + ', продолжаем' )
             }
             else {
-                & $7z_path a $tmp_zip_name $torrent.content_path $param_sting "-mx$compression" -mmt6 -mhe=on -sccUTF-8 -bb0
+                & $7z_path a $tmp_zip_name $torrent.content_path $param_sting "-mx$compression" "-mmt$cores" -mhe=on -sccUTF-8 -bb0
             }
             try {
                 Write-Output 'Перемещаем архив на гугл-диск...'

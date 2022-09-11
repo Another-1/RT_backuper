@@ -5,8 +5,11 @@ $client_url = 'http://192.168.0.232:8082'
 $webui_login = 'webui_login'
 $webui_password = 'webui_password'
 
-# тут указываем каталог общих папок Google Drive.
-$google_folder = 'M:\Shared drives'
+# тут указываем каталоги общих папок Google Drive (по одному на учётку Google).
+$google_folders = @(
+    'M:\Shared drives'
+    'O:\Shared drives'
+)
 
 # учётные данные форума
 $rutracker_login = 'forum_login'

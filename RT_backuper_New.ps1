@@ -95,7 +95,10 @@ if ( $args.count -eq 0 ) {
         Exit
     }
 }
+$folder_pointer = 0
 foreach ( $torrent in $torrents_list ) {
+    $google_folder = $google_folders[$folder_pointer]
+    $folder_pointer = [math]::IEEERemainder( ( $folder_pointer + 1 ), $google_folders.count )
     $folder_name = '\ArchRuT_' + ( 300000 * [math]::Truncate(( $torrent.state - 1 ) / 300000) + 1 ) + '-' + 300000 * ( [math]::Truncate(( $torrent.state - 1 ) / 300000) + 1 ) + '\'
     $zip_name = $google_folder + $folder_name + $torrent.state + '_' + $torrent.hash.ToLower() + '.7z'
     if ( -not ( test-path -Path $zip_name ) ) {
@@ -126,15 +129,15 @@ foreach ( $torrent in $torrents_list ) {
                 $now = Get-date
                 $daybefore = $now.AddDays( -1 )
                 $uploads_tmp = @{}
-                # $uploads = $uploads_all[ $folder_name ]
-                $uploads = $uploads_all[ 'all_disks' ]
+                $uploads = $uploads_all[ $google_folder ]
+                # $uploads = $uploads_all[ 'all_disks' ]
                 $uploads.keys | Where-Object { $_ -ge $daybefore } | ForEach-Object { $uploads_tmp += @{ $_ = $uploads[$_] } }
                 $uploads = $uploads_tmp
                 $uploads += @{ $now = $zip_size }
                 $today_size = ( $uploads.values | Measure-Object -sum ).Sum
                 while ( $today_size -gt $lv_750gb ) {
-                    # Write-Output ( "Дневной трафик по диску " + $folder_name + " уже " + [math]::Round( $today_size / 1024 / 1024 / 1024 ) )
-                    Write-Output ( "Дневной трафик уже " + [math]::Round( $today_size / 1024 / 1024 / 1024 ) )
+                    Write-Output ( "Дневной трафик по диску " + $google_folder + " уже " + [math]::Round( $today_size / 1024 / 1024 / 1024 ) )
+                    # Write-Output ( "Дневной трафик уже " + [math]::Round( $today_size / 1024 / 1024 / 1024 ) )
                     Write-Output 'Подождём часик чтобы не выйти за ' + [math]::Round( $today_size / 1024 / 1024 / 1024 ) + '. (сообщение будет повторяться пока не вернёмся в лимит)'
                     Start-Sleep -Seconds (60 * 60 )
                     $now = Get-date
@@ -144,8 +147,8 @@ foreach ( $torrent in $torrents_list ) {
                     $uploads = $uploads_tmp
                     $today_size = ( $uploads.values | Measure-Object -sum ).Sum
                 }
-                # $uploads_all[$folder_name] = $uploads
-                $uploads_all['all_disks'] = $uploads
+                $uploads_all[$google_folder] = $uploads
+                # $uploads_all['all_disks'] = $uploads
 
                 if ( $PSVersionTable.OS.ToLower -contains 'windows') {
                     $fs = ( Get-PSDrive $drive_fs | Select-Object Free ).free

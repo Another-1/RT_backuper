@@ -31,7 +31,7 @@ function Get-ClientTorrents ($client_url, $sid, $t_args) {
     
 }
 
-function Get-TopicIDs( $torrent_list ) {
+function Get-TopicIDs( $torrents_list ) {
     foreach ( $torrent in $torrents_list ) {
         $reqdata = 'hash=' + $torrent.hash
         try { $torprops = ( Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/properties' ) -Body $reqdata  -WebSession $sid -Method POST ).Content | ConvertFrom-Json }
@@ -51,10 +51,10 @@ function Get-TopicIDs( $torrent_list ) {
         }
     }
     $torrents_list = $torrents_list | Where-Object { $nul -ne $_.state }
-    return $torrent_list
+    return $torrents_list
 }
 
-function Get-Required ( $torrent_list, $dones ) {
+function Get-Required ( $torrents_list, $dones ) {
     $torrents_list_required = [System.Collections.ArrayList]::new()
     $torrents_list | ForEach-Object {
         if ( $_.state -ne '' -and $nul -eq $dones[( $_.state.ToString() + '_' + $_.hash.ToLower())] ) {

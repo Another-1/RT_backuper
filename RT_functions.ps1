@@ -88,5 +88,6 @@ function Get-TodayTraffic ( $uploads_all, $zip_size, $google_folder) {
     $uploads.keys | Where-Object { $_ -ge $daybefore } | ForEach-Object { $uploads_tmp += @{ $_ = $uploads[$_] } }
     $uploads = $uploads_tmp
     $uploads += @{ $now = $zip_size }
-    return ( $uploads.values | Measure-Object -sum ).Sum
+    $uploads_all[$google_folder] = $uploads
+    return ( $uploads.values | Measure-Object -sum ).Sum, $uploads_all
 }

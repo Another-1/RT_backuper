@@ -36,10 +36,12 @@ function Get-TopicIDs( $torrent_list ) {
         $reqdata = 'hash=' + $torrent.hash
         try { $torprops = ( Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/properties' ) -Body $reqdata  -WebSession $sid -Method POST ).Content | ConvertFrom-Json }
         catch { pause }
-        
-        $torrent.state = ( Select-String "\d*$" -InputObject $torprops.comment).Matches.Value
+        $torrent.state = $nul
+        if ( $torprops.comment -match 'rutracker' ) {
+            $torrent.state = ( Select-String "\d*$" -InputObject $torprops.comment).Matches.Value
+        }
         # если не удалось получить информацию об ID из коммента, сходим в API и попробуем получить там
-        if ( $torrent.state -eq '' ) {
+        if ( $nul -eq $torrent.state ) {
             $torrent.state = ( ( Invoke-WebRequest ( 'http://api.rutracker.org/v1/get_topic_id?by=hash&val=' + $torrent.hash ) ).content | ConvertFrom-Json ).result.($torrent.hash)
         }
         # исправление путей для кривых раздач с одним файлом в папке
@@ -48,6 +50,7 @@ function Get-TopicIDs( $torrent_list ) {
             $torrent.content_path = $torrent.save_path + $separator + ( $torrent.content_path.Replace( $torrent.save_path.ToString(), '') -replace ('^[\\/]', '') -replace ('[\\/].*$', '') )
         }
     }
+    $torrents_list = $torrents_list | Where-Object { $nul -ne $_.state }
     return $torrent_list
 }
 
@@ -77,7 +80,7 @@ function  Get-Compression ( $sections_compression, $default_compression, $torent
     return $compression
 }
 
-function Get-TodayTraffic ( $uploads_all, $zip_size, $google_folder){ 
+function Get-TodayTraffic ( $uploads_all, $zip_size, $google_folder) { 
     $now = Get-date
     $daybefore = $now.AddDays( -1 )
     $uploads_tmp = @{}

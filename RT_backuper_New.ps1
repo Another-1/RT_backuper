@@ -94,14 +94,17 @@ foreach ( $torrent in $torrents_list ) {
             if ( $args.Count -eq 0 ) {
                 & $7z_path a $tmp_zip_name $torrent.content_path "-p$archive_password" "-mx$compression" "-mmt$cores" -mhe=on -sccUTF-8 -bb0
                 $zip_size = (Get-Item $tmp_zip_name).Length
-                $today_size = Get-TodayTraffic $uploads_all $zip_size $google_folder
-                while ( $today_size -gt $lv_750gb ) {
+                $size_grp = Get-TodayTraffic $uploads_all $zip_size $google_folder
+                $today_size = $size_grp[0]
+                $uploads_all = $size_grp[1]
+            while ( $today_size -gt $lv_750gb ) {
                     Write-Output ( "Дневной трафик по диску " + $google_folder + " уже " + [math]::Round( $today_size / 1024 / 1024 / 1024 ) )
                     Write-Output 'Подождём часик чтобы не выйти за ' + [math]::Round( $today_size / 1024 / 1024 / 1024 ) + '. (сообщение будет повторяться пока не вернёмся в лимит)'
                     Start-Sleep -Seconds (60 * 60 )
-                    $today_size = Get-TodayTraffic $uploads_all $zip_size $google_folder
+                    $size_grp = Get-TodayTraffic $uploads_all $zip_size $google_folder
+                    $today_size = $size_grp[0]
+                    $uploads_all = $size_grp[1]
                 }
-                $uploads_all[$google_folder] = $uploads
 
                 if ( $PSVersionTable.OS.ToLower -contains 'windows') {
                     $fs = ( Get-PSDrive $drive_fs | Select-Object Free ).free

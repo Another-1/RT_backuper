@@ -1,76 +1,54 @@
-. "$PSScriptRoot\RT_settings.ps1"
+If ( $PSVersionTable.PSVersion -lt [version]'7.1.0.0') {
+    Write-Host 'У вас слишком древний Powershell, обновитесь с https://github.com/PowerShell/PowerShell#get-powershell ' -ForegroundColor Red
+    Pause
+    Exit
+}
 
-if ($client_url -eq '' -or $nul -eq $client_url ) {
+. "$PSScriptRoot\RT_settings.ps1"
+. "$PSScriptRoot\RT_functions.ps1"
+
+If ( -not( Sync-Settings ) ) { 
     Write-Output 'Проверьте наличие и заполненность файла настроек в каталоге скрипта'
     Pause
-    exit
+    Exit
 }
+
+Clear-Host
 
 # лимит закачки на один диск в сутки
 $lv_750gb = 740 * 1024 * 1024 * 1024
 
 if ( $args.count -eq 0 ) {
-    $google_folder = $google_folders[0]
     Write-Output 'Смотрим, что уже заархивировано'
-    $dones = @{}
-( get-childitem( $google_folder ) | Where-Object { $_.name -like 'ArchRuT*' } ) | ForEach-Object { Get-ChildItem( $_ ) } | ForEach-Object { $dones[$_.BaseName.ToLower()] = 1 }
+    $dones = Get-Archives $google_folders
 }
 
 Write-Output 'Авторизуемся в клиенте'
-$logindata = "username=$webui_login&password=$webui_password"
-$loginheader = @{Referer = $client_url }
-Invoke-WebRequest -Headers $loginheader -Body $logindata ( $client_url + '/api/v2/auth/login' ) -Method POST -SessionVariable sid > $nul
+$sid = Initialize-Client
 
 # получаем список раздач из клиента
-if ( $args.Count -eq 0) {
+if ( $t_args.Count -eq 0) {
     Write-Output 'Получаем список раздач из клиента'
-    $all_torrents_list = ( Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/info' ) -WebSession $sid ).Content | ConvertFrom-Json | Select-Object name, hash, content_path, save_path, state, size, category | sort-object -Property size
-    $torrents_list = $all_torrents_list | Where-Object { $_.state -eq 'uploading' -or $_.state -eq 'pausedUP' -or $_.state -eq 'queuedUP' -or $_.state -eq 'stalledUP' }
-    Remove-Variable -Name all_torrents_list
+    $torrents_list = Get-ClientTorrents $client_url $sid $args
     Write-Output 'Получаем номера топиков по раздачам'
 }
 else {
     Write-Output 'Получаем общую информацию о раздаче из клиента'
-    $reqdata = 'hashes=' + $args[0]
-    $torrents_list = ( Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/info?' + $reqdata) -WebSession $sid ).Content | ConvertFrom-Json | Select-Object name, hash, content_path, save_path, state, size, category | Where-Object { $_.state -ne 'downloading' -and $_.state -ne 'stalledDL' -and $_.state -ne 'queuedDL' -and $_.state -ne 'error' -and $_.state -ne 'missingFiles' } | sort-object -Property size
+    $torrents_list = Get-ClientTorrents $client_url $sid $args
     Write-Output 'Получаем номер топика из раздачи'
 }
 
 # по каждой раздаче получаем коммент, чтобы достать из него номер топика
-foreach ( $torrent in $torrents_list ) {
-    $reqdata = 'hash=' + $torrent.hash
-    try { $torprops = ( Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/properties' ) -Body $reqdata  -WebSession $sid -Method POST ).Content | ConvertFrom-Json }
-    catch { pause }
-    
-    $torrent.state = ( Select-String "\d*$" -InputObject $torprops.comment).Matches.Value
-    # если не удалось получить информацию об ID из коммента, сходим в API и попробуем получить там
-    if ( $torrent.state -eq '' ) {
-        $torrent.state = ( ( Invoke-WebRequest ( 'http://api.rutracker.org/v1/get_topic_id?by=hash&val=' + $torrent.hash ) ).content | ConvertFrom-Json ).result.($torrent.hash)
-    }
-    # исправление путей для кривых раздач с одним файлом в папке
-    if ( ( $torrent.content_path.Replace( $torrent.save_path.ToString(), '') -replace ('^[\\/]', '')) -match ('[\\/]') ) {
-        $separator = $matches[0]
-        $torrent.content_path = $torrent.save_path + $separator + ( $torrent.content_path.Replace( $torrent.save_path.ToString(), '') -replace ('^[\\/]', '') -replace ('[\\/].*$', '') )
-    }
-}
+$torrents_list = Get-TopicIDs $torrents_list
 
 # отбросим раздачи, для которых уже есть архив с тем же хэшем
 if ( $args.count -eq 0 ) {
-    $torrents_list_required = [System.Collections.ArrayList]::new()
     Write-Output 'Пропускаем уже заархивированные раздачи'
-    $torrents_list | ForEach-Object {
-        if ( $_.state -ne '' -and $nul -eq $dones[( $_.state.ToString() + '_' + $_.hash.ToLower())] ) {
-            $torrents_list_required += $_
-        }
-        elseif ( $delete_processed -eq 1 ) {
-            Write-Output ( 'Удаляем из клиента раздачу ' + $torrent.state )
-            $reqdata = 'hashes=' + $_.hash + '&deleteFiles=true'
-            Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/delete' ) -Body $reqdata -WebSession $sid -Method POST > $nul
-        }
-    }
-    Write-Output( 'Пропущено ' + ( $torrents_list.count - $torrents_list_required.count ) + ' раздач')
-    $torrents_list = $torrents_list_required
+    $was = $torrents_list.count
+    $torrents_list = Get-Required $torrents_list $dones
+    if ( $was -ne $torrents_list.count ) { Write-Output( 'Пропущено ' + ( $was - $torrents_list.count ) + ' раздач') }
 }
+
 $proc_size = 0
 $proc_cnt = 0
 $uploads_all = @{}
@@ -103,52 +81,27 @@ foreach ( $torrent in $torrents_list ) {
     $folder_name = '\ArchRuT_' + ( 300000 * [math]::Truncate(( $torrent.state - 1 ) / 300000) + 1 ) + '-' + 300000 * ( [math]::Truncate(( $torrent.state - 1 ) / 300000) + 1 ) + '\'
     $zip_name = $google_folder + $folder_name + $torrent.state + '_' + $torrent.hash.ToLower() + '.7z'
     if ( -not ( test-path -Path $zip_name ) ) {
-        if ( $PSVersionTable.OS.ToLower().contains('windows')) {
-            $tmp_zip_name = ( $tmp_drive + ':\' + $torrent.state + '_' + $torrent.hash + '.7z' )
-        }
-        else {
-            $tmp_zip_name = ( $tmp_drive + '/' + $torrent.state + '_' + $torrent.hash + '.7z' )
-        }
+        if ( $PSVersionTable.OS.ToLower().contains('windows')) { $tmp_zip_name = ( $tmp_drive + ':\' + $torrent.state + '_' + $torrent.hash + '.7z' ) }
+        else { $tmp_zip_name = ( $tmp_drive + '/' + $torrent.state + '_' + $torrent.hash + '.7z' ) }
+
         If ( Test-Path -path $tmp_zip_name ) {
             Write-Output 'Похоже, такой архив уже пишется в параллельной сессии. Пропускаем'
             continue
         }
         else {
-            if( -$nul -eq $default_compression ) { $compression = '1' }
-            else {
-                $topic_id = ( ( Invoke-WebRequest ( 'http://api.rutracker.org/v1/get_tor_topic_data?by=hash&val=' + $torrent.hash ) ).content | ConvertFrom-Json -AsHashtable ).result[$torrent.state].forum_id
-                $compression = $sections_compression[$topic_id.ToInt32($nul)]
-            }
-            if ( $nul -eq $compression ) {
-                $compression = $default_compression
-            }
+            $compression = Get-Compression $sections_compression $default_compression $torent
             Write-Output ( "`n$($psstyle.Foreground.Cyan ) Архивируем " + $torrent.category + ', ' + $torrent.name + $psstyle.Reset)
             if ( $args.Count -eq 0 ) {
                 & $7z_path a $tmp_zip_name $torrent.content_path "-p$archive_password" "-mx$compression" "-mmt$cores" -mhe=on -sccUTF-8 -bb0
                 $zip_size = (Get-Item $tmp_zip_name).Length
-                $now = Get-date
-                $daybefore = $now.AddDays( -1 )
-                $uploads_tmp = @{}
-                $uploads = $uploads_all[ $google_folder ]
-                # $uploads = $uploads_all[ 'all_disks' ]
-                $uploads.keys | Where-Object { $_ -ge $daybefore } | ForEach-Object { $uploads_tmp += @{ $_ = $uploads[$_] } }
-                $uploads = $uploads_tmp
-                $uploads += @{ $now = $zip_size }
-                $today_size = ( $uploads.values | Measure-Object -sum ).Sum
+                $today_size = Get-TodayTraffic $uploads_all $zip_size $google_folder
                 while ( $today_size -gt $lv_750gb ) {
                     Write-Output ( "Дневной трафик по диску " + $google_folder + " уже " + [math]::Round( $today_size / 1024 / 1024 / 1024 ) )
-                    # Write-Output ( "Дневной трафик уже " + [math]::Round( $today_size / 1024 / 1024 / 1024 ) )
                     Write-Output 'Подождём часик чтобы не выйти за ' + [math]::Round( $today_size / 1024 / 1024 / 1024 ) + '. (сообщение будет повторяться пока не вернёмся в лимит)'
                     Start-Sleep -Seconds (60 * 60 )
-                    $now = Get-date
-                    $daybefore = $now.AddDays( -1 )
-                    $uploads_tmp = @{}
-                    $uploads.keys | Where-Object { $_ -ge $daybefore } | ForEach-Object { $uploads_tmp += @{ $_ = $uploads[$_] } }
-                    $uploads = $uploads_tmp
-                    $today_size = ( $uploads.values | Measure-Object -sum ).Sum
+                    $today_size = Get-TodayTraffic $uploads_all $zip_size $google_folder
                 }
                 $uploads_all[$google_folder] = $uploads
-                # $uploads_all['all_disks'] = $uploads
 
                 if ( $PSVersionTable.OS.ToLower -contains 'windows') {
                     $fs = ( Get-PSDrive $drive_fs | Select-Object Free ).free

@@ -11,7 +11,6 @@ $google_folders = @(
     'O:\Shared drives'
 )
 
-
 # адрес, логин и пароль прокси-сервера
 $proxy_address = 'http://45.8.144.130:3128'
 $proxy_login = 'keepers'

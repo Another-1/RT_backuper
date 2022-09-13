@@ -7,11 +7,9 @@ If ( $PSVersionTable.PSVersion -lt [version]'7.1.0.0') {
 . "$PSScriptRoot\RT_settings.ps1"
 . "$PSScriptRoot\RT_functions.ps1"
 
-If ( -not( Sync-Settings ) ) { 
-    Write-Output 'Проверьте наличие и заполненность файла настроек в каталоге скрипта'
-    Pause
-    Exit
-}
+If ( -not( Sync-Settings ) ) { Write-Output 'Проверьте наличие и заполненность файла настроек в каталоге скрипта';  Pause; Exit }
+
+if ( $PSVersionTable.OS.ToLower().contains('windows')) { $drive_separator = ':\' } else { $drive_separator = '/' }
 
 Clear-Host
 
@@ -81,8 +79,7 @@ foreach ( $torrent in $torrents_list ) {
     $folder_name = '\ArchRuT_' + ( 300000 * [math]::Truncate(( $torrent.state - 1 ) / 300000) + 1 ) + '-' + 300000 * ( [math]::Truncate(( $torrent.state - 1 ) / 300000) + 1 ) + '\'
     $zip_name = $google_folder + $folder_name + $torrent.state + '_' + $torrent.hash.ToLower() + '.7z'
     if ( -not ( test-path -Path $zip_name ) ) {
-        if ( $PSVersionTable.OS.ToLower().contains('windows')) { $tmp_zip_name = ( $tmp_drive + ':\' + $torrent.state + '_' + $torrent.hash + '.7z' ) }
-        else { $tmp_zip_name = ( $tmp_drive + '/' + $torrent.state + '_' + $torrent.hash + '.7z' ) }
+        $tmp_zip_name = ( $tmp_drive + $drive_separator + $torrent.state + '_' + $torrent.hash + '.7z' )
 
         If ( Test-Path -path $tmp_zip_name ) {
             Write-Output 'Похоже, такой архив уже пишется в параллельной сессии. Пропускаем'

@@ -91,3 +91,19 @@ function Get-TodayTraffic ( $uploads_all, $zip_size, $google_folder) {
     $uploads_all[$google_folder] = $uploads
     return ( $uploads.values | Measure-Object -sum ).Sum, $uploads_all
 }
+
+function Start-Stopping { 
+    $paused = $false
+    while ( ( $nul -ne $start_time -and $nul -ne $stop_time ) -and `
+        ( ( $start_time -lt $stop_time -and ( ( Get-Date -Format t ) -lt $start_time -or ( Get-Date -Format t ) -gt $stop_time ) ) -or `
+            ( $start_time -gt $stop_time -and ( ( Get-Date -Format t ) -gt $stop_time -and ( Get-Date -Format t ) -lt $start_time ) )
+        )
+    ) {
+        if ( -not $paused ) {
+            Write-Output "Останавливаемся по расписанию, ждём до $start_time"
+            $paused = $true
+        }
+        Start-Sleep -Seconds 60
+        Write-Output ( Get-Date -Format t )
+    }
+}

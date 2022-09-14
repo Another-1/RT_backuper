@@ -104,7 +104,7 @@ foreach ( $torrent in $torrents_list ) {
                 }
 
                 if ( $PSVersionTable.OS.ToLower -contains 'windows') {
-                    $fs = ( Get-PSDrive $drive_fs | Select-Object Free ).free
+                    $fs = ( Get-PSDrive $drive_fs | Select-Object Free ).Free
                     while ( $zip_size -gt ( $fs - 10000000 ) ) {
                         Write-Output ( "Мало места на диске кэша Google ($drive_fs$drive_separator), подождём пока станет больше чем " + ([int]($zip_size / 1024 / 1024)).ToString() + ' Мб')
                         Start-Sleep -Seconds 600
@@ -139,4 +139,5 @@ foreach ( $torrent in $torrents_list ) {
     $proc_cnt++
     $proc_size += $torrent.size
     Write-Output ( 'Обработано ' + $proc_cnt + ' раздач (' + ( [math]::Round( $proc_size / 1024 / 1024 / 1024 ) ).ToString() + ' Гб) из ' + $sum_cnt + ' (' + ( [math]::Round( $sum_size / 1000 / 1000 / 1000 ) ).ToString() + ' Гб)' )
+    Start-Stopping
 }

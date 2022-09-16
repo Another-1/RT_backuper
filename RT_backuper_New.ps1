@@ -98,7 +98,7 @@ foreach ( $torrent in $torrents_list ) {
                 $uploads_all = $size_grp[1]
             while ( $today_size -gt $lv_750gb ) {
                     Write-Output ( "Дневной трафик по диску " + $google_folder + " уже " + [math]::Round( $today_size / 1024 / 1024 / 1024 ) )
-                    Write-Output 'Подождём часик чтобы не выйти за ' + [math]::Round( $today_size / 1024 / 1024 / 1024 ) + '. (сообщение будет повторяться пока не вернёмся в лимит)'
+                    Write-Output ( 'Подождём часик чтобы не выйти за ' + [math]::Round( $today_size / 1024 / 1024 / 1024 ) + '. (сообщение будет повторяться пока не вернёмся в лимит)' )
                     Start-Sleep -Seconds (60 * 60 )
                     $size_grp = Get-TodayTraffic $uploads_all $zip_size $google_folder
                     $today_size = $size_grp[0]

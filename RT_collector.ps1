@@ -26,9 +26,6 @@ elseif ($args.count -eq 3) {
     $max_id = $args[2].ToInt32($nul)
 }
 else { Write-Output 'Параметров должно быть не столько. Либо 0, либо 1, либо 3'; pause ; Exit }
-Write-Output ( $choice, $min_id, $max_id)
-
-Exit
 
 if ( $PSVersionTable.OS.ToLower().contains('windows')) {
     $separator = '\'

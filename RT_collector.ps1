@@ -70,13 +70,13 @@ ForEach ( $id in $tracker_torrents_list.Keys ) {
         # если такого hash ещё нет в клиенте, то:
         # проверяем, что такая ещё не заархивирована
         $folder_name = '\ArchRuT_' + ( 300000 * [math]::Truncate(( $id - 1 ) / 300000) + 1 ) + '-' + 300000 * ( [math]::Truncate(( $id - 1 ) / 300000) + 1 ) + '\'
-        $zip_name = $google_folder + $folder_name + $id + '_' + $hash.ToLower() + '.7z'
+        $zip_name = $google_folders[0] + $folder_name + $id + '_' + $hash.ToLower() + '.7z'
         if ( -not ( test-path -Path $zip_name ) ) {
             # поглощённые раздачи пропускаем
-            $status = (( Invoke-WebRequest -uri 'http://api.rutracker.org/v1/get_tor_topic_data' -body $reqdata).content | ConvertFrom-Json -AsHashtable ).result[$id].tor_status
-            if ( -not ( $status -eq 7 ) ) {
-
+            $info = (( Invoke-WebRequest -uri 'http://api.rutracker.org/v1/get_tor_topic_data' -body $reqdata).content | ConvertFrom-Json -AsHashtable ).result[$id]
+            if ( -not ( $info.tor_status -eq 7 ) ) {
                 # Скачиваем торрент с форума
+                Write-Output ( "Скачиваем раздачу $id под названием " + $info.topic_title )
                 $forum_torrent_path = 'https://rutracker.org/forum/dl.php?t=' + $id
                 Invoke-WebRequest -uri $forum_torrent_path -WebSession $forum_login -OutFile ( $tmp_drive + $drive_separator + 'temp.torrent') | Out-Null
 

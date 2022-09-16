@@ -65,6 +65,7 @@ Write-Output 'Ставим раздачи на закачку'
 ForEach ( $id in $tracker_torrents_list.Keys ) {
     $reqdata = @{'by' = 'topic_id'; 'val' = $id.ToString() }
     # по каждой раздаче с трекера ищем её hash
+    Write-Output "Ищем хэш раздачи $id"
     $hash = (( Invoke-WebRequest -Uri ( 'http://api.rutracker.org/v1/get_tor_hash?by=topic_id&val=' + $id ) ).content | ConvertFrom-Json -AsHashtable ).result[$id].ToLower()
     if ( $client_torrents_list -notcontains $hash ) {
         # если такого hash ещё нет в клиенте, то:

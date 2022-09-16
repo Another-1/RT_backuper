@@ -28,6 +28,7 @@ function Get-ClientTorrents ($client_url, $sid, $t_args) {
         $torrents_list = ( Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/info?' + $reqdata) -WebSession $sid ).Content | ConvertFrom-Json | Select-Object name, hash, content_path, save_path, state, size, category, priority | Where-Object { $_.state -ne 'downloading' -and $_.state -ne 'stalledDL' -and $_.state -ne 'queuedDL' -and $_.state -ne 'error' -and $_.state -ne 'missingFiles' } | sort-object -Property size
         return $torrents_list
     }
+    
 }
 
 function Get-TopicIDs( $torrents_list ) {

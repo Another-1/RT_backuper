@@ -31,7 +31,7 @@ $logindata = "username=$webui_login&password=$webui_password"
 $loginheader = @{Referer = $client_url }
 Invoke-WebRequest -Headers $loginheader -Body $logindata ( $client_url + '/api/v2/auth/login' ) -Method POST -SessionVariable sid > $nul
 Write-Output 'Получаем список раздач из клиента'
-$client_torrents_list = ( Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/info' )-WebSession $sid ).Content | ConvertFrom-Json | Select-Object hash
+$client_torrents_list = (( Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/info' )-WebSession $sid ).Content | ConvertFrom-Json | Select-Object hash ).hash
 
 Write-Output 'Запрашиваем список раздач в разделе'
 $tracker_torrents_list = ( ( Invoke-WebRequest -Uri ( 'http://api.rutracker.org/v1/static/pvc/f/' + $choice ) ).content | ConvertFrom-Json -AsHashtable ).result
@@ -65,7 +65,7 @@ Write-Output 'Ставим раздачи на закачку'
 ForEach ( $id in $tracker_torrents_list.Keys ) {
     $reqdata = @{'by' = 'topic_id'; 'val' = $id.ToString() }
     # по каждой раздаче с трекера ищем её hash
-        $hash = (( Invoke-WebRequest -Uri ( 'http://api.rutracker.org/v1/get_tor_hash?by=topic_id&val=' + $id ) ).content | ConvertFrom-Json -AsHashtable ).result[$id].ToLower()
+    $hash = (( Invoke-WebRequest -Uri ( 'http://api.rutracker.org/v1/get_tor_hash?by=topic_id&val=' + $id ) ).content | ConvertFrom-Json -AsHashtable ).result[$id].ToLower()
     if ( $client_torrents_list -notcontains $hash ) {
         # если такого hash ещё нет в клиенте, то:
         # проверяем, что такая ещё не заархивирована

@@ -61,7 +61,7 @@ $headers = @{'User-Agent' = 'Mozilla/5.0' }
 $payload = @{'login_username' = $rutracker_login; 'login_password' = $rutracker_password; 'login' = '%E2%F5%EE%E4' }
 Invoke-WebRequest -uri 'https://rutracker.org/forum/login.php' -SessionVariable forum_login -Method Post -body $payload -Headers $headers -Proxy $proxy_address -ProxyCredential $proxyCreds | Out-Null
 
-Write-Output 'Ставим раздачи на закачку'
+Write-Output 'Проверяем есть ли что добавить'
 ForEach ( $id in $tracker_torrents_list.Keys ) {
     $reqdata = @{'by' = 'topic_id'; 'val' = $id.ToString() }
     # по каждой раздаче с трекера ищем её hash
@@ -69,7 +69,7 @@ ForEach ( $id in $tracker_torrents_list.Keys ) {
     $hash = (( Invoke-WebRequest -Uri ( 'http://api.rutracker.org/v1/get_tor_hash?by=topic_id&val=' + $id ) ).content | ConvertFrom-Json -AsHashtable ).result[$id].ToLower()
     }
     catch {
-        Write-Output "Не получилось найти хэш раздачи $id. Вероятно это и не раздача вовсе."
+        Write-Output "Не получилось найти хэш раздачи $id. Вероятно, это и не раздача вовсе."
         Continue
     }
     if ( $client_torrents_list -notcontains $hash ) {

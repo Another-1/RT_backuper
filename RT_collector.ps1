@@ -6,13 +6,29 @@ if ($client_url -eq '' -or $nul -eq $client_url ) {
     exit
 }
 
-$choice = ( Read-Host -Prompt 'Выберите раздел' ).ToString()
-$min_id = ( Read-Host -Prompt 'Минимальный ID ( 0 если не нужно проверять ID)' )
-if ( $min_id -ne '0' ) {
-    $min_id = $min_id.ToInt32($null)
-    $max_id = ( Read-Host -Prompt 'Максимальный ID' )
-    $max_id = $max_id.ToInt32($null)
+If ($args.Count -eq 0 ) {
+
+    $choice = ( Read-Host -Prompt 'Выберите раздел' ).ToString()
+    $min_id = ( Read-Host -Prompt 'Минимальный ID ( 0 если не нужно проверять ID)' )
+    if ( $min_id -ne '0' ) {
+        $min_id = $min_id.ToInt32($null)
+        $max_id = ( Read-Host -Prompt 'Максимальный ID' )
+        $max_id = $max_id.ToInt32($null)
+    }
 }
+elseif ($args.count -eq 1) {
+    $choice = $args[0].ToString()
+    $min_id = 0
+}
+elseif ($args.count -eq 3) {
+    $choice = $args[0].ToString()
+    $min_id = $args[1].ToInt32($nul)
+    $max_id = $args[2].ToInt32($nul)
+}
+else { Write-Output 'Параметров должно быть не столько. Либо 0, либо 1, либо 3'; pause ; Exit }
+Write-Output ( $choice, $min_id, $max_id)
+
+Exit
 
 if ( $PSVersionTable.OS.ToLower().contains('windows')) {
     $separator = '\'
@@ -37,8 +53,8 @@ Write-Output 'Запрашиваем список раздач в разделе
 $tracker_torrents_list = ( ( Invoke-WebRequest -Uri ( 'http://api.rutracker.org/v1/static/pvc/f/' + $choice ) ).content | ConvertFrom-Json -AsHashtable ).result
 if ($min_id -ne '0') {
     $tracker_torrents_list_required = @{}
-    foreach( $key in $tracker_torrents_list.keys ) {
-        if( $key.ToInt32($null) -ge $min_id -and $key.ToInt32($null) -le $max_id ) {
+    foreach ( $key in $tracker_torrents_list.keys ) {
+        if ( $key.ToInt32($null) -ge $min_id -and $key.ToInt32($null) -le $max_id ) {
             $tracker_torrents_list_required[$key] = $tracker_torrents_list[$key]
         }
     }
@@ -66,7 +82,7 @@ ForEach ( $id in $tracker_torrents_list.Keys ) {
     $reqdata = @{'by' = 'topic_id'; 'val' = $id.ToString() }
     # по каждой раздаче с трекера ищем её hash
     try {
-    $hash = (( Invoke-WebRequest -Uri ( 'http://api.rutracker.org/v1/get_tor_hash?by=topic_id&val=' + $id ) ).content | ConvertFrom-Json -AsHashtable ).result[$id].ToLower()
+        $hash = (( Invoke-WebRequest -Uri ( 'http://api.rutracker.org/v1/get_tor_hash?by=topic_id&val=' + $id ) ).content | ConvertFrom-Json -AsHashtable ).result[$id].ToLower()
     }
     catch {
         Write-Output "Не получилось найти хэш раздачи $id. Вероятно, это и не раздача вовсе."

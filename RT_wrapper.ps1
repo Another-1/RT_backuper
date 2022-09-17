@@ -14,11 +14,12 @@ $github_uri = 'https://raw.githubusercontent.com/Another-1/RT_backuper/main/'
 $settings_file = 'RT_settings.ps1'
 $backuper_file = 'RT_backuper_New.ps1'
 $collector_file = 'RT_collector.ps1'
+$restorator_file = 'RT_restorator.ps1'
 
 if ( $PSVersionTable.OS.ToLower().contains('windows')) { $separator = '\' } else { $separator = '/' }
 if ( -not ( Test-Path ( $PSScriptRoot + $separator + 'RT_settings.ps1') ) ) {
     Write-Host ( 'Файл с настройками ' + $PSScriptRoot + $separator + $settings_file + ' не найден!' ) -ForegroundColor Red
-    if ( ( ( Read-Host -Prompt 'Хотите загрузить заготовку с Github и подрежактировать под себя? Y/N' ).ToString() ).ToLower() -eq 'y' ) {
+    if ( ( ( Read-Host -Prompt 'Хотите загрузить заготовку с Github и подредактировать под себя? Y/N' ).ToString() ).ToLower() -eq 'y' ) {
         Write-Host 'Загружаем заготовку файла настроек'
         try {
             Invoke-WebRequest -Uri ( $github_uri + $settings_file ) -OutFile ( $PSScriptRoot + $separator + $settings_file )
@@ -58,6 +59,7 @@ while ( $true ) {
     Write-Host '0. Ничем, передумал'
     Write-Host '1. Зеркалированием'
     Write-Host '2. Подхватом'
+    Write-Host '3. Восстановлением из архивов'
     $choice = Read-Host 'Вам решать'
     switch ($choice) {
         0 { 
@@ -69,6 +71,10 @@ while ( $true ) {
         }
         2 {
             . ( $PSScriptRoot + $separator + $collector_file ) 
+            exit
+        }
+        3 {
+            . ( $PSScriptRoot + $separator + $restorator_file ) 
             exit
         }
         Default {}

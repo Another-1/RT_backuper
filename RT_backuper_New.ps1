@@ -107,7 +107,7 @@ foreach ( $torrent in $torrents_list ) {
                     $uploads_all = $size_grp[1]
                 }
 
-                if ( $PSVersionTable.OS.ToLower -contains 'windows') {
+                if ( $PSVersionTable.OS.ToLower() -contains 'windows') {
                     $fs = ( Get-PSDrive $drive_fs | Select-Object Free ).Free
                     while ( $zip_size -gt ( $fs - 10000000 ) ) {
                         Write-Output ( "Мало места на диске кэша Google ($drive_fs$drive_separator), подождём пока станет больше чем " + ([int]($zip_size / 1024 / 1024)).ToString() + ' Мб')

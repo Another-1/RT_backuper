@@ -36,7 +36,7 @@ else { Write-Host 'Файл с настройками нашёлся, отлич
 . ( $PSScriptRoot + $separator + $settings_file )
 
 while ( $true ) {
-    $choice = ( ( Read-Host -Prompt 'Хотите, я на всякий случай обновлю все скрипты?  Y/N' ).ToString() ).ToLower() 
+    $choice = ( ( Read-Host -Prompt 'Хотите, я на всякий случай обновлю все скрипты (кроме самого себя)? Y/N' ).ToString() ).ToLower() 
     if ($choice -eq 'y') {
         Write-Host 'Правильное решение!'
         Write-Host 'Обновляяю скрипт архивации..'
@@ -77,6 +77,9 @@ while ( $true ) {
             . ( $PSScriptRoot + $separator + $restorator_file ) 
             exit
         }
-        Default {}
+        Default { 
+            Write-host ''
+            Write-host 'Я ничего не понял, повторите.'
+        }
     }
 }

@@ -1,3 +1,4 @@
+Clear-Host
 Write-Host 'Добро пожаловать в инструментарий истинного архивариуса' -ForegroundColor Blue
 Write-Host 'Осматриваемся, всё ли в порядке'
 
@@ -11,6 +12,7 @@ else { Write-Host 'Версия Powershell мне нравится!' -Foreground
 
 Write-Host 'Проверяем наличие файла настроек...'
 $github_uri = 'https://raw.githubusercontent.com/Another-1/RT_backuper/main/'
+$wrapper_file = 'RT_wrapper.ps1'
 $settings_file = 'RT_settings.ps1'
 $backuper_file = 'RT_backuper_New.ps1'
 $collector_file = 'RT_collector.ps1'
@@ -23,29 +25,51 @@ if ( -not ( Test-Path ( $PSScriptRoot + $separator + 'RT_settings.ps1') ) ) {
         Write-Host 'Загружаем заготовку файла настроек'
         try {
             Invoke-WebRequest -Uri ( $github_uri + $settings_file ) -OutFile ( $PSScriptRoot + $separator + $settings_file )
-            Write-Host 'Файл успешно скачан. Откройте в тестовом редакторе файл RT_settings рядом со мной, настройте под себя и запустите меня заново.'
+            Write-Host 'Файл успешно скачан.'
+            Write-Host 'Откройте в тестовом редакторе файл RT_settings рядом со мной, настройте под себя и запустите меня заново.'
         }
         catch {
             Write-Host "Не получилось скачать. Скачайте самостоятельно файл $settings_uri, положите рядом со мной, настройте под себя и запустите меня заново."
         }
         Write-Output 'А пока я с вами прощаюсь, до новых встреч!'
         Pause
+        Exit
+    }
+    else {
+        Write-Host 'Извините, но нет настроек - нет работы. До свидания.' -ForegroundColor Red
+        Pause
+        Exit
     }
 }
 else { Write-Host 'Файл с настройками нашёлся, отлично! Загружаем.' -ForegroundColor Green }
 . ( $PSScriptRoot + $separator + $settings_file )
 
 while ( $true ) {
-    $choice = ( ( Read-Host -Prompt 'Хотите, я на всякий случай обновлю все скрипты (кроме самого себя)? Y/N' ).ToString() ).ToLower() 
+    $choice = ( ( Read-Host -Prompt 'Хотите, я на всякий случай обновлю все скрипты? Y/N' ).ToString() ).ToLower() 
     if ($choice -eq 'y') {
         Write-Host 'Правильное решение!'
-        Write-Host 'Обновляяю скрипт архивации..'
+        Write-Host 'Начну с себя o_O'
+        $was_hash = Get-FileHash -Path ( $PSCommandPath )
+        try { Invoke-WebRequest -Uri ( $github_uri + $wrapper_file ) -OutFile ( $PSCommandPath )
+            $now_hash = Get-FileHash -Path ( $PSCommandPath )
+            if ( $was_hash -ne $now_hash ) {
+                Write-Host 'Ого, я обновился! Чтобы вы пользовались мной новым, я сейчас закроюсь. Перезапустите меня заново.'
+                Pause
+                Exit
+            }
+        
+        }
+        catch { Write-Host 'Почему-то не получилось скачать свежий вариант самого себя. Извините :(' -ForegroundColor Red }
+        Write-Host 'Обновляю скрипт архивации..'
         try { Invoke-WebRequest -Uri ( $github_uri + $backuper_file ) -OutFile ( $PSScriptRoot + $separator + $backuper_file ) }
-        catch { Write-Host 'Почему-то не получилось скачать свижий скрипт архивации. Извините :(' -ForegroundColor Red }
-        Write-Host 'Обновляяю скрипт подхвата..'
+        catch { Write-Host 'Почему-то не получилось скачать свежий скрипт архивации. Извините :(' -ForegroundColor Red }
+        Write-Host 'Обновляю скрипт подхвата..'
         try { Invoke-WebRequest -Uri ( $github_uri + $collector_file ) -OutFile ( $PSScriptRoot + $separator + $collector_file ) }
-        catch { Write-Host 'Почему-то не получилось скачать свижий скрипт подхвата. Извините :(' -ForegroundColor Red }
-        exit
+        catch { Write-Host 'Почему-то не получилось скачать свежий скрипт подхвата. Извините :(' -ForegroundColor Red }
+        Write-Host 'Обновляю скрипт восстановления..'
+        try { Invoke-WebRequest -Uri ( $github_uri + $restorator_file ) -OutFile ( $PSScriptRoot + $separator + $restorator_file ) }
+        catch { Write-Host 'Почему-то не получилось скачать свежий скрипт восстановления. Извините :(' -ForegroundColor Red }
+        break
     }
     elseif ( $choice -eq 'n' ) {
         Write-Host 'Как хотите..'

@@ -91,7 +91,7 @@ while ( $true ) {
 while ( $true ) {
     Write-Host ''
     Write-Host 'Чем займёмся?'
-    Write-Host '0. Ничем, передумал'
+    Write-Host '0. Ничем, я передумал'
     Write-Host '1. Зеркалированием'
     Write-Host '2. Подхватом'
     Write-Host '3. Восстановлением из архивов'

@@ -103,6 +103,9 @@ while ( $true ) {
         $nul { 
             exit
         }
+        '' { 
+            exit
+        }
         1 {
             . ( $PSScriptRoot + $separator + $backuper_file )
             exit 

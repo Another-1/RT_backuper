@@ -47,7 +47,7 @@ else { Write-Host 'Файл с настройками нашёлся, отлич
 
 while ( $true ) {
     if ( -not ( ( Test-Path ( $PSScriptRoot + $separator + $backuper_file ) ) -and ( Test-Path ( $PSScriptRoot + $separator + $collector_file ) ) -and ( Test-Path ( $PSScriptRoot + $separator + $restorator_file )))) {
-        $required = #true
+        $required = $true
         Write-Host 'У вас нет некоторых нужных мне скриптов! Я без них никак.'
         $choice = ( ( Read-Host -Prompt 'Давайте я скачаю все скрипты? Y/N' ).ToString() ).ToLower() 
     }

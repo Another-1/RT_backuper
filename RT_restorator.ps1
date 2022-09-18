@@ -85,7 +85,7 @@ foreach ( $hash in $hashes.Keys ) {
         else { $extract_path = $store_path }
 
         New-Item -path $extract_path -ErrorAction SilentlyContinue
-        & $7z_path e "$filename" "-p$archive_password" "-o$extract_path"
+        & $7z_path e "$filename" "-p20RuTracker.ORG22" "-o$extract_path"
 
         Write-Output "Скачиваем торрент с форума"
         $forum_torrent_path = 'https://rutracker.org/forum/dl.php?t=' + $id

@@ -95,9 +95,12 @@ while ( $true ) {
     Write-Host '1. Зеркалированием'
     Write-Host '2. Подхватом'
     Write-Host '3. Восстановлением из архивов'
-    $choice = Read-Host 'Вам решать'
+    $choice =  Read-Host 'Вам решать'
     switch ($choice) {
         0 { 
+            exit
+        }
+        $nul { 
             exit
         }
         1 {

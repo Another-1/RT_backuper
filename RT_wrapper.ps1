@@ -47,8 +47,9 @@ else { Write-Host 'Файл с настройками нашёлся, отлич
 
 while ( $true ) {
     if ( -not ( ( Test-Path ( $PSScriptRoot + $separator + $backuper_file ) ) -and ( Test-Path ( $PSScriptRoot + $separator + $collector_file ) ) -and ( Test-Path ( $PSScriptRoot + $separator + $restorator_file )))) {
+        $required = #true
         Write-Host 'У вас нет некоторых нужных мне скриптов! Я без них никак.'
-        $choice = ( ( Read-Host -Prompt 'Хотите, я на всякий случай обновлю все скрипты? Y/N' ).ToString() ).ToLower() 
+        $choice = ( ( Read-Host -Prompt 'Давайте я скачаю все скрипты? Y/N' ).ToString() ).ToLower() 
     }
     else {
         $choice = ( ( Read-Host -Prompt 'Хотите, я на всякий случай обновлю все скрипты? Y/N' ).ToString() ).ToLower() 
@@ -81,10 +82,12 @@ while ( $true ) {
     }
     elseif ( $choice -eq 'n' ) {
         Write-Host 'Как хотите..'
+        if ( $required -eq $true ) { exit }
         break
     }
     Write-Host 'Я ничего не понял, повторите.'
 }
+
 while ( $true ) {
     Write-Host ''
     Write-Host 'Чем займёмся?'

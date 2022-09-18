@@ -47,7 +47,7 @@ else { Write-Host 'Файл с настройками нашёлся, отлич
 
 while ( $true ) {
     if ( -not ( ( Test-Path ( $PSScriptRoot + $separator + $backuper_file ) ) -and ( Test-Path ( $PSScriptRoot + $separator + $collector_file ) ) -and ( Test-Path ( $PSScriptRoot + $separator + $restorator_file )))) {
-        $required = $true
+        $required = #true
         Write-Host 'У вас нет некоторых нужных мне скриптов! Я без них никак.'
         $choice = ( ( Read-Host -Prompt 'Давайте я скачаю все скрипты? Y/N' ).ToString() ).ToLower() 
     }
@@ -61,7 +61,7 @@ while ( $true ) {
         try {
             Invoke-WebRequest -Uri ( $github_uri + $wrapper_file ) -OutFile ( $PSCommandPath )
             $now_hash = Get-FileHash -Path ( $PSCommandPath )
-            if ( $was_hash -ne $now_hash ) {
+            if ( $was_hash.hash -ne $now_hash.hash ) {
                 Write-Host 'Ого, я обновился! Чтобы вы пользовались мной новым, я сейчас закроюсь. Перезапустите меня заново.'
                 Pause
                 Exit

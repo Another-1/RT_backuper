@@ -14,6 +14,7 @@ Write-Host 'Проверяем наличие файла настроек...'
 $github_uri = 'https://raw.githubusercontent.com/Another-1/RT_backuper/main/'
 $wrapper_file = 'RT_wrapper.ps1'
 $settings_file = 'RT_settings.ps1'
+$functions_file = 'RT_functions.ps1'
 $backuper_file = 'RT_backuper_New.ps1'
 $collector_file = 'RT_collector.ps1'
 $restorator_file = 'RT_restorator.ps1'
@@ -46,7 +47,7 @@ else { Write-Host 'Файл с настройками нашёлся, отлич
 . ( $PSScriptRoot + $separator + $settings_file )
 
 while ( $true ) {
-    if ( -not ( ( Test-Path ( $PSScriptRoot + $separator + $backuper_file ) ) -and ( Test-Path ( $PSScriptRoot + $separator + $collector_file ) ) -and ( Test-Path ( $PSScriptRoot + $separator + $restorator_file )))) {
+    if ( -not ( ( Test-Path ( $PSScriptRoot + $separator + $backuper_file ) ) -and ( Test-Path ( $PSScriptRoot + $separator + $collector_file ) ) -and ( Test-Path ( $PSScriptRoot + $separator + $restorator_file )) -and ( Test-Path ( $PSScriptRoot + $separator + $functions_file )))) {
         $required = $true
         Write-Host 'У вас нет некоторых нужных мне скриптов! Я без них никак.'
         $choice = ( ( Read-Host -Prompt 'Давайте я скачаю все скрипты? Y/N' ).ToString() ).ToLower() 
@@ -69,6 +70,9 @@ while ( $true ) {
         
         }
         catch { Write-Host 'Почему-то не получилось скачать свежий вариант самого себя. Извините :(' -ForegroundColor Red }
+        Write-Host 'Обновляю общие функции..'
+        try { Invoke-WebRequest -Uri ( $github_uri + $functions_file ) -OutFile ( $PSScriptRoot + $separator + $functions_file ) }
+        catch { Write-Host 'Почему-то не получилось скачать общие функции. Извините :(' -ForegroundColor Red }
         Write-Host 'Обновляю скрипт архивации..'
         try { Invoke-WebRequest -Uri ( $github_uri + $backuper_file ) -OutFile ( $PSScriptRoot + $separator + $backuper_file ) }
         catch { Write-Host 'Почему-то не получилось скачать свежий скрипт архивации. Извините :(' -ForegroundColor Red }

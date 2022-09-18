@@ -21,7 +21,8 @@ $restorator_file = 'RT_restorator.ps1'
 if ( $PSVersionTable.OS.ToLower().contains('windows')) { $separator = '\' } else { $separator = '/' }
 if ( -not ( Test-Path ( $PSScriptRoot + $separator + 'RT_settings.ps1') ) ) {
     Write-Host ( 'Файл с настройками ' + $PSScriptRoot + $separator + $settings_file + ' не найден!' ) -ForegroundColor Red
-    if ( ( ( Read-Host -Prompt 'Хотите загрузить заготовку с Github и подредактировать под себя? Y/N' ).ToString() ).ToLower() -eq 'y' ) {
+    $choice = ( ( Read-Host -Prompt 'Хотите загрузить заготовку с Github и подредактировать под себя? Y/N' ).ToString() ).ToLower()
+    if ( $choice -eq 'y' -or $choice -eq '' ) {
         Write-Host 'Загружаем заготовку файла настроек'
         try {
             Invoke-WebRequest -Uri ( $github_uri + $settings_file ) -OutFile ( $PSScriptRoot + $separator + $settings_file )
@@ -45,12 +46,19 @@ else { Write-Host 'Файл с настройками нашёлся, отлич
 . ( $PSScriptRoot + $separator + $settings_file )
 
 while ( $true ) {
-    $choice = ( ( Read-Host -Prompt 'Хотите, я на всякий случай обновлю все скрипты? Y/N' ).ToString() ).ToLower() 
-    if ($choice -eq 'y') {
+    if ( -not ( ( Test-Path ( $PSScriptRoot + $separator + $backuper_file ) ) -and ( Test-Path ( $PSScriptRoot + $separator + $collector_file ) ) -and ( Test-Path ( $PSScriptRoot + $separator + $restorator_file )))) {
+        Write-Host 'У вас нет некоторых нужных мне скриптов! Я без них никак.'
+        $choice = ( ( Read-Host -Prompt 'Хотите, я на всякий случай обновлю все скрипты? Y/N' ).ToString() ).ToLower() 
+    }
+    else {
+        $choice = ( ( Read-Host -Prompt 'Хотите, я на всякий случай обновлю все скрипты? Y/N' ).ToString() ).ToLower() 
+    }
+    if ($choice -eq 'y' -or $choice -eq '') {
         Write-Host 'Правильное решение!'
         Write-Host 'Начну с себя o_O'
         $was_hash = Get-FileHash -Path ( $PSCommandPath )
-        try { Invoke-WebRequest -Uri ( $github_uri + $wrapper_file ) -OutFile ( $PSCommandPath )
+        try {
+            Invoke-WebRequest -Uri ( $github_uri + $wrapper_file ) -OutFile ( $PSCommandPath )
             $now_hash = Get-FileHash -Path ( $PSCommandPath )
             if ( $was_hash -ne $now_hash ) {
                 Write-Host 'Ого, я обновился! Чтобы вы пользовались мной новым, я сейчас закроюсь. Перезапустите меня заново.'

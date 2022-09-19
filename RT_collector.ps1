@@ -42,6 +42,7 @@ $proxyCreds = New-Object System.Management.Automation.PSCredential -ArgumentList
 Write-Output 'Авторизуемся в клиенте'
 $logindata = "username=$webui_login&password=$webui_password"
 $loginheader = @{Referer = $client_url }
+$ProgressPreference = 'SilentlyContinue'
 Invoke-WebRequest -Headers $loginheader -Body $logindata ( $client_url + '/api/v2/auth/login' ) -Method POST -SessionVariable sid > $nul
 Write-Output 'Получаем список раздач из клиента'
 $client_torrents_list = (( Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/info' )-WebSession $sid ).Content | ConvertFrom-Json | Select-Object hash ).hash
@@ -73,9 +74,13 @@ Write-Output 'Авторизуемся на форуме'
 $headers = @{'User-Agent' = 'Mozilla/5.0' }
 $payload = @{'login_username' = $rutracker_login; 'login_password' = $rutracker_password; 'login' = '%E2%F5%EE%E4' }
 Invoke-WebRequest -uri 'https://rutracker.org/forum/login.php' -SessionVariable forum_login -Method Post -body $payload -Headers $headers -Proxy $proxy_address -ProxyCredential $proxyCreds | Out-Null
-
 Write-Output 'Проверяем есть ли что добавить'
+$current = 1
 ForEach ( $id in $tracker_torrents_list.Keys ) {
+    $ProgressPreference = 'Continue'
+    Write-Progress -Activity 'Обрабатываем раздачи' -Status "$current штук обработано" -PercentComplete ( $current * 100 / $tracker_torrents_list.Keys.Count )
+    $ProgressPreference = 'SilentlyContinue'
+    $current++
     $reqdata = @{'by' = 'topic_id'; 'val' = $id.ToString() }
     # по каждой раздаче с трекера ищем её hash
     try {

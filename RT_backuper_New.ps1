@@ -72,7 +72,8 @@ if ( $args.count -eq 0 ) {
         Exit
     }
 }
-$folder_pointer = 0
+if ( $args.Count -eq 0 ) { $folder_pointer = 0 }
+else { $folder_pointer = Get-Random -InputObject ( 0..($google_folders.count-1) )}
 foreach ( $torrent in $torrents_list ) {
     $google_folder = $google_folders[$folder_pointer]
     $folder_pointer = [math]::IEEERemainder( ( $folder_pointer + 1 ), $google_folders.count )
@@ -89,7 +90,8 @@ foreach ( $torrent in $torrents_list ) {
         }
         else {
             $compression = Get-Compression $sections_compression $default_compression $torent
-            Write-Output ( "`n$($psstyle.Foreground.Cyan ) Архивируем " + $torrent.category + ', ' + $torrent.name + $psstyle.Reset)
+            Write-Host''
+            Write-Host ( 'Архивируем ' + $torrent.name + ' на диск ' + $google_folder ) -ForegroundColor Blue
             if ( $args.Count -eq 0 ) {
                 & $7z_path a $tmp_zip_name $torrent.content_path "-p20RuTracker.ORG22" "-mx$compression" "-mmt$cores" -mhe=on -sccUTF-8 -bb0
                 $zip_size = (Get-Item $tmp_zip_name).Length

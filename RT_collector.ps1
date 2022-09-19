@@ -78,7 +78,7 @@ Write-Output 'Проверяем есть ли что добавить'
 $current = 1
 ForEach ( $id in $tracker_torrents_list.Keys ) {
     $ProgressPreference = 'Continue'
-    Write-Progress -Activity 'Обрабатываем раздачи' -Status "$current штук обработано" -PercentComplete ( $current * 100 / $tracker_torrents_list.Keys.Count )
+    Write-Progress -Activity 'Обрабатываем раздачи' -Status ( "$current штук, " + ( [math]::Round( $current * 100 / $tracker_torrents_list.Keys.Count ) ) + '%' ) -PercentComplete ( $current * 100 / $tracker_torrents_list.Keys.Count )
     $ProgressPreference = 'SilentlyContinue'
     $current++
     $reqdata = @{'by' = 'topic_id'; 'val' = $id.ToString() }

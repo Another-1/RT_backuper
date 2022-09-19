@@ -25,7 +25,7 @@ Write-Output 'Авторизуемся в клиенте'
 $sid = Initialize-Client
 
 # получаем список раздач из клиента
-if ( $t_args.Count -eq 0) {
+if ( $args.Count -eq 0) {
     Write-Output 'Получаем список раздач из клиента'
     $torrents_list = Get-ClientTorrents $client_url $sid $args
     Write-Output 'Получаем номера топиков по раздачам'

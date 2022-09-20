@@ -100,7 +100,7 @@ ForEach ( $id in $tracker_torrents_list.Keys ) {
             $info = (( Invoke-WebRequest -uri 'http://api.rutracker.org/v1/get_tor_topic_data' -body $reqdata).content | ConvertFrom-Json -AsHashtable ).result[$id]
             if ( -not ( $info.tor_status -eq 7 ) ) {
                 # Скачиваем торрент с форума
-                Write-Output ( "Скачиваем раздачу $id под названием " + $info.topic_title )
+                Write-Output ( "Скачиваем $id " + $info.topic_title )
                 $forum_torrent_path = 'https://rutracker.org/forum/dl.php?t=' + $id
                 Invoke-WebRequest -uri $forum_torrent_path -WebSession $forum_login -OutFile ( $tmp_drive + $drive_separator + 'temp.torrent') | Out-Null
 

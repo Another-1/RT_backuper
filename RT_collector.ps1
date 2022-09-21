@@ -115,6 +115,7 @@ ForEach ( $id in $tracker_torrents_list.Keys ) {
                     root_folder = 'false'
                 }
                 Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/add' ) -form $dl_url -WebSession $sid -Method POST -ContentType 'application/x-bittorrent' | Out-Null
+                Remove-Item -Path ( $tmp_drive + $drive_separator + $id + '.torrent' ) 
             }
         }
     }

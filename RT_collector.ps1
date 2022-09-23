@@ -76,46 +76,51 @@ $payload = @{'login_username' = $rutracker_login; 'login_password' = $rutracker_
 Invoke-WebRequest -uri 'https://rutracker.org/forum/login.php' -SessionVariable forum_login -Method Post -body $payload -Headers $headers -Proxy $proxy_address -ProxyCredential $proxyCreds | Out-Null
 Write-Output 'Проверяем есть ли что добавить'
 $current = 1
-ForEach ( $id in $tracker_torrents_list.Keys ) {
+
+$sorted = @{}
+$tracker_torrents_list.keys | ForEach-Object { try { $sorted[$_] = $tracker_torrents_list[$_][3] } catch {} }
+$sorted = $sorted.GetEnumerator() | Sort-Object {$_.Value}
+
+ForEach ( $id in $sorted ) {
     $ProgressPreference = 'Continue'
     Write-Progress -Activity 'Обрабатываем раздачи' -Status ( "$current штук, " + ( [math]::Round( $current * 100 / $tracker_torrents_list.Keys.Count ) ) + '%' ) -PercentComplete ( $current * 100 / $tracker_torrents_list.Keys.Count )
     $ProgressPreference = 'SilentlyContinue'
     $current++
-    $reqdata = @{'by' = 'topic_id'; 'val' = $id.ToString() }
+    $reqdata = @{'by' = 'topic_id'; 'val' = $id.Name.ToString() }
     # по каждой раздаче с трекера ищем её hash
     try {
-        $hash = (( Invoke-WebRequest -Uri ( 'http://api.rutracker.org/v1/get_tor_hash?by=topic_id&val=' + $id ) ).content | ConvertFrom-Json -AsHashtable ).result[$id].ToLower()
+        $hash = (( Invoke-WebRequest -Uri ( 'http://api.rutracker.org/v1/get_tor_hash?by=topic_id&val=' + $id.Name ) ).content | ConvertFrom-Json -AsHashtable ).result[$id.Name].ToLower()
     }
     catch {
-        Write-Output "Не получилось найти хэш раздачи $id. Вероятно, это и не раздача вовсе."
+        Write-Output "Не получилось найти хэш раздачи " + $id.name + ". Вероятно, это и не раздача вовсе."
         Continue
     }
     if ( $client_torrents_list -notcontains $hash ) {
         # если такого hash ещё нет в клиенте, то:
         # проверяем, что такая ещё не заархивирована
-        $folder_name = '\ArchRuT_' + ( 300000 * [math]::Truncate(( $id - 1 ) / 300000) + 1 ) + '-' + 300000 * ( [math]::Truncate(( $id - 1 ) / 300000) + 1 ) + '\'
-        $zip_name = $google_folders[0] + $folder_name + $id + '_' + $hash.ToLower() + '.7z'
+        $folder_name = '\ArchRuT_' + ( 300000 * [math]::Truncate(( $id.Name - 1 ) / 300000) + 1 ) + '-' + 300000 * ( [math]::Truncate(( $id.Name - 1 ) / 300000) + 1 ) + '\'
+        $zip_name = $google_folders[0] + $folder_name + $id.Name + '_' + $hash.ToLower() + '.7z'
         if ( -not ( test-path -Path $zip_name ) ) {
             # поглощённые раздачи пропускаем
-            $info = (( Invoke-WebRequest -uri 'http://api.rutracker.org/v1/get_tor_topic_data' -body $reqdata).content | ConvertFrom-Json -AsHashtable ).result[$id]
+            $info = (( Invoke-WebRequest -uri 'http://api.rutracker.org/v1/get_tor_topic_data' -body $reqdata).content | ConvertFrom-Json -AsHashtable ).result[$id.Name]
             if ( -not ( $info.tor_status -eq 7 ) ) {
                 # Скачиваем торрент с форума
                 Write-Output ( "Скачиваем $id " + $info.topic_title )
-                $forum_torrent_path = 'https://rutracker.org/forum/dl.php?t=' + $id
-                Invoke-WebRequest -uri $forum_torrent_path -WebSession $forum_login -OutFile ( $tmp_drive + $drive_separator + $id + '.torrent') | Out-Null
+                $forum_torrent_path = 'https://rutracker.org/forum/dl.php?t=' + $id.Name
+                Invoke-WebRequest -uri $forum_torrent_path -WebSession $forum_login -OutFile ( $tmp_drive + $drive_separator + $id.Name + '.torrent') | Out-Null
 
                 # и добавляем торрент в клиент
-                if ( $torrent_folders -eq 1 ) { $extract_path = $store_path + $separator + $id }
+                if ( $torrent_folders -eq 1 ) { $extract_path = $store_path + $separator + $id.Name }
                 else { $extract_path = $store_path }
                 $dl_url = @{
                     name        = 'torrents'
-                    torrents    = get-item ( $tmp_drive + $drive_separator + $id + '.torrent' )
+                    torrents    = get-item ( $tmp_drive + $drive_separator + $id.Name + '.torrent' )
                     savepath    = $extract_path
                     category    = $category
                     root_folder = 'false'
                 }
                 Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/add' ) -form $dl_url -WebSession $sid -Method POST -ContentType 'application/x-bittorrent' | Out-Null
-                Remove-Item -Path ( $tmp_drive + $drive_separator + $id + '.torrent' ) 
+                Remove-Item -Path ( $tmp_drive + $drive_separator + $id.Name + '.torrent' ) 
             }
         }
     }

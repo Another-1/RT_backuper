@@ -100,6 +100,7 @@ while ( $true ) {
     Write-Host '2. Подхватом'
     Write-Host '3. Восстановлением из архивов'
     $choice =  Read-Host 'Вам решать'
+    Write-Host ''
     switch ($choice) {
         0 { 
             exit

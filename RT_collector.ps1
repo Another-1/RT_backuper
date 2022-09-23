@@ -79,7 +79,7 @@ $current = 1
 
 $sorted = @{}
 $tracker_torrents_list.keys | ForEach-Object { try { $sorted[$_] = $tracker_torrents_list[$_][3] } catch {} }
-$sorted = $sorted.GetEnumerator() | Sort-Object {$_.Value}
+$sorted = ( $sorted.GetEnumerator() | Sort-Object {$_.Value} ) | Where-Object { $_.Value -ne '' -and $nul -ne $_.Value }
 
 ForEach ( $id in $sorted ) {
     $ProgressPreference = 'Continue'

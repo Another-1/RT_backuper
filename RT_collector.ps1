@@ -92,7 +92,7 @@ ForEach ( $id in $sorted ) {
         $hash = (( Invoke-WebRequest -Uri ( 'http://api.rutracker.org/v1/get_tor_hash?by=topic_id&val=' + $id.Name ) ).content | ConvertFrom-Json -AsHashtable ).result[$id.Name].ToLower()
     }
     catch {
-        Write-Output "Не получилось найти хэш раздачи " + $id.name + ". Вероятно, это и не раздача вовсе."
+        Write-Output ( "Не получилось найти хэш раздачи " + $id.name + ". Вероятно, это и не раздача вовсе." )
         Continue
     }
     if ( $client_torrents_list -notcontains $hash ) {

@@ -1,4 +1,4 @@
-function  Sync-Settings {
+function Sync-Settings {
     if ($nul -eq $client_url ) { return $false }
     else { return $true }
 }
@@ -89,6 +89,7 @@ function Get-TodayTraffic ( $uploads_all, $zip_size, $google_folder) {
     $uploads = $uploads_tmp
     $uploads += @{ $now = $zip_size }
     $uploads_all[$google_folder] = $uploads
+    $uploads_all | Export-Clixml -Path $upload_log_file
     return ( $uploads.values | Measure-Object -sum ).Sum, $uploads_all
 }
 
@@ -106,4 +107,8 @@ function Start-Stopping {
         Start-Sleep -Seconds 60
         Write-Output ( Get-Date -Format t )
     }
+}
+
+function Convert-Size ( $size , $base = 1024) {
+    return ( [math]::Round( $size / $base / $base / $base ) ).ToString()
 }

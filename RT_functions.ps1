@@ -80,14 +80,16 @@ function  Get-Compression ( $sections_compression, $default_compression, $torent
     return $compression
 }
 
-function Get-TodayTraffic ( $uploads_all, $zip_size, $google_folder) { 
+function Get-TodayTraffic ( $uploads_all, $zip_size, $google_folder) {
     $now = Get-date
     $daybefore = $now.AddDays( -1 )
     $uploads_tmp = @{}
     $uploads = $uploads_all[ $google_folder ]
     $uploads.keys | Where-Object { $_ -ge $daybefore } | ForEach-Object { $uploads_tmp += @{ $_ = $uploads[$_] } }
     $uploads = $uploads_tmp
-    $uploads += @{ $now = $zip_size }
+    if ($zip_size -gt 0) {
+        $uploads += @{ $now = $zip_size }
+    }
     $uploads_all[$google_folder] = $uploads
     $uploads_all | Export-Clixml -Path $upload_log_file
     return ( $uploads.values | Measure-Object -sum ).Sum, $uploads_all

@@ -1,0 +1,31 @@
+version: "3.7"
+
+services:
+  pwsh_backupper:
+    # тут либо билдим локально, либо берём готовй образ
+    # image: nebionik/rt_backuper
+    build: .
+    container_name: pwsh_backupper
+    volumes:
+      # - .:/pwd
+      - ./config-pwsh:/pwd/config
+      - /data/downloads:/downloads # указываем папку в которую записывает торрент-клиент (должно соответствовать пункту из настроек)
+      - /data/gdrive:/data           # указываем папку в которой есть гугл-диски (должно соответствовать пункту из настроек)
+    restart: unless-stopped
+    # depends_on: [qbt]
+
+  # qbt:
+  #   image: lscr.io/linuxserver/qbittorrent
+  #   container_name: qbt
+  #   environment:
+  #     - WEBUI_PORT=9111
+  #     - TZ=Europe/Moscow
+  #   ports:
+  #     - 9111:9111/tcp
+  #     - 23842:23842/tcp
+  #     - 23842:23842/udp
+  #   volumes:
+  #     - ./config-qbt:/config
+  #     - ./config-pwsh:/pwsh
+  #     - /data/downloads:/downloads # указываем папку в которую записывает торрент-клиент (должно соответствовать пункту из настроек)
+  #   restart: unless-stopped

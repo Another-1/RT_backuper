@@ -91,6 +91,7 @@ else { $folder_pointer = Get-Random -InputObject ( 0..($google_folders.count-1) 
 # Перебираем найденные раздачи и бекапим их.
 foreach ( $torrent in $torrents_list ) {
     Start-Pause
+    $uploads_all = Get-StoredUploads $uploads_all
 
     $google_folder = $google_folders[$folder_pointer]
     $folder_pointer = [math]::IEEERemainder( ( $folder_pointer + 1 ), $google_folders.count )
@@ -111,7 +112,6 @@ foreach ( $torrent in $torrents_list ) {
         }
         else {
             Start-Pause
-            $uploads_all = Get-StoredUploads
             # Начинаем архивацию файла
             $compression = Get-Compression $sections_compression $default_compression $torent
             Write-Host ''
@@ -121,9 +121,7 @@ foreach ( $torrent in $torrents_list ) {
             $zip_size = (Get-Item $tmp_zip_name).Length
 
             # Перед переносом проверяем доступный трафик. 0 для получения актуальных данных.
-            $size_grp = Get-TodayTraffic $uploads_all 0 $google_folder
-            $today_size = $size_grp[0]
-            $uploads_all = $size_grp[1]
+            $today_size, $uploads_all = Get-TodayTraffic $uploads_all 0 $google_folder
 
             Start-Pause
             # Если за последние 24ч было отправлено более квоты, то ждём
@@ -132,9 +130,7 @@ foreach ( $torrent in $torrents_list ) {
                 Write-Output ( 'Подождём часик чтобы не выйти за лимит' + (Convert-Size $lv_750gb ) + ' Гб. (сообщение будет повторяться пока не вернёмся в лимит)' )
                 Start-Sleep -Seconds (60 * 60 )
 
-                $size_grp = Get-TodayTraffic $uploads_all 0 $google_folder
-                $today_size = $size_grp[0]
-                $uploads_all = $size_grp[1]
+                $today_size, $uploads_all = Get-TodayTraffic $uploads_all 0 $google_folder
                 Start-Pause
             }
 
@@ -156,7 +152,7 @@ foreach ( $torrent in $torrents_list ) {
                 Write-Output 'Готово.'
 
                 # После переноса архива записываем затраченный трафик
-                Get-TodayTraffic $uploads_all $zip_size $google_folder
+                Get-TodayTraffic $uploads_all $zip_size $google_folder | Out-Null
 
             }
             catch {
@@ -176,7 +172,7 @@ foreach ( $torrent in $torrents_list ) {
 
     $proc_cnt++
     $proc_size += $torrent.size
-    Write-Output ( 'Обработано ' + $proc_cnt + ' раздач (' + `
+    Write-Output ( 'Обработано раздач ' + $proc_cnt + ' (' + `
         (Convert-Size $proc_size ) + ' Гб) из ' +`
         $sum_cnt + ' (' + (Convert-Size $sum_size 1000 ) + ' Гб)' )
     Start-Stopping

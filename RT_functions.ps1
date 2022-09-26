@@ -98,11 +98,14 @@ function Get-TodayTraffic ( $uploads_all, $zip_size, $google_folder) {
 }
 
 # Ищем файлик с данными выгрузок на диск и подгружаем его
-function Get-StoredUploads {
+function Get-StoredUploads ( $uploads_old = @{} ) {
     $uploads_all = @{}
     If ( Test-Path -path $upload_log_file ) {
-        Write-Host ( 'Имеется файл с данными выгрузки, подгружаем его..' )
-        $uploads_all = Import-Clixml $upload_log_file
+        try {
+            $uploads_all = Import-Clixml -Path $upload_log_file
+        } catch {
+            $uploads_all = $uploads_old
+        }
     }
     return $uploads_all
 }

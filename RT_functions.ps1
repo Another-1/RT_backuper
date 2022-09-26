@@ -1,3 +1,5 @@
+. "$PSScriptRoot\config\RT_settings.ps1"
+
 function Sync-Settings {
     if ($nul -eq $client_url ) { return $false }
     else { return $true }
@@ -95,6 +97,16 @@ function Get-TodayTraffic ( $uploads_all, $zip_size, $google_folder) {
     return ( $uploads.values | Measure-Object -sum ).Sum, $uploads_all
 }
 
+# Ищем файлик с данными выгрузок на диск и подгружаем его
+function Get-StoredUploads {
+    $uploads_all = @{}
+    If ( Test-Path -path $upload_log_file ) {
+        Write-Host ( 'Имеется файл с данными выгрузки, подгружаем его..' )
+        $uploads_all = Import-Clixml $upload_log_file
+    }
+    return $uploads_all
+}
+
 function Start-Stopping { 
     $paused = $false
     while ( ( $nul -ne $start_time -and $nul -ne $stop_time ) -and `
@@ -111,6 +123,8 @@ function Start-Stopping {
     }
 }
 
+# Получить Гб из Б
 function Convert-Size ( $size , $base = 1024) {
     return ( [math]::Round( $size / $base / $base / $base ) ).ToString()
 }
+

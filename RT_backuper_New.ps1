@@ -10,6 +10,7 @@ If ( -not( Sync-Settings ) ) { Write-Output 'Проверьте наличие �
 
 if ( $PSVersionTable.OS.ToLower().contains('windows')) { $drive_separator = ':\' } else { $drive_separator = '/' }
 
+Start-Pause
 Clear-Host
 
 # лимит закачки на один диск в сутки
@@ -89,6 +90,7 @@ else { $folder_pointer = Get-Random -InputObject ( 0..($google_folders.count-1) 
 
 # Перебираем найденные раздачи и бекапим их.
 foreach ( $torrent in $torrents_list ) {
+    Start-Pause
 
     $google_folder = $google_folders[$folder_pointer]
     $folder_pointer = [math]::IEEERemainder( ( $folder_pointer + 1 ), $google_folders.count )
@@ -108,6 +110,7 @@ foreach ( $torrent in $torrents_list ) {
             continue
         }
         else {
+            Start-Pause
             $uploads_all = Get-StoredUploads
             # Начинаем архивацию файла
             $compression = Get-Compression $sections_compression $default_compression $torent
@@ -122,6 +125,7 @@ foreach ( $torrent in $torrents_list ) {
             $today_size = $size_grp[0]
             $uploads_all = $size_grp[1]
 
+            Start-Pause
             # Если за последние 24ч было отправлено более квоты, то ждём
             while ( $today_size -gt $lv_750gb ) {
                 Write-Output ( 'Трафик за прошедшие 24ч по диску ' + $google_folder + ' уже ' + (Convert-Size $today_size ) + ' Гб' )
@@ -131,6 +135,7 @@ foreach ( $torrent in $torrents_list ) {
                 $size_grp = Get-TodayTraffic $uploads_all 0 $google_folder
                 $today_size = $size_grp[0]
                 $uploads_all = $size_grp[1]
+                Start-Pause
             }
 
             if ( $PSVersionTable.OS.ToLower() -contains 'windows') {
@@ -144,6 +149,7 @@ foreach ( $torrent in $torrents_list ) {
 
             Write-Output ( ( Convert-Size $today_size ) + ' Гб пока ещё меньше чем лимит ' + ( Convert-Size $lv_750gb ) + ' Гб, продолжаем' )
             try {
+                Start-Pause
 
                 Write-Output 'Перемещаем архив на гугл-диск...'
                 Move-Item -path $tmp_zip_name -destination ( $zip_name ) -Force -ErrorAction Stop

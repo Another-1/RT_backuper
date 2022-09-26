@@ -123,6 +123,34 @@ function Start-Stopping {
     }
 }
 
+# Ставим скрипт на паузу если имеется заданный файл с содержимым.
+function Start-Pause {
+    $pausefile = "$PSScriptRoot\config\pause.txt"
+
+    while ( $true ) {
+        $needSleep = $false
+        $pausetime = 0
+
+        # Если есть файлик и в нём есть содержимое - ставим скрипт на паузу.
+        If ( Test-Path -path $pausefile) {
+            $pause = ( Get-Content $pausefile | Select-Object -First 1 )
+            if ( !($pause -eq $null) ) {
+                $needSleep = $true
+                $pausetime = $pause -as [int]
+                if ( $pausetime -eq $null ) {
+                    $pausetime = 5 # Дефолтное значение 5 минут.
+                }
+            }
+        }
+        if ( $needSleep ) {
+            Write-Host ( 'Обнаружен вызов паузы, тормозим на ' + $pausetime + ' минут.' )
+            Start-Sleep -Seconds ($pausetime * 60)
+        } else {
+            break
+        }
+    }
+}
+
 # Получить Гб из Б
 function Convert-Size ( $size , $base = 1024) {
     return ( [math]::Round( $size / $base / $base / $base ) ).ToString()

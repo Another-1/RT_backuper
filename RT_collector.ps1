@@ -15,6 +15,7 @@ If ($args.Count -eq 0 ) {
         $max_id = ( Read-Host -Prompt 'Максимальный ID' )
         $max_id = $max_id.ToInt32($null)
     }
+    $min_sid = ( Read-Host -Prompt 'Минимальное количество сидов ( 0 если не нужно проверять сидов)' )
 }
 elseif ($args.count -eq 1) {
     $choice = $args[0].ToString()
@@ -59,6 +60,17 @@ if ($min_id -ne '0') {
     $tracker_torrents_list = $tracker_torrents_list_required
 }
 
+if ($min_sid -ne '0' -and $nul -ne $min_sid ) {
+    $tracker_torrents_list_required = @{}
+    foreach ( $key in $tracker_torrents_list.keys ) {
+        if ( $tracker_torrents_list[$key][1] -ge $min_sid ) {
+            $tracker_torrents_list_required[$key] = $tracker_torrents_list[$key]
+        }
+    }
+    $tracker_torrents_list = $tracker_torrents_list_required
+}
+
+
 $category = $default_category
 if ( $default_category -eq '' ) {
     $category = ( ( Invoke-WebRequest -Uri ( 'http://api.rutracker.org/v1/get_forum_name?by=forum_id&val=' + $choice ) ).content | ConvertFrom-Json -AsHashtable ).result[$choice]
@@ -78,8 +90,14 @@ Write-Output 'Проверяем есть ли что добавить'
 $current = 1
 
 $sorted = @{}
-$tracker_torrents_list.keys | ForEach-Object { try { $sorted[$_] = $tracker_torrents_list[$_][3] } catch {} }
-$sorted = ( $sorted.GetEnumerator() | Sort-Object {$_.Value} ) | Where-Object { $_.Value -ne '' -and $nul -ne $_.Value }
+if ( $min_sid -gt 0 -and $nul -ne $min_sid ) {
+    $tracker_torrents_list.keys | ForEach-Object { try { $sorted[$_] = $tracker_torrents_list[$_][1] } catch {} }
+    $sorted = ( $sorted.GetEnumerator() | Sort-Object { $_.Value } -Descending ) | Where-Object { $_.Value -ne '' -and $nul -ne $_.Value }
+}
+else { 
+    $tracker_torrents_list.keys | ForEach-Object { try { $sorted[$_] = $tracker_torrents_list[$_][3] } catch {} }
+    $sorted = ( $sorted.GetEnumerator() | Sort-Object { $_.Value } ) | Where-Object { $_.Value -ne '' -and $nul -ne $_.Value }
+}
 
 ForEach ( $id in $sorted ) {
     $ProgressPreference = 'Continue'
@@ -105,7 +123,7 @@ ForEach ( $id in $sorted ) {
             $info = (( Invoke-WebRequest -uri 'http://api.rutracker.org/v1/get_tor_topic_data' -body $reqdata).content | ConvertFrom-Json -AsHashtable ).result[$id.Name]
             if ( -not ( $info.tor_status -eq 7 ) ) {
                 # Скачиваем торрент с форума
-                Write-Output ( "Скачиваем "+ $id.Name + ' ' + $info.topic_title )
+                Write-Output ( "Скачиваем " + $id.Name + ' ' + $info.topic_title )
                 $forum_torrent_path = 'https://rutracker.org/forum/dl.php?t=' + $id.Name
                 Invoke-WebRequest -uri $forum_torrent_path -WebSession $forum_login -OutFile ( $tmp_drive + $drive_separator + $id.Name + '.torrent') | Out-Null
 

@@ -137,7 +137,7 @@ ForEach ( $id in $sorted ) {
                     category    = $category
                     root_folder = 'false'
                 }
-                # Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/add' ) -form $dl_url -WebSession $sid -Method POST -ContentType 'application/x-bittorrent' | Out-Null
+                Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/add' ) -form $dl_url -WebSession $sid -Method POST -ContentType 'application/x-bittorrent' | Out-Null
                 $added++
                 Remove-Item -Path ( $tmp_drive + $drive_separator + $id.Name + '.torrent' ) 
             }

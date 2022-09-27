@@ -98,10 +98,10 @@ else {
     $tracker_torrents_list.keys | ForEach-Object { try { $sorted[$_] = $tracker_torrents_list[$_][3] } catch {} }
     $sorted = ( $sorted.GetEnumerator() | Sort-Object { $_.Value } ) | Where-Object { $_.Value -ne '' -and $nul -ne $_.Value }
 }
-
+$added = 0
 ForEach ( $id in $sorted ) {
     $ProgressPreference = 'Continue'
-    Write-Progress -Activity 'Обрабатываем раздачи' -Status ( "$current штук, " + ( [math]::Round( $current * 100 / $tracker_torrents_list.Keys.Count ) ) + '%' ) -PercentComplete ( $current * 100 / $tracker_torrents_list.Keys.Count )
+    Write-Progress -Activity 'Обрабатываем раздачи' -Status ( "$current всего, $added добавлено, " + ( [math]::Round( $current * 100 / $tracker_torrents_list.Keys.Count ) ) + '%' ) -PercentComplete ( $current * 100 / $tracker_torrents_list.Keys.Count )
     $ProgressPreference = 'SilentlyContinue'
     $current++
     $reqdata = @{'by' = 'topic_id'; 'val' = $id.Name.ToString() }
@@ -137,7 +137,8 @@ ForEach ( $id in $sorted ) {
                     category    = $category
                     root_folder = 'false'
                 }
-                Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/add' ) -form $dl_url -WebSession $sid -Method POST -ContentType 'application/x-bittorrent' | Out-Null
+                # Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/add' ) -form $dl_url -WebSession $sid -Method POST -ContentType 'application/x-bittorrent' | Out-Null
+                $added++
                 Remove-Item -Path ( $tmp_drive + $drive_separator + $id.Name + '.torrent' ) 
             }
         }

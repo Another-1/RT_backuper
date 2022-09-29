@@ -154,8 +154,23 @@ function Start-Pause {
     }
 }
 
-# Получить Гб из Б
-function Convert-Size ( $size , $base = 1024) {
-    return ( [math]::Round( $size / $base / $base / $base ) ).ToString()
-}
+# Преобразовать размер файла в байтах, до ближайшего целого меньше базы
+function Get-FileSize ( [long]$size, [int]$base = 1024, [int]$pow = 0 ) {
+    $names = 'B','KiB','MiB','GiB','TiB','PiB'
+    if ( $base -ne 1024 ) {
+        $names = ''
+    }
 
+    $val = 0
+    if ( $size -gt 0 ) {
+        if ( $pow -le 0 ) {
+            $pow = [math]::Floor( [math]::Log( $size, $base) )
+        }
+        if ( $pow -gt $names.count - 1 ) {
+            $pow = $names.count - 1
+        }
+        $val = [math]::Round( $size / [math]::Pow($base, $pow), 1)
+    }
+
+    return ( $val ).ToString() + ' ' + $names[ $pow ]
+}

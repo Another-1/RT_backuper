@@ -10,28 +10,37 @@ If ( $PSVersionTable.PSVersion -lt [version]'7.1.0.0') {
 }
 else { Write-Host 'Версия Powershell мне нравится!' -ForegroundColor Green }
 
-Write-Host 'Проверяем наличие файла настроек...'
+
+if ( $PSVersionTable.OS.ToLower().contains('windows')) { $os = 'windows'; $separator = '\' } else { $os = 'linux'; $separator = '/' }
+
+# Путь к гитхабу
 $github_uri = 'https://raw.githubusercontent.com/Another-1/RT_backuper/main/'
-$wrapper_file = 'RT_wrapper.ps1'
-$settings_file = 'RT_settings.ps1'
-$functions_file = 'RT_functions.ps1'
-$backuper_file = 'RT_backuper_New.ps1'
-$collector_file = 'RT_collector.ps1'
+
+# Файл настроек лежит в примерах
+$settings_local_path = @( $PSScriptRoot, 'config', 'RT_settings.ps1' ) -join $separator
+$settings_global_path = $github_uri + "example/RT_settings.$os.ps1"
+
+# Остальные важные файлы
+$functions_file  = 'RT_functions.ps1'
+$wrapper_file    = 'RT_wrapper.ps1'
+$backuper_file   = 'RT_backuper_New.ps1'
+$collector_file  = 'RT_collector.ps1'
 $restorator_file = 'RT_restorator.ps1'
 
-if ( $PSVersionTable.OS.ToLower().contains('windows')) { $separator = '\' } else { $separator = '/' }
-if ( -not ( Test-Path ( $PSScriptRoot + $separator + 'RT_settings.ps1') ) ) {
-    Write-Host ( 'Файл с настройками ' + $PSScriptRoot + $separator + $settings_file + ' не найден!' ) -ForegroundColor Red
+Write-Host 'Проверяем наличие файла настроек...'
+if ( -not ( Test-Path $settings_local_path ) ) {
+    New-Item -Path ($PSScriptRoot + $separator + 'config') -ItemType Directory -Force
+    Write-Host ( "Файл с настройками $settings_local_path не найден!" ) -ForegroundColor Red
     $choice = ( ( Read-Host -Prompt 'Хотите загрузить заготовку с Github и подредактировать под себя? Y/N' ).ToString() ).ToLower()
     if ( $choice -eq 'y' -or $choice -eq '' ) {
-        Write-Host 'Загружаем заготовку файла настроек'
+        Write-Host "Загружаем заготовку файла настроек ($os)"
         try {
-            Invoke-WebRequest -Uri ( $github_uri + $settings_file ) -OutFile ( $PSScriptRoot + $separator + $settings_file )
+            Invoke-WebRequest -Uri ( $settings_global_path ) -OutFile ( $settings_local_path ) -Force
             Write-Host 'Файл успешно скачан.'
-            Write-Host 'Откройте в тестовом редакторе файл RT_settings рядом со мной, настройте под себя и запустите меня заново.'
+            Write-Host 'Откройте в тестовом редакторе файл config/RT_settings рядом со мной, настройте под себя и запустите меня заново.'
         }
         catch {
-            Write-Host "Не получилось скачать. Скачайте самостоятельно файл $settings_uri, положите рядом со мной, настройте под себя и запустите меня заново."
+            Write-Host "Не получилось скачать. Скачайте самостоятельно файл $settings_global_path, положите рядом со мной, настройте под себя и запустите меня заново."
         }
         Write-Output 'А пока я с вами прощаюсь, до новых встреч!'
         Pause
@@ -44,16 +53,19 @@ if ( -not ( Test-Path ( $PSScriptRoot + $separator + 'RT_settings.ps1') ) ) {
     }
 }
 else { Write-Host 'Файл с настройками нашёлся, отлично! Загружаем.' -ForegroundColor Green }
-. ( $PSScriptRoot + $separator + $settings_file )
 
+. ( $settings_local_path )
+
+$required_files = @( $functions_file, $wrapper_file, $backuper_file, $collector_file, $restorator_file )
 while ( $true ) {
-    if ( -not ( ( Test-Path ( $PSScriptRoot + $separator + $backuper_file ) ) -and ( Test-Path ( $PSScriptRoot + $separator + $collector_file ) ) -and ( Test-Path ( $PSScriptRoot + $separator + $restorator_file )) -and ( Test-Path ( $PSScriptRoot + $separator + $functions_file )))) {
+    if ( $required_files | ForEach-Object { if ( -not (Test-Path ( $PSScriptRoot + $separator + $_) ) ) { return $true} } ) {
         $required = $true
+        Write-Host ''
         Write-Host 'У вас нет некоторых нужных мне скриптов! Я без них никак.'
-        $choice = ( ( Read-Host -Prompt 'Давайте я скачаю все скрипты? Y/N' ).ToString() ).ToLower() 
+        $choice = ( ( Read-Host -Prompt 'Давайте я скачаю все скрипты? Y/N' ).ToString() ).ToLower()
     }
     else {
-        $choice = ( ( Read-Host -Prompt 'Хотите, я на всякий случай обновлю все скрипты? Y/N' ).ToString() ).ToLower() 
+        $choice = ( ( Read-Host -Prompt 'Хотите, я на всякий случай обновлю все скрипты? Y/N' ).ToString() ).ToLower()
     }
     if ($choice -eq 'y' -or $choice -eq '') {
         Write-Host 'Правильное решение!'
@@ -67,7 +79,7 @@ while ( $true ) {
                 Pause
                 Exit
             }
-        
+
         }
         catch { Write-Host 'Почему-то не получилось скачать свежий вариант самого себя. Извините :(' -ForegroundColor Red }
         Write-Host 'Обновляю общие функции..'
@@ -102,28 +114,28 @@ while ( $true ) {
     $choice =  Read-Host 'Вам решать'
     Write-Host ''
     switch ($choice) {
-        0 { 
+        0 {
             exit
         }
-        $nul { 
+        $nul {
             exit
         }
-        '' { 
+        '' {
             exit
         }
         1 {
             . ( $PSScriptRoot + $separator + $backuper_file )
-            exit 
+            exit
         }
         2 {
-            . ( $PSScriptRoot + $separator + $collector_file ) 
+            . ( $PSScriptRoot + $separator + $collector_file )
             exit
         }
         3 {
-            . ( $PSScriptRoot + $separator + $restorator_file ) 
+            . ( $PSScriptRoot + $separator + $restorator_file )
             exit
         }
-        Default { 
+        Default {
             Write-host ''
             Write-host 'Я ничего не понял, повторите.'
         }

@@ -1,4 +1,4 @@
-. "$PSScriptRoot\RT_settings.ps1"
+. "$PSScriptRoot\RT_functions.ps1"
 
 if ($client_url -eq '' -or $nul -eq $client_url ) {
     Write-Output 'Проверьте наличие и заполненность файла настроек в каталоге скрипта'

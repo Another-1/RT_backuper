@@ -62,7 +62,7 @@ $torrent_folders = 0
 $temp_folder = '/data/temp_folder'
 
 # каталог для распаковки добавляемых раздач при восстановлении
-$store_path = '/downloads/restore'
+$store_path = '/data/restore'
 
 # максимальное количество сидов для подхвата
 $max_seeders = 3

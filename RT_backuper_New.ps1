@@ -88,24 +88,34 @@ if ( $args.count -eq 0 ) {
 if ( $args.Count -eq 0 ) { $folder_pointer = 0 }
 else { $folder_pointer = Get-Random -InputObject ( 0..($google_folders.count-1) )}
 
+# Проверяем наличие нового параметра в конфиге
+if ( $google_folders_count -eq $null -Or $google_folders_count -gt 5 ) {
+    $google_folders_count = 1
+}
+
 # Перебираем найденные раздачи и бекапим их.
 foreach ( $torrent in $torrents_list ) {
-    Start-Pause
     $uploads_all = Get-StoredUploads $uploads_all
 
-    $google_folder = $google_folders[$folder_pointer]
-    $folder_pointer = [math]::IEEERemainder( ( $folder_pointer + 1 ), $google_folders.count )
-
+    # Ид раздачи
+    $torrents_id = $torrent.state
     # Собираем имя и путь хранения архива раздачи.
-    $folder_name = '\ArchRuT_' + ( 300000 * [math]::Truncate(( $torrent.state - 1 ) / 300000) + 1 ) + '-' + 300000 * ( [math]::Truncate(( $torrent.state - 1 ) / 300000) + 1 ) + '\'
-    $zip_name = $google_folder + $folder_name + $torrent.state + '_' + $torrent.hash.ToLower() + '.7z'
+    $disk_id, $disk_name, $disk_path = Get-DiskParams $torrents_id '\'
+
+    # Если подключено несколько гугл-акков, по одному пути, вычисляем номер акка
+    $google_num = Get-GoogleNum $disk_id $google_folders_count
+    $google_folder_path = $google_folders[$folder_pointer]
+    $folder_pointer = [math]::IEEERemainder( ( $folder_pointer + 1 ), $google_folders.count )
+    $google_folder = $google_folder_path + "($google_num)"
+
+    $zip_name = $google_folder_path + $disk_path + $torrents_id + '_' + $torrent.hash.ToLower() + '.7z'
     # для Unix нужно экранировать кавычки и пробелы"
     if ( -not( $PSVersionTable.OS.ToLower().contains('windows')) ) {$torrent.content_path = $torrent.content_path.replace('"','\"') }
 
-    if ( -not ( test-path -Path $zip_name ) ) {
-        $tmp_zip_name = ( $tmp_drive + $drive_separator + $torrent.state + '_' + $torrent.hash + '.7z' )
+    if ( -not ( Test-Path -Path $zip_name ) ) {
+        $tmp_zip_name = ( $tmp_drive + $drive_separator + $torrents_id + '_' + $torrent.hash.ToLower() + '.7z' )
 
-        Write-Host ( 'Архивируем ' + $torrent.state + ', ' + (Get-FileSize $torrent.size) + ', ' + $torrent.name + ' на диск ' + $google_folder ) -ForegroundColor Blue
+        Write-Host ( 'Архивируем ' + $torrents_id + ', ' + (Get-FileSize $torrent.size) + ', ' + $torrent.name + ' на диск ' + $google_folder ) -ForegroundColor Blue
         If ( Test-Path -path $tmp_zip_name ) {
             Write-Output 'Похоже, такой архив уже пишется в параллельной сессии. Пропускаем'
             continue
@@ -123,7 +133,6 @@ foreach ( $torrent in $torrents_list ) {
             # Перед переносом проверяем доступный трафик. 0 для получения актуальных данных.
             $today_size, $uploads_all = Get-TodayTraffic $uploads_all 0 $google_folder
 
-            Start-Pause
             # Если за последние 24ч было отправлено более квоты, то ждём
             while ( $today_size -gt $lv_750gb ) {
                 Write-Output ( 'Трафик за прошедшие 24ч по диску ' + $google_folder + ' уже ' + (Get-FileSize $today_size ) )
@@ -145,15 +154,16 @@ foreach ( $torrent in $torrents_list ) {
 
             Write-Output ( ( Get-FileSize $today_size ) + ' пока ещё меньше чем лимит ' + ( Get-FileSize $lv_750gb ) + ', продолжаем!' )
             try {
-                Start-Pause
+                if ( Test-Path -Path $zip_name ) {
+                    Write-Output 'Такой архив уже существует на гугл-диске, удаляем файл и пропускаем раздачу.'
+                } else {
+                    Write-Output 'Перемещаем архив на гугл-диск...'
+                    Move-Item -path $tmp_zip_name -destination ( $zip_name ) -Force -ErrorAction Stop
+                    Write-Output 'Готово.'
 
-                Write-Output 'Перемещаем архив на гугл-диск...'
-                Move-Item -path $tmp_zip_name -destination ( $zip_name ) -Force -ErrorAction Stop
-                Write-Output 'Готово.'
-
-                # После переноса архива записываем затраченный трафик
-                Get-TodayTraffic $uploads_all $zip_size $google_folder | Out-Null
-
+                    # После умпешного переноса архива записываем затраченный трафик
+                    Get-TodayTraffic $uploads_all $zip_size $google_folder | Out-Null
+                }
             }
             catch {
                 Write-Output 'Не удалось отправить файл на гугл-диск'
@@ -161,9 +171,9 @@ foreach ( $torrent in $torrents_list ) {
             }
         }
     }
-    if ( $delete_processed -eq 1 ) {
+    if ( $delete_processed -eq 1 -And $torrent.category -eq $default_category ) {
         try {
-            Write-Output ( 'Удаляем из клиента раздачу ' + $torrent.state )
+            Write-Output ( 'Удаляем из клиента раздачу ' + $torrents_id )
             $reqdata = 'hashes=' + $torrent.hash + '&deleteFiles=true'
             Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/delete' ) -Body $reqdata -WebSession $sid -Method POST > $nul
         }
@@ -175,4 +185,6 @@ foreach ( $torrent in $torrents_list ) {
     Write-Output ( 'Обработано раздач ' + $proc_cnt + ' (' + (Get-FileSize $proc_size) + ') из ' + `
         $sum_cnt + ' (' + (Get-FileSize $sum_size) + ')' )
     Start-Stopping
+    Start-Pause
 }
+# end foreach

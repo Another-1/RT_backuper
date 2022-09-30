@@ -12,6 +12,19 @@ function Get-Archives ( $google_folders ) {
     return $dones
 }
 
+# По ид раздачи вычислить ид диска, название диска/папки, путь к диску
+function Get-DiskParams ( [int]$torrent_id, [string]$separator = '/' ) {
+    $disk_id = [math]::Truncate(( $torrent_id - 1 ) / 300000) # 1..24
+    $disk_name = 'ArchRuT_' + ( 300000 * $disk_id + 1 ) + '-' + 300000 * ( $disk_id + 1 )
+    $disk_path = $separator + $disk_name + $separator
+
+    return $disk_id, $disk_name, $disk_path
+}
+
+function Get-GoogleNum ( [int]$disk_id, [int]$folder_count = 1 ) {
+    return ($disk_id % $folder_count + 1)
+}
+
 function Initialize-Client {
     $logindata = "username=$webui_login&password=$webui_password"
     $loginheader = @{Referer = $client_url }
@@ -62,7 +75,7 @@ function Get-Required ( $torrents_list, $dones ) {
         if ( $_.state -ne '' -and $nul -eq $dones[( $_.state.ToString() + '_' + $_.hash.ToLower())] ) {
             $torrents_list_required += $_
         }
-        elseif ( $delete_processed -eq 1 ) {
+        elseif ( $delete_processed -eq 1 -And $_.category -eq $default_category ) {
             $reqdata = 'hashes=' + $_.hash + '&deleteFiles=true'
             Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/delete' ) -Body $reqdata -WebSession $sid -Method POST > $nul
         }
@@ -70,7 +83,7 @@ function Get-Required ( $torrents_list, $dones ) {
     return $torrents_list_required
 }
 
-function  Get-Compression ( $sections_compression, $default_compression, $torent ) {
+function Get-Compression ( $sections_compression, $default_compression, $torent ) {
     if ( -$nul -eq $default_compression ) { $compression = '1' }
     else {
         if ( $choice -eq '' -or $nul -eq $choice ) {

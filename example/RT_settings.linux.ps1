@@ -10,6 +10,8 @@ $google_folders = @(
     '/data/shared1'
     '/data/shared2'
 )
+# Количество подключённых клиентов по одному пути
+$google_folders_count = 1
 
 # адрес, логин и пароль прокси-сервера
 $proxy_address = 'http://45.8.144.130:3128'
@@ -68,4 +70,4 @@ $store_path = '/data/restore'
 $max_seeders = 3
 
 # категория для скачиваемых раздач. Если не указана, берётся с трекера
-$default_category = 'Временное'
+$default_category = 'temp'

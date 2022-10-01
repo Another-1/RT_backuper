@@ -60,7 +60,6 @@ function Get-Archives ( $google_folders ) {
     if ( $file.size -eq 0 -Or $file.LastWriteTime -lt ( Get-Date ).AddHours(-24) ) {
         $update = $true
     }
-    # $update = $true
     if ( $update ) {
         $dones = @{}
         Get-ChildItem $google_folders[0] -Recurse | Where { !$_.PSIsContainer } | ForEach-Object { $dones[$_.BaseName.ToLower()] = 1 }

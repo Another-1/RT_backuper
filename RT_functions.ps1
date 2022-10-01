@@ -1,14 +1,61 @@
 . "$PSScriptRoot\config\RT_settings.ps1"
 
+
+$upload_log_file = "$PSScriptRoot\stash\uploads_all.xml"
+$dones_log_file = "$PSScriptRoot\stash\uploaded_files.xml"
+
+# Проверка версии PowerShell
+function Confirm-Version {
+    If ( $PSVersionTable.PSVersion -lt [version]'7.1.0.0') {
+        Write-Host 'У вас слишком древний PowerShell, обновитесь с https://github.com/PowerShell/PowerShell#get-powershell ' -ForegroundColor Red
+        Pause
+        return $false
+    }
+    return $true
+}
+
+function Get-OsParams {
+    $os = 'linux'
+    $drive_separator = '/'
+    if ( $PSVersionTable.OS.ToLower().contains('windows')) {
+        $os = 'windows'
+        $drive_separator = ':\' 
+    }
+    return $os, $drive_separator
+}
+
 function Sync-Settings {
     if ($nul -eq $client_url ) { return $false }
     else { return $true }
 }
 
-function Get-Archives ( $google_folders ) { 
-    $google_folder = $google_folders[0]
-    $dones = @{}
-    ( get-childitem( $google_folder ) | Where-Object { $_.name -like 'ArchRuT*' } ) | ForEach-Object { Get-ChildItem( $_ ) } | ForEach-Object { $dones[$_.BaseName.ToLower()] = 1 }
+# Если файла нет - создать его
+function Watch-FileExist ( $FilePath ) {
+    If ( !(Test-Path -path $FilePath) ) {
+        New-Item -ItemType File -Path $FilePath -Force | Out-Null
+    }
+    return Get-Item $FilePath
+}
+
+function Get-Archives ( $google_folders ) {
+    Write-Host 'Смотрим, что уже заархивировано..'
+    $file = Watch-FileExist $dones_log_file
+    # Если файл пуст, или его обновление было более 24х назад - обновляем заново
+    try {
+        $dones = Import-Clixml -Path $dones_log_file
+    } catch {
+        $update = $true
+    }
+    if ( $file.size -eq 0 -Or $file.LastWriteTime -lt ( Get-Date ).AddHours(-24) ) {
+        $update = $true
+    }
+    # $update = $true
+    if ( $update ) {
+        $dones = @{}
+        Get-ChildItem -Recurse $google_folders[0] | Where { ! $_.PSIsContainer } | ForEach-Object { $dones[$_.BaseName.ToLower()] = 1 }
+        $dones| Export-Clixml -Path $dones_log_file
+        Write-Host ( 'Список архивов обновлён, найдено {0} файлов.' -f $dones.count )
+    }
     return $dones
 }
 
@@ -27,13 +74,13 @@ function Get-GoogleNum ( [int]$disk_id, [int]$folder_count = 1 ) {
 
 function Initialize-Client {
     $logindata = "username=$webui_login&password=$webui_password"
-    $loginheader = @{Referer = $client_url }
+    $loginheader = @{ Referer = $client_url }
     Invoke-WebRequest -Headers $loginheader -Body $logindata ( $client_url + '/api/v2/auth/login' ) -Method POST -SessionVariable sid > $nul
     return $sid
 }
 
 function Get-ClientTorrents ($client_url, $sid, $t_args) {
-    if ( $t_args.Count -eq 0) {
+    if ( $t_args.Count -eq 0 ) {
         $all_torrents_list = ( Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/info' ) -WebSession $sid ).Content | ConvertFrom-Json | Select-Object name, hash, content_path, save_path, state, size, category, priority | sort-object -Property size
         $torrents_list = $all_torrents_list | Where-Object { $_.state -eq 'uploading' -or $_.state -eq 'pausedUP' -or $_.state -eq 'queuedUP' -or $_.state -eq 'stalledUP' }
         return $torrents_list
@@ -71,14 +118,21 @@ function Get-TopicIDs( $torrents_list ) {
 
 function Get-Required ( $torrents_list, $dones ) {
     $torrents_list_required = [System.Collections.ArrayList]::new()
+    $deleted = 0
     $torrents_list | ForEach-Object {
-        if ( $_.state -ne '' -and $nul -eq $dones[( $_.state.ToString() + '_' + $_.hash.ToLower())] ) {
+        $torrent_id = $_.state.ToString()
+        $torrent_hash = $_.hash.ToLower()
+        if ( $torrent_id -ne '' -and ( $torrent_id + '_' + $torrent_hash ) -notin $dones.keys ) {
             $torrents_list_required += $_
         }
         elseif ( $delete_processed -eq 1 -And $_.category -eq $default_category ) {
-            $reqdata = 'hashes=' + $_.hash + '&deleteFiles=true'
+            $reqdata = 'hashes=' + $torrent_hash + '&deleteFiles=true'
             Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/delete' ) -Body $reqdata -WebSession $sid -Method POST > $nul
+            $deleted++
         }
+    }
+    if ( $deleted -gt 0 ) {
+        Write-Host ( 'Из клиента удалено {0} раздач.' -f $deleted )
     }
     return $torrents_list_required
 }
@@ -96,6 +150,7 @@ function Get-Compression ( $sections_compression, $default_compression, $torent 
 }
 
 function Get-TodayTraffic ( $uploads_all, $zip_size, $google_folder) {
+    $uploads_all = Get-StoredUploads $uploads_all
     $now = Get-date
     $daybefore = $now.AddDays( -1 )
     $uploads_tmp = @{}

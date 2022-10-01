@@ -16,5 +16,6 @@ ENV LC_ALL POSIX
 WORKDIR /pwd
 COPY . .
 
-VOLUME ["/pwd/config"]
-CMD ["pwsh", "/pwd/RT_run.ps1"]
+VOLUME ["/pwd/config", "/pwd/stash"]
+
+ENTRYPOINT ["pwsh", "/pwd/RT_run.ps1"]

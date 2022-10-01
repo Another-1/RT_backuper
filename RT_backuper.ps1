@@ -1,12 +1,12 @@
 . "$PSScriptRoot\RT_functions.ps1"
 
 if ( !(Confirm-Version) ) { Exit }
-If ( !( Sync-Settings ) ) { Write-Output 'Проверьте наличие и заполненность файла настроек в каталоге скрипта';  Pause; Exit }
+If ( !( Sync-Settings ) ) { Write-Host 'Проверьте наличие и заполненность файла настроек в каталоге скрипта';  Pause; Exit }
 
 $os, $drive_separator = Get-OsParams
 
 Start-Pause
-Clear-Host
+# Clear-Host
 
 if ( $args.count -eq 0 ) {
     $dones = Get-Archives $google_folders
@@ -15,31 +15,31 @@ if ( $args.count -eq 0 ) {
 # Очищаем пустые папки в папке загрузок
 Clear-EmptyFolders $store_path
 
-Write-Output 'Авторизуемся в клиенте..'
+Write-Host 'Авторизуемся в клиенте..'
 $sid = Initialize-Client
 
 # получаем список раздач из клиента
-Write-Output 'Получаем список раздач из клиента..'
+Write-Host 'Получаем список раздач из клиента..'
 $torrents_list = Get-ClientTorrents $client_url $sid $args
 
 if ( $torrents_list -eq $null ) {
-    Write-Output ( 'Не удалось получить раздачи!' )
+    Write-Host ( 'Не удалось получить раздачи!' )
     Exit
 }
 
 # по каждой раздаче получаем коммент, чтобы достать из него номер топика
-Write-Output ( 'Получаем номера топиков по раздачам..' )
+Write-Host ( 'Получаем номера топиков по раздачам..' )
 $torrents_list = Get-TopicIDs $torrents_list
-Write-Output ( '..получено раздач: {0}.' -f $torrents_list.count )
+Write-Host ( '..получено раздач: {0}.' -f $torrents_list.count )
 
 # отбросим раздачи, для которых уже есть архив с тем же хэшем
 if ( $args.count -eq 0 ) {
-    Write-Output 'Пропускаем уже заархивированные раздачи..'
+    Write-Host 'Пропускаем уже заархивированные раздачи..'
     $was = $torrents_list.count
     $torrents_list = Get-Required $torrents_list $dones
 
     if ( $was -ne $torrents_list.count ) {
-        Write-Output( '..пропущено раздач: {0}.' -f ($was - $torrents_list.count) )
+        Write-Host( '..пропущено раздач: {0}.' -f ($was - $torrents_list.count) )
     }
 }
 
@@ -49,15 +49,15 @@ $sum_size = ( $torrents_list | Measure-Object -sum size ).Sum
 $sum_cnt = $torrents_list.count
 $used_locs = [System.Collections.ArrayList]::new()
 $ok = $true
-Write-Output ( 'Объём новых раздач ({0} шт) {1}.' -f $sum_cnt, (Get-FileSize $sum_size) )
+Write-Host ( 'Объём новых раздач ({0} шт) {1}.' -f $sum_cnt, (Get-FileSize $sum_size) )
 if ( $args.count -eq 0 ) {
     # проверяем, что никакие раздачи не пересекаются по именам файлов (если файл один) или каталогов (если файлов много), чтобы не заархивировать не то
-    Write-Output ( 'Проверяем уникальность путей сохранения раздач..' )
+    Write-Host ( 'Проверяем уникальность путей сохранения раздач..' )
 
     foreach ( $torrent in $torrents_list ) {
         if ( $used_locs.keys -contains $torrent.content_path ) {
-            Write-Output ( 'Несколько раздач хранятся по пути "' + $torrent.content_path + '" !')
-            Write-Output ( 'Нажмите любую клавищу, исправьте и начните заново !')
+            Write-Host ( 'Несколько раздач хранятся по пути "' + $torrent.content_path + '" !')
+            Write-Host ( 'Нажмите любую клавищу, исправьте и начните заново !')
             $ok = $false
         }
         else { $used_locs += $torrent.content_path }
@@ -113,13 +113,13 @@ foreach ( $torrent in $torrents_list ) {
             if ( Test-Path -Path $zip_path_finished ) {
                 Remove-Item $zip_path_finished | Out-Null
             }
-            Write-Output ( 'Перемещаем {0} в папку {1}..' -f  $zip_name, $archived_folder_path )
+            Write-Host ( 'Перемещаем {0} в папку {1}..' -f  $zip_name, $archived_folder_path )
             New-Item -ItemType Directory -Path $archived_folder_path -Force | Out-Null
             Move-Item -path $zip_path_progress -destination ( $zip_path_finished ) -Force -ErrorAction Stop
-            Write-Output '..готово.'
+            Write-Host '..готово.'
         }
         catch {
-            Write-Output 'Не удалось переместить архив.'
+            Write-Host 'Не удалось переместить архив.'
             Pause
         }
     } else {
@@ -127,7 +127,7 @@ foreach ( $torrent in $torrents_list ) {
     }
 
     $proc_size += $torrent.size
-    Write-Output ( 'Обработано раздач {0} ({1}) из {2} ({3})' -f ++$proc_cnt, (Get-FileSize $proc_size), $sum_cnt, (Get-FileSize $sum_size) )
+    Write-Host ( 'Обработано раздач {0} ({1}) из {2} ({3})' -f ++$proc_cnt, (Get-FileSize $proc_size), $sum_cnt, (Get-FileSize $sum_size) )
     Start-Stopping
     Start-Pause
 }

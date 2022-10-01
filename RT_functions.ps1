@@ -90,21 +90,26 @@ function Get-ClientTorrents ($client_url, $sid, $t_args) {
         $torrents_list = ( Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/info?' + $reqdata) -WebSession $sid ).Content | ConvertFrom-Json | Select-Object name, hash, content_path, save_path, state, size, category, priority | Where-Object { $_.state -ne 'downloading' -and $_.state -ne 'stalledDL' -and $_.state -ne 'queuedDL' -and $_.state -ne 'error' -and $_.state -ne 'missingFiles' } | sort-object -Property size
         return $torrents_list
     }
-    
 }
 
 function Get-TopicIDs( $torrents_list ) {
     foreach ( $torrent in $torrents_list ) {
-        $reqdata = 'hash=' + $torrent.hash
-        try { $torprops = ( Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/properties' ) -Body $reqdata  -WebSession $sid -Method POST ).Content | ConvertFrom-Json }
-        catch { pause }
         $torrent.state = $nul
-        if ( $torprops.comment -match 'rutracker' ) {
-            $torrent.state = ( Select-String "\d*$" -InputObject $torprops.comment).Matches.Value
-        }
+        # ищем коммент в данных раздачи
+        try {
+            $reqdata = 'hash=' + $torrent.hash
+            $torprops = ( Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/properties' ) -Body $reqdata  -WebSession $sid -Method POST ).Content | ConvertFrom-Json
+            if ( $torprops.comment -match 'rutracker' ) {
+                $torrent.state = ( Select-String "\d*$" -InputObject $torprops.comment).Matches.Value
+            }
+        } catch { pause }
         # если не удалось получить информацию об ID из коммента, сходим в API и попробуем получить там
         if ( $nul -eq $torrent.state ) {
-            $torrent.state = ( ( Invoke-WebRequest ( 'http://api.rutracker.org/v1/get_topic_id?by=hash&val=' + $torrent.hash ) ).content | ConvertFrom-Json ).result.($torrent.hash)
+            try {
+                $torrent.state = ( ( Invoke-WebRequest ( 'http://api.rutracker.org/v1/get_topic_id?by=hash&val=' + $torrent.hash ) ).content | ConvertFrom-Json ).result.($torrent.hash)
+            } catch {
+                Write-Host ('Не удалось получить номер топика, hash={0}' -f $torrent.hash )
+            }
         }
         # исправление путей для кривых раздач с одним файлом в папке
         if ( ( $torrent.content_path.Replace( $torrent.save_path.ToString(), '') -replace ('^[\\/]', '')) -match ('[\\/]') ) {

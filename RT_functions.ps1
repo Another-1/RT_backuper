@@ -142,15 +142,14 @@ function Get-Required ( $torrents_list, $dones ) {
     return $torrents_list_required
 }
 
-function Get-Compression ( $sections_compression, $default_compression, $torent ) {
-    if ( -$nul -eq $default_compression ) { $compression = '1' }
-    else {
-        if ( $choice -eq '' -or $nul -eq $choice ) {
-            $torrent.priority = ( ( Invoke-WebRequest ( 'http://api.rutracker.org/v1/get_tor_topic_data?by=hash&val=' + $torrent.hash ) ).content | ConvertFrom-Json -AsHashtable ).result[$torrent.state].forum_id
-        }
-        try { $compression = $sections_compression[$torrent.priority.ToInt32($nul)] } catch { }
-        if ( $nul -eq $compression ) { $compression = $default_compression }
-    }
+function Get-Compression ( $torrent_id ) {
+    try {
+        $topic = ( Invoke-WebRequest( 'http://api.rutracker.org/v1/get_tor_topic_data?by=topic_id&val=' + $torrent_id )).content | ConvertFrom-Json
+        $forum_id = [int]$topic.result.($torrent_id).forum_id
+        $compression = $sections_compression[ $forum_id ]
+    } catch {}
+    if ( $compression -eq $null ) { $compression = $default_compression }
+    if ( $compression -eq $null ) { $compression = 1 }
     return $compression
 }
 

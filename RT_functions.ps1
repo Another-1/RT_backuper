@@ -2,8 +2,13 @@
 
 $pswd = '20RuTracker.ORG22'
 
+# лимит закачки на один диск в сутки
+$lv_750gb = 740 * 1024 * 1024 * 1024
+# Файлы с данными, для общения между процессами
 $upload_log_file = "$PSScriptRoot\stash\uploads_all.xml"
 $dones_log_file = "$PSScriptRoot\stash\uploaded_files.xml"
+
+$pause_file = "$PSScriptRoot\stash\pause.txt"
 
 # Проверка версии PowerShell
 function Confirm-Version {
@@ -38,6 +43,11 @@ function Watch-FileExist ( $FilePath ) {
     return Get-Item $FilePath
 }
 
+# Удаление пустых папок.
+function Clear-EmptyFolders ( $FilePath ) {
+    Get-ChildItem $FilePath -Recurse | Where {$_.PSIsContainer -and @(Get-ChildItem -Lit $_.Fullname -r | Where {!$_.PSIsContainer}).Length -eq 0} | Remove-Item -Force
+}
+
 function Get-Archives ( $google_folders ) {
     Write-Host 'Смотрим, что уже заархивировано..'
     $file = Watch-FileExist $dones_log_file
@@ -53,7 +63,7 @@ function Get-Archives ( $google_folders ) {
     # $update = $true
     if ( $update ) {
         $dones = @{}
-        Get-ChildItem -Recurse $google_folders[0] | Where { ! $_.PSIsContainer } | ForEach-Object { $dones[$_.BaseName.ToLower()] = 1 }
+        Get-ChildItem $google_folders[0] -Recurse | Where { !$_.PSIsContainer } | ForEach-Object { $dones[$_.BaseName.ToLower()] = 1 }
         $dones| Export-Clixml -Path $dones_log_file
         Write-Host ( 'Список архивов обновлён, найдено {0} файлов.' -f $dones.count )
     }
@@ -183,6 +193,18 @@ function Get-StoredUploads ( $uploads_old = @{} ) {
     return $uploads_all
 }
 
+# Вычислить размер содержимого папки
+function Get-FolderSize ( [string]$folder_path ) {
+    return (Get-ChildItem -Recurse $folder_path | Measure-Object -Property Length -Sum).Sum
+}
+
+function Compare-MaxFolderSize ( [long]$folder_size, [long]$folder_size_max ) {
+    if ( $folder_size -gt $folder_size_max ) {
+        return $true
+    }
+    return $false
+}
+
 # Запуск бекапа только в заданный промежуток времени (от старт до стоп)
 function Start-Stopping {
     if ( $start_time -eq $null -Or $stop_time -eq $null) { return }
@@ -204,15 +226,13 @@ function Start-Stopping {
 
 # Ставим скрипт на паузу если имеется заданный файл с содержимым.
 function Start-Pause {
-    $pausefile = "$PSScriptRoot\config\pause.txt"
-
     while ( $true ) {
         $needSleep = $false
         $pausetime = 0
 
         # Если есть файлик и в нём есть содержимое - ставим скрипт на паузу.
-        If ( Test-Path -path $pausefile) {
-            $pause = ( Get-Content $pausefile | Select-Object -First 1 )
+        If ( Test-Path -path $pause_file) {
+            $pause = ( Get-Content $pause_file | Select-Object -First 1 )
             if ( !($pause -eq $null) ) {
                 $needSleep = $true
                 $pausetime = $pause -as [int]

@@ -3,27 +3,17 @@
 if ( !(Confirm-Version) ) { Exit }
 If ( !( Sync-Settings ) ) { Write-Output 'Проверьте наличие и заполненность файла настроек в каталоге скрипта';  Pause; Exit }
 
+$os, $drive_separator = Get-OsParams
 
 Start-Pause
 Clear-Host
-
-$os, $drive_separator = Get-OsParams
-# лимит закачки на один гугл-аккаунт в сутки
-$lv_750gb = 740 * 1024 * 1024 * 1024
-
-# Получаем данные об объёме выгрузки.
-$uploads_all = Get-StoredUploads
-$uploads_all.GetEnumerator() | % {
-    $temp_size = ( $_.value.values | Measure-Object -sum ).Sum
-    Write-Output ( 'Для диска ' + $_.key + ' выгружено: ' + ( Get-FileSize $temp_size) + ' (' + $temp_size + ' B).' )
-}
-Write-Output ''
 
 if ( $args.count -eq 0 ) {
     $dones = Get-Archives $google_folders
 }
 
-$test_key = '5643903_9a994b28029318367418c680f971c20505aeaedb'
+# Очищаем пустые папки в папке загрузок
+Clear-EmptyFolders $store_path
 
 Write-Output 'Авторизуемся в клиенте..'
 $sid = Initialize-Client
@@ -78,10 +68,23 @@ if ( $args.count -eq 0 ) {
     }
 }
 
+# Костыль, для неполного конфига.
+if ( $tmp_drive_max -eq $null ) { $tmp_drive_max = 100 * [math]::Pow( 1024, 3) }
 
 $archived_folder_path = $tmp_drive + $drive_separator + 'finished'
 # Перебираем найденные раздачи и бекапим их.
 foreach ( $torrent in $torrents_list ) {
+    # Проверка на переполнение диска архивами.
+    while ( $true ) {
+        $folder_size = Get-FolderSize $archived_folder_path
+        if ( !(Compare-MaxFolderSize $folder_size $tmp_drive_max) ) {
+            break
+        }
+        $text = '{2} Занятый объём диска {0} больше допустимого {1}. Подождём пока освободится.'
+        Write-Host ($text -f $archived_folder_path, (Get-FileSize $tmp_drive_max), (Get-Date -Format t) )
+        Start-Sleep -Seconds 60
+    }
+
     # Ид раздачи
     $torrent_id = $torrent.state
     $torrent_hash = $torrent.hash.ToLower()

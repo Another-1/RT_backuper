@@ -1,5 +1,6 @@
 . "$PSScriptRoot\config\RT_settings.ps1"
 
+$pswd = '20RuTracker.ORG22'
 
 $upload_log_file = "$PSScriptRoot\stash\uploads_all.xml"
 $dones_log_file = "$PSScriptRoot\stash\uploaded_files.xml"

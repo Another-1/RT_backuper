@@ -110,19 +110,22 @@ function Get-StoredUploads ( $uploads_old = @{} ) {
     return $uploads_all
 }
 
-function Start-Stopping { 
+# Запуск бекапа только в заданный промежуток времени (от старт до стоп)
+function Start-Stopping {
+    if ( $start_time -eq $null -Or $stop_time -eq $null) { return }
+    if ( $start_time -gt $stop_time ) { return }
+
+    $now = Get-date -Format t
     $paused = $false
-    while ( ( $nul -ne $start_time -and $nul -ne $stop_time ) -and `
-        ( ( $start_time -lt $stop_time -and ( ( Get-Date -Format t ) -lt $start_time -or ( Get-Date -Format t ) -gt $stop_time ) ) -or `
-            ( $start_time -gt $stop_time -and ( ( Get-Date -Format t ) -gt $stop_time -and ( Get-Date -Format t ) -lt $start_time ) )
-        )
-    ) {
+    # Старт < Сейчас < Стоп
+    while ( !($start_time -lt $now -and $now -lt $stop_time) ) {
+        $now = Get-date -Format t
+        Write-Host $now
         if ( -not $paused ) {
-            Write-Output "Останавливаемся по расписанию, ждём до $start_time"
+            Write-Host "Останавливаемся по расписанию, ждём до $start_time"
             $paused = $true
         }
         Start-Sleep -Seconds 60
-        Write-Output ( Get-Date -Format t )
     }
 }
 

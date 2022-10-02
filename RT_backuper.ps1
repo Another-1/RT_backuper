@@ -1,12 +1,12 @@
 . "$PSScriptRoot\RT_functions.ps1"
 
 if ( !(Confirm-Version) ) { Exit }
-If ( !( Sync-Settings ) ) { Write-Host 'Проверьте наличие и заполненность файла настроек в каталоге скрипта';  Pause; Exit }
+If ( !( Sync-Settings ) ) { Write-Host 'Проверьте наличие и заполненность файла настроек в каталоге скрипта'; Pause; Exit }
 
 $os, $drive_separator = Get-OsParams
 
 Start-Pause
-# Clear-Host
+Clear-Host
 
 $dones = Get-Archives $google_folders
 
@@ -95,7 +95,7 @@ foreach ( $torrent in $torrents_list ) {
 
     Start-Pause
     Write-Host ''
-    Write-Host ('Архивируем {0}, {1} ({2})' -f $torrent_id, $torrent.name, (Get-FileSize $torrent.size) ) -ForegroundColor Green
+    Write-Host ( 'Архивируем {0}, {1} ({2})' -f $torrent_id, $torrent.name, (Get-FileSize $torrent.size) ) -ForegroundColor Green
     # Проверяем, что архив для такой раздачи ещё не создан.
     if ( !( Test-Path $zip_path_finished ) ) {
         # Удаляем файл в месте архивирования, если он есть откуда-то

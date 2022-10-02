@@ -1,5 +1,10 @@
 FROM mcr.microsoft.com/powershell
 
+ENV LANG POSIX
+ENV TZ Europe/Moscow
+ENV LANGUAGE POSIX
+ENV LC_ALL POSIX
+
 RUN apt-get update && \
     apt-get install -y --no-install-recommends p7zip-full tzdata && \
     apt-get clean && \
@@ -7,10 +12,8 @@ RUN apt-get update && \
 # Locale support ru_RU and timezone CET
     localedef -i ru_RU -f UTF-8 POSIX && \
     echo "LANG=\"POSIX\"" > /etc/locale.conf && \
-    ln -s -f /usr/share/zoneinfo/CET /etc/localtime
-ENV LANG POSIX
-ENV LANGUAGE POSIX
-ENV LC_ALL POSIX
+    ln -sf /usr/share/zoneinfo/${TZ} /etc/localtime && \
+    echo "${TZ}" > /etc/timezone && date
 # Locale Support END ###
 
 WORKDIR /pwd

@@ -33,7 +33,6 @@ $zip_list = Get-ChildItem -Recurse $archived_folder_path
 $hashes = $zip_list | ForEach-Object { ( $_.Name.Split('.')[0] ).Split('_')[1]}
 $torrents = Get-ClientTorrents $client_url $sid $hashes
 
-
 $proc_cnt = 0
 $proc_size = 0
 $sum_cnt = $zip_list.count

@@ -96,7 +96,7 @@ function Get-ClientTorrents ($client_url, $sid, $t_args) {
         return $torrents_list
     }
     else {
-        $reqdata = 'hashes=' + $t_args[0]
+        $reqdata = 'hashes=' + ( $t_args -Join '|' )
         $torrents_list = ( Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/info?' + $reqdata) -WebSession $sid ).Content | ConvertFrom-Json | Select-Object name, hash, content_path, save_path, state, size, category, priority | Where-Object { $_.state -ne 'downloading' -and $_.state -ne 'stalledDL' -and $_.state -ne 'queuedDL' -and $_.state -ne 'error' -and $_.state -ne 'missingFiles' } | sort-object -Property size
         return $torrents_list
     }
@@ -150,6 +150,19 @@ function Get-Required ( $torrents_list, $dones ) {
         Write-Host ( 'Из клиента удалено {0} раздач.' -f $deleted )
     }
     return $torrents_list_required
+}
+
+function Delete-Torrent ( [int]$torrent_id, [string]$torrent_hash, [string]$torrent_category ) {
+    if ( $delete_processed -eq 1 -And $default_category -eq $torrent_category ) {
+        try {
+            Write-Host ( 'Удаляем из клиента раздачу {0}' -f $torrent_id )
+            $reqdata = 'hashes=' + $torrent_hash + '&deleteFiles=true'
+            Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/delete' ) -Body $reqdata -WebSession $sid -Method POST | Out-Null
+        }
+        catch {
+            Write-Host ( 'Почему-то не получилось удалить раздачу {0}.' -f $torrent_id )
+        }
+    }
 }
 
 function Get-Compression ( $torrent_id ) {

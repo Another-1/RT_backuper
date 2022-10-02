@@ -100,23 +100,26 @@ foreach ( $torrent in $torrents_list ) {
 
     Start-Pause
     Write-Host ''
-    Write-Host ('Архивируем {0}, {1} ({2})' -f $torrent_id, $torrent.name, (Get-FileSize $torrent.size) ) -ForegroundColor Blue
+    Write-Host ('Архивируем {0}, {1} ({2})' -f $torrent_id, $torrent.name, (Get-FileSize $torrent.size) ) -ForegroundColor Green
     # Проверяем, что архив для такой раздачи ещё не создан.
-    if ( !( Test-Path -Path $zip_path_finished ) ) {
-        $compression = Get-Compression $torrent_id
+    if ( !( Test-Path $zip_path_finished ) ) {
+        # Удаляем файл в месте архивирования, если он есть откуда-то
+        if ( Test-Path $zip_path_progress ) { Remove-Item $zip_path_progress | Out-Null }
+
         # Начинаем архивацию файла
+        $compression = Get-Compression $torrent_id
         & $7z_path a $zip_path_progress $torrent.content_path "-p$pswd" "-mx$compression" "-mmt$cores" -mhe=on -sccUTF-8 -bb0
         # Считаем результаты архивации
         $zip_size = (Get-Item $zip_path_progress).Length
 
+        $comp_perc = [math]::Round( $zip_size * 100 / $torrent.size )
+        Write-Host ( 'Размер {0} >> {1} (сжатие={2}, {3}%).' -f (Get-FileSize $torrent.size), (Get-FileSize $zip_size), $compression, $comp_perc )
         try {
-            if ( Test-Path -Path $zip_path_finished ) {
-                Remove-Item $zip_path_finished | Out-Null
-            }
-            Write-Host ( 'Перемещаем {0} в папку {1}..' -f  $zip_name, $archived_folder_path )
+            if ( Test-Path $zip_path_finished ) { Remove-Item $zip_path_finished | Out-Null }
+            Write-Host ( 'Перемещаем {0} в папку {1}' -f  $zip_name, $archived_folder_path )
             New-Item -ItemType Directory -Path $archived_folder_path -Force | Out-Null
             Move-Item -path $zip_path_progress -destination ( $zip_path_finished ) -Force -ErrorAction Stop
-            Write-Host '..готово.'
+            Write-Host 'Готово!'
         }
         catch {
             Write-Host 'Не удалось переместить архив.'
@@ -127,7 +130,9 @@ foreach ( $torrent in $torrents_list ) {
     }
 
     $proc_size += $torrent.size
-    Write-Host ( 'Обработано раздач {0} ({1}) из {2} ({3})' -f ++$proc_cnt, (Get-FileSize $proc_size), $sum_cnt, (Get-FileSize $sum_size) )
+    $text = 'Обработано раздач {0} ({1}) из {2} ({3})'
+    Write-Host ( $text -f ++$proc_cnt, (Get-FileSize $proc_size), $sum_cnt, (Get-FileSize $sum_size) ) -ForegroundColor DarkCyan
+
     Start-Stopping
     Start-Pause
 }

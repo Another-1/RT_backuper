@@ -82,12 +82,18 @@ foreach ( $zip in $zip_list ) {
     $zip_current_path = $archived_folder_path + $drive_separator + $zip.Name
     $zip_google_path = $google_folder_path + $disk_path + $zip.Name
 
-
+    $delete_torrent = $true
     $text = 'Параметры раздачи id={0}, disk={1}, path={2}, folder={3}'
     Write-Host ( $text -f $torrent_id, $disk_id, $google_folder, $disk_name )
     try {
         if ( Test-Path -Path $zip_google_path ) {
             throw 'Такой архив уже существует на гугл-диске, удаляем файл и пропускаем раздачу.'
+        }
+
+        & $7z_path t $zip_current_path "-p$pswd" | Out-Null
+        if ( $LastExitCode -ne 0 ) {
+            $delete_torrent = $false
+            throw ( 'Архив не прошёл проверку целостности, код ошибки: {0}. Удаляем файл.' -f $LastExitCode )
         }
 
         # Перед переносом проверяем доступный трафик. 0 для получения актуальных данных.
@@ -129,6 +135,7 @@ foreach ( $zip in $zip_list ) {
             Get-TodayTraffic $uploads_all $zip.Size $google_folder | Out-Null
         }
         catch {
+            $delete_torrent = $false
             Write-Host 'Не удалось отправить файл на гугл-диск'
             Pause
         }
@@ -138,7 +145,9 @@ foreach ( $zip in $zip_list ) {
     }
 
     # Попытка удалить раздачу из клиента
-    Delete-Torrent $torrent_id $torrent_hash $torrent.category
+    if ( $delete_torrent ) {
+        Delete-Torrent $torrent_id $torrent_hash $torrent.category
+    }
 
     $proc_size += $torrent.size
     Write-Output ( 'Обработано раздач {0} ({1}) из {2} ({3})' -f ++$proc_cnt, (Get-FileSize $proc_size), $sum_cnt, (Get-FileSize $sum_size) )

@@ -8,9 +8,7 @@ $os, $drive_separator = Get-OsParams
 Start-Pause
 # Clear-Host
 
-if ( $args.count -eq 0 ) {
-    $dones = Get-Archives $google_folders
-}
+$dones = Get-Archives $google_folders
 
 # Очищаем пустые папки в папке загрузок
 Clear-EmptyFolders $store_path
@@ -33,14 +31,12 @@ $torrents_list = Get-TopicIDs $torrents_list
 Write-Host ( '..получено раздач: {0}.' -f $torrents_list.count )
 
 # отбросим раздачи, для которых уже есть архив с тем же хэшем
-if ( $args.count -eq 0 ) {
-    Write-Host 'Пропускаем уже заархивированные раздачи..'
-    $was = $torrents_list.count
-    $torrents_list = Get-Required $torrents_list $dones
+Write-Host 'Пропускаем уже заархивированные раздачи..'
+$was = $torrents_list.count
+$torrents_list = Get-Required $torrents_list $dones
 
-    if ( $was -ne $torrents_list.count ) {
-        Write-Host( '..пропущено раздач: {0}.' -f ($was - $torrents_list.count) )
-    }
+if ( $was -ne $torrents_list.count ) {
+    Write-Host( '..пропущено раздач: {0}.' -f ($was - $torrents_list.count) )
 }
 
 $proc_size = 0
@@ -50,22 +46,21 @@ $sum_cnt = $torrents_list.count
 $used_locs = [System.Collections.ArrayList]::new()
 $ok = $true
 Write-Host ( 'Объём новых раздач ({0} шт) {1}.' -f $sum_cnt, (Get-FileSize $sum_size) )
-if ( $args.count -eq 0 ) {
-    # проверяем, что никакие раздачи не пересекаются по именам файлов (если файл один) или каталогов (если файлов много), чтобы не заархивировать не то
-    Write-Host ( 'Проверяем уникальность путей сохранения раздач..' )
 
-    foreach ( $torrent in $torrents_list ) {
-        if ( $used_locs.keys -contains $torrent.content_path ) {
-            Write-Host ( 'Несколько раздач хранятся по пути "' + $torrent.content_path + '" !')
-            Write-Host ( 'Нажмите любую клавищу, исправьте и начните заново !')
-            $ok = $false
-        }
-        else { $used_locs += $torrent.content_path }
+# проверяем, что никакие раздачи не пересекаются по именам файлов (если файл один) или каталогов (если файлов много), чтобы не заархивировать не то
+Write-Host ( 'Проверяем уникальность путей сохранения раздач..' )
+
+foreach ( $torrent in $torrents_list ) {
+    if ( $used_locs.keys -contains $torrent.content_path ) {
+        Write-Host ( 'Несколько раздач хранятся по пути "' + $torrent.content_path + '" !')
+        Write-Host ( 'Нажмите любую клавищу, исправьте и начните заново !')
+        $ok = $false
     }
-    If ( $ok -eq $false) {
-        pause
-        Exit
-    }
+    else { $used_locs += $torrent.content_path }
+}
+If ( $ok -eq $false) {
+    pause
+    Exit
 }
 
 # Костыль, для неполного конфига.

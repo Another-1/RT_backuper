@@ -7,11 +7,15 @@ $runs = 0
 while( $true ) {
     $timer = 60
     if ( $args.count -gt 0 ) {
-        $proc, $param = $args[0].Split('_')
+        $proc, $param = $args[0].trim('_').Split('_')
         $run_file = "$PSScriptRoot/RT_{0}.ps1" -f $proc
         Write-Output ( 'Params: [{0}], file: {1}' -f ($args -Join ','), $run_file )
         if ( Test-Path $run_file ) {
-            .($run_file + $param).trim()
+            if ( $param ) {
+                .$run_file $param
+            } else {
+                .$run_file
+            }
         }
         if ( $args[1] -ne $null ) {
             try { $timer = [int]$args[1] } catch {}

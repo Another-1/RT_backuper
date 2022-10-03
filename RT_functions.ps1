@@ -51,13 +51,13 @@ function Clear-EmptyFolders ( $FilePath ) {
 function Get-Archives ( $google_folders ) {
     Write-Host 'Смотрим, что уже заархивировано..'
     $file = Watch-FileExist $dones_log_file
-    # Если файл пуст, или его обновление было более 24х назад - обновляем заново
+    # Если файл пуст, или его обновление было более часа назад - обновляем заново
     try {
         $dones = Import-Clixml -Path $dones_log_file
     } catch {
         $update = $true
     }
-    if ( $file.size -eq 0 -Or $file.LastWriteTime -lt ( Get-Date ).AddHours(-24) ) {
+    if ( $file.size -eq 0 -Or $file.LastWriteTime -lt ( Get-Date ).AddHours(-1) ) {
         $update = $true
     }
     if ( $update ) {

@@ -8,13 +8,10 @@ Clear-Host
 
 $os, $folder_sep = Get-OsParams
 
-$hashes = @{}
-Get-Content $remove_log_file | Get-Unique | Sort-Object | % {
-    $id, $hash = ( $_.Split('.')[0] ).Split('_')
-    $hashes[ $hash ] = $id
-}
-Clear-Content -Path $remove_log_file
+$hashes = Get-Content $remove_log_file | Get-Unique | Sort-Object
+Clear-Content $remove_log_file
 
+Write-Host ( 'Обнаружено раздач: {0}.' -f $hashes.count )
 if ( $hashes.count -eq 0 ) {
     Write-Host ('Нет раздач для удаления.')
     Exit
@@ -23,19 +20,11 @@ if ( $hashes.count -eq 0 ) {
 Write-Host 'Авторизуемся в клиенте.'
 $sid = Initialize-Client
 
-$torrents_list = Get-ClientTorrents $client_url $sid $hashes.keys
+$hashes | % {
+    $id, $hash = ( $_.Split('.')[0] ).Split('_')
+    $torrent = Get-ClientTorrents $client_url $sid @($hash)
 
-if ( $torrents_list -eq $null ) {
-    Write-Host ( 'Не удалось получить раздачи!' )
-    Exit
-}
-
-Write-Host ( '..получено раздач: {0}.' -f $torrents_list.count )
-foreach ( $torrent in $torrents_list ) {
-    $hash = $torrent.hash
-
-    Write-Host ( 'Пробуем удалить раздачу {0}' - $torrent.name )
-    Delete-ClientTorrent $hashes[ $hash ] $hash $torrent.category
+    Write-Host ( 'Пробуем удалить раздачу {0}, {1}' -f $id, $torrent.name )
+    Delete-ClientTorrent $id $hash $torrent.category
 }
 # end foreach
-

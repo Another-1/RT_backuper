@@ -13,8 +13,8 @@ $uploads_all.GetEnumerator() | % {
     Write-Host ( 'Для диска {0} выгружено: {1}' -f $_.key, ( Get-FileSize $temp_size) )
 }
 
-$os, $drive_separator = Get-OsParams
-$archived_folder_path = $tmp_drive + $drive_separator + 'finished'
+$os, $folder_sep = Get-OsParams
+$archived_folder_path = $tmp_drive + $folder_sep + 'finished'
 
 # Проверяем наличие нового параметра в конфиге
 if ( $google_accounts_count -eq $null -Or $google_accounts_count -gt 5 ) {
@@ -25,7 +25,7 @@ if ( $google_folders.count -gt 1 ) {
     $google_accounts_count = $google_folders.count
 }
 
-Write-Host 'Авторизуемся в клиенте..'
+Write-Host 'Авторизуемся в клиенте.'
 $sid = Initialize-Client
 # Ищем список архивов, которые нужно перенести
 $zip_list = Get-ChildItem -Recurse $archived_folder_path
@@ -58,7 +58,7 @@ foreach ( $zip in $zip_list ) {
     $torrent = $torrents | Where-Object { $_.hash -eq $torrent_hash }
 
     # Собираем имя и путь хранения архива раздачи.
-    $disk_id, $disk_name, $disk_path = Get-DiskParams $torrent_id $drive_separator
+    $disk_id, $disk_name, $disk_path = Get-DiskParams $torrent_id $folder_sep
 
     # Если подключено несколько гугл-акков, вычисляем номер акка
     $google_num = Get-GoogleNum $disk_id $google_accounts_count
@@ -79,7 +79,7 @@ foreach ( $zip in $zip_list ) {
     $google_folder_path = $google_folders[$folder_pointer]
     $google_folder = $google_folder_path + "($google_num)"
 
-    $zip_current_path = $archived_folder_path + $drive_separator + $zip.Name
+    $zip_current_path = $archived_folder_path + $folder_sep + $zip.Name
     $zip_google_path = $google_folder_path + $disk_path + $zip.Name
 
     $delete_torrent = $true
@@ -87,6 +87,7 @@ foreach ( $zip in $zip_list ) {
     Write-Host ( $text -f $torrent_id, $disk_id, $google_folder, $disk_name )
     try {
         if ( Test-Path -Path $zip_google_path ) {
+            Dismount-ClientTorrent $torrent_id $torrent_hash
             throw 'Такой архив уже существует на гугл-диске, удаляем файл и пропускаем раздачу.'
         }
 
@@ -113,7 +114,7 @@ foreach ( $zip in $zip_list ) {
         if ( $PSVersionTable.OS.ToLower() -contains 'windows') {
             $fs = ( Get-PSDrive $drive_fs | Select-Object Free ).Free
             while ( $zip.Size -gt ( $fs - 10000000 ) ) {
-                Write-Host ( "Мало места на диске кэша Google ($drive_fs$drive_separator), подождём пока станет больше чем " + ([int]($zip.Size / 1024 / 1024)).ToString() + ' Мб')
+                Write-Host ( "Мало места на диске кэша Google ($drive_fs$folder_sep), подождём пока станет больше чем " + ([int]($zip.Size / 1024 / 1024)).ToString() + ' Мб')
                 Start-Sleep -Seconds 600
                 $fs = ( Get-PSDrive $drive_fs | Select-Object Free ).free
             }
@@ -122,6 +123,7 @@ foreach ( $zip in $zip_list ) {
         Write-Host ( '{0} {1} меньше чем лимит {2}, продолжаем!' -f $google_folder, (Get-FileSize $today_size), (Get-FileSize $lv_750gb) )
         try {
             if ( Test-Path -Path $zip_google_path ) {
+                Dismount-ClientTorrent $torrent_id $torrent_hash
                 throw 'Такой архив уже существует на гугл-диске, удаляем файл и пропускаем раздачу.'
             }
 
@@ -130,6 +132,7 @@ foreach ( $zip in $zip_list ) {
 
             Move-Item -path $zip_current_path -destination ( $zip_google_path ) -Force -ErrorAction Stop
             Write-Host 'Готово!'
+            Dismount-ClientTorrent $torrent_id $torrent_hash
 
             # После успешного переноса архива записываем затраченный трафик
             Get-TodayTraffic $uploads_all $zip.Size $google_folder | Out-Null
@@ -142,11 +145,6 @@ foreach ( $zip in $zip_list ) {
     } catch {
         Remove-Item $zip_current_path
         Write-Host $Error[0] -ForegroundColor Red
-    }
-
-    # Попытка удалить раздачу из клиента
-    if ( $delete_torrent ) {
-        Delete-Torrent $torrent_id $torrent_hash $torrent.category
     }
 
     $proc_size += $torrent.size

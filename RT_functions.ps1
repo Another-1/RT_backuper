@@ -6,7 +6,8 @@ $pswd = '20RuTracker.ORG22'
 $lv_750gb = 740 * 1024 * 1024 * 1024
 # Файлы с данными, для общения между процессами
 $upload_log_file = "$PSScriptRoot\stash\uploads_all.xml"
-$dones_log_file = "$PSScriptRoot\stash\uploaded_files.xml"
+$dones_log_file  = "$PSScriptRoot\stash\uploaded_files.txt"
+$remove_log_file = "$PSScriptRoot\stash\remove_files.txt"
 
 $pause_file = "$PSScriptRoot\stash\pause.txt"
 
@@ -22,12 +23,12 @@ function Confirm-Version {
 
 function Get-OsParams {
     $os = 'linux'
-    $drive_separator = '/'
+    $folder_separator = '/'
     if ( $PSVersionTable.OS.ToLower().contains('windows')) {
         $os = 'windows'
-        $drive_separator = ':\' 
+        $folder_separator = ':\' 
     }
-    return $os, $drive_separator
+    return $os, $folder_separator
 }
 
 function Sync-Settings {
@@ -53,19 +54,18 @@ function Get-Archives ( $google_folders ) {
     $file = Watch-FileExist $dones_log_file
     # Если файл пуст, или его обновление было более часа назад - обновляем заново
     try {
-        $dones = Import-Clixml -Path $dones_log_file
+        $dones = Get-Content $dones_log_file
     } catch {
         $update = $true
     }
-    if ( $file.size -eq 0 -Or $file.LastWriteTime -lt ( Get-Date ).AddHours(-1) ) {
+    if ( $file.size -eq 0 -Or $file.LastWriteTime -lt ( Get-Date ).AddHours(-24) ) {
         $update = $true
     }
     if ( $update ) {
-        $dones = @{}
-        Get-ChildItem $google_folders[0] -Recurse | Where { !$_.PSIsContainer } | ForEach-Object { $dones[$_.BaseName.ToLower()] = 1 }
-        $dones| Export-Clixml -Path $dones_log_file
-        Write-Host ( 'Список архивов обновлён, найдено {0} файлов.' -f $dones.count )
+        $dones = Get-ChildItem $google_folders[0] -Filter *.7z -Recurse | % { $_.BaseName }
+        $dones | Sort-Object | Out-File $dones_log_file
     }
+    Write-Host ( '.. обнаружено архивов {0}.' -f $dones.count )
     return $dones
 }
 
@@ -137,7 +137,7 @@ function Get-Required ( $torrents_list, $dones ) {
     $torrents_list | ForEach-Object {
         $torrent_id = $_.state.ToString()
         $torrent_hash = $_.hash.ToLower()
-        if ( $torrent_id -ne '' -and ( $torrent_id + '_' + $torrent_hash ) -notin $dones.keys ) {
+        if ( $torrent_id -ne '' -and ( $torrent_id + '_' + $torrent_hash ) -notin $dones ) {
             $torrents_list_required += $_
         }
         elseif ( $delete_processed -eq 1 -And $_.category -eq $default_category ) {
@@ -152,7 +152,17 @@ function Get-Required ( $torrents_list, $dones ) {
     return $torrents_list_required
 }
 
-function Delete-Torrent ( [int]$torrent_id, [string]$torrent_hash, [string]$torrent_category ) {
+# Добавляем архив в список обработанных и список для проверки на удаление
+function Dismount-ClientTorrent ( [int]$torrent_id, [string]$torrent_hash ) {
+    Watch-FileExist $remove_log_file | Out-Null
+
+    $zip_name = $torrent_id.ToString() + '_' + $torrent_hash.ToLower()
+    $zip_name | Out-File $remove_log_file -Append
+    $zip_name | Out-File $dones_log_file  -Append
+}
+
+# Удаляет раздачу из клиента, если она принадлежит заданной категории и включено удаление.
+function Delete-ClientTorrent ( [int]$torrent_id, [string]$torrent_hash, [string]$torrent_category ) {
     if ( $delete_processed -eq 1 -And $default_category -eq $torrent_category ) {
         try {
             Write-Host ( 'Удаляем из клиента раздачу {0}' -f $torrent_id )

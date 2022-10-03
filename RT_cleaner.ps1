@@ -9,7 +9,7 @@ Clear-Host
 $os, $folder_sep = Get-OsParams
 
 $hashes = @{}
-Get-Content $remove_log_file | % {
+Get-Content $remove_log_file | Get-Unique | Sort-Object | % {
     $id, $hash = ( $_.Split('.')[0] ).Split('_')
     $hashes[ $hash ] = $id
 }

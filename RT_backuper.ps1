@@ -21,14 +21,15 @@ Write-Host 'Получаем список раздач из клиента..'
 $torrents_list = Get-ClientTorrents $client_url $sid $args
 
 if ( $torrents_list -eq $null ) {
-    Write-Host ( 'Не удалось получить раздачи!' )
+    Write-Host 'Не удалось получить раздачи!'
     Exit
 }
+Write-Host ( '..получено раздач: {0}.' -f $torrents_list.count )
 
 # по каждой раздаче получаем коммент, чтобы достать из него номер топика
 Write-Host ( 'Получаем номера топиков по раздачам..' )
 $torrents_list = Get-TopicIDs $torrents_list
-Write-Host ( '..получено раздач: {0}.' -f $torrents_list.count )
+Write-Host ( '..получено топиков: {0}.' -f $torrents_list.count )
 
 # отбросим раздачи, для которых уже есть архив с тем же хэшем
 Write-Host 'Пропускаем уже заархивированные раздачи..'
@@ -99,23 +100,28 @@ foreach ( $torrent in $torrents_list ) {
     Write-Host ''
     Write-Host ( 'Архивируем {0}, {1} ({2})' -f $torrent_id, $torrent.name, (Get-FileSize $torrent.size) ) -ForegroundColor Green
 
-    # Проверяем, что архив для такой раздачи ещё не создан.
-    if ( Test-Path $zip_path_google ) {
-        Write-Host '..раздача уже имеет архив в гугле, пропускаем.'
+    try {
+        # Проверяем, что архив для такой раздачи ещё не создан.
+        if ( Test-Path $zip_path_google ) {
+            # Если раздача уже есть в гугле, то надо её удалить из клиента и добавить в локальный список архивированных.
+            Dismount-ClientTorrent $torrent_id $torrent_hash
+            throw '..раздача уже имеет архив в гугле, пропускаем.'
 
-        # Если раздача уже есть в гугле, то надо её удалить из клиента и добавить в локальный список архивированных.
-        Dismount-ClientTorrent $torrent_id $torrent_hash
-    }
-    elseif ( Test-Path $zip_path_finished ) {
-        Write-Host '..раздача уже имеет архив ожидающий переноса в гугл, пропускаем.'
-    }
-    else {
+        }
+        if ( Test-Path $zip_path_finished ) {
+            throw '..раздача уже имеет архив ожидающий переноса в гугл, пропускаем.'
+        }
+
         # Удаляем файл в месте архивирования, если он есть откуда-то
         if ( Test-Path $zip_path_progress ) { Remove-Item $zip_path_progress | Out-Null }
 
         # Начинаем архивацию файла
         $compression = Get-Compression $torrent_id
         & $7z_path a $zip_path_progress $torrent.content_path "-p$pswd" "-mx$compression" "-mmt$cores" -mhe=on -sccUTF-8 -bb0
+        if ( $LastExitCode -ne 0 ) {
+            Remove-Item $zip_path_progress
+            throw ( 'Архивация завершилась ошибкой: {0}. Удаляем файл.' -f $LastExitCode )
+        }
         # Считаем результаты архивации
         $zip_size = (Get-Item $zip_path_progress).Length
 
@@ -132,6 +138,8 @@ foreach ( $torrent in $torrents_list ) {
             Write-Host 'Не удалось переместить архив.'
             Pause
         }
+    } catch {
+        Write-Host $Error[0] -ForegroundColor Red
     }
 
     $proc_size += $torrent.size

@@ -25,19 +25,6 @@ if ( $google_folders.count -gt 1 ) {
     $google_accounts_count = $google_folders.count
 }
 
-Write-Host 'Авторизуемся в клиенте.'
-$sid = Initialize-Client
-# Ищем список архивов, которые нужно перенести
-$zip_list = Get-ChildItem -Recurse $archived_folder_path
-
-$hashes = $zip_list | ForEach-Object { ( $_.Name.Split('.')[0] ).Split('_')[1]}
-$torrents = Get-ClientTorrents $client_url $sid $hashes
-
-$proc_cnt = 0
-$proc_size = 0
-$sum_cnt = $zip_list.count
-$sum_size = ( $zip_list | Measure-Object -sum size ).Sum
-
 # Если используемых акков >1 и передан параметр, то используем фильтрацию
 if ( $args.count -ne 0 -and $google_accounts_count -gt 1 ) {
     $google_load_num = $args[0]
@@ -48,14 +35,35 @@ if ( $args.count -ne 0 -and $google_accounts_count -gt 1 ) {
     Write-Host ( 'Включена балансировка выгрузки. Выбранный аккаунт: {0}' -f $google_load_num ) -ForegroundColor Yellow
 }
 
+# Ищем список архивов, которые нужно перенести
+$zip_list = Get-ChildItem -Recurse $archived_folder_path
+
+$proc_cnt = 0
+$proc_size = 0
+$sum_cnt = $zip_list.count
+$sum_size = ( $zip_list | Measure-Object -sum size ).Sum
+
 Write-Host ( 'Найдено архивов: {0} ({1}), требующих переноса на гугл-диск, начинаем!' -f $sum_cnt, (Get-FileSize $sum_size) )
 if ( $sum_cnt -eq 0 ) {Exit}
+
+Write-Host 'Авторизуемся в клиенте.'
+$sid = Initialize-Client
+
+$hashes = $zip_list | ForEach-Object { ( $_.Name.Split('.')[0] ).Split('_')[1]}
+$torrents = Get-ClientTorrents $client_url $sid $hashes
+
 # Перебираем архивы.
 foreach ( $zip in $zip_list ) {
     Start-Pause
+    if ( $zip.Size -le 1024 ) {
+        Remove-Item $zip.FullName
+        Continue
+    }
 
     $torrent_id, $torrent_hash = ( $zip.Name.Split('.')[0] ).Split('_')
     $torrent = $torrents | Where-Object { $_.hash -eq $torrent_hash }
+    # для Unix нужно экранировать кавычки и пробелы.
+    if ( $os -eq 'linux' ) {$torrent.content_path = $torrent.content_path.replace('"','\"') }
 
     # Собираем имя и путь хранения архива раздачи.
     $disk_id, $disk_name, $disk_path = Get-DiskParams $torrent_id $folder_sep

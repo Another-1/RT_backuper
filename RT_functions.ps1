@@ -63,7 +63,7 @@ function Get-Archives ( $google_folders ) {
     }
     if ( $update ) {
         $dones = Get-ChildItem $google_folders[0] -Filter *.7z -Recurse | % { $_.BaseName }
-        $dones | Sort-Object | Out-File $dones_log_file
+        $dones | Get-Unique | Sort-Object | Out-File $dones_log_file
     }
     Write-Host ( '.. обнаружено архивов {0}.' -f $dones.count )
     return $dones
@@ -91,13 +91,13 @@ function Initialize-Client {
 
 function Get-ClientTorrents ($client_url, $sid, $t_args) {
     if ( $t_args.Count -eq 0 ) {
-        $all_torrents_list = ( Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/info' ) -WebSession $sid ).Content | ConvertFrom-Json | Select-Object name, hash, content_path, save_path, state, size, category, priority | sort-object -Property size
+        $all_torrents_list = ( Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/info?filter=completed' ) -WebSession $sid ).Content | ConvertFrom-Json | Select-Object name, hash, content_path, save_path, state, size, category, priority | sort-object -Property size
         $torrents_list = $all_torrents_list | Where-Object { $_.state -eq 'uploading' -or $_.state -eq 'pausedUP' -or $_.state -eq 'queuedUP' -or $_.state -eq 'stalledUP' }
         return $torrents_list
     }
     else {
         $reqdata = 'hashes=' + ( $t_args -Join '|' )
-        $torrents_list = ( Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/info?' + $reqdata) -WebSession $sid ).Content | ConvertFrom-Json | Select-Object name, hash, content_path, save_path, state, size, category, priority | Where-Object { $_.state -ne 'downloading' -and $_.state -ne 'stalledDL' -and $_.state -ne 'queuedDL' -and $_.state -ne 'error' -and $_.state -ne 'missingFiles' } | sort-object -Property size
+        $torrents_list = ( Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/info?filter=completed&' + $reqdata) -WebSession $sid ).Content | ConvertFrom-Json | Select-Object name, hash, content_path, save_path, state, size, category, priority | Where-Object { $_.state -ne 'downloading' -and $_.state -ne 'stalledDL' -and $_.state -ne 'queuedDL' -and $_.state -ne 'error' -and $_.state -ne 'missingFiles' } | sort-object -Property size
         return $torrents_list
     }
 }
@@ -131,24 +131,26 @@ function Get-TopicIDs( $torrents_list ) {
     return $torrents_list
 }
 
-function Get-Required ( $torrents_list, $dones ) {
+function Get-Required ( $torrents_list, $archives_list ) {
     $torrents_list_required = [System.Collections.ArrayList]::new()
-    $deleted = 0
     $torrents_list | ForEach-Object {
-        $torrent_id = $_.state.ToString()
+        $torrent_id = $_.state
         $torrent_hash = $_.hash.ToLower()
-        if ( $torrent_id -ne '' -and ( $torrent_id + '_' + $torrent_hash ) -notin $dones ) {
-            $torrents_list_required += $_
+        $zip_name = $torrent_id.ToString() + '_' + $torrent_hash
+
+        # Архиав нет в списке заархивированных
+        if ( $zip_name -notin $archives_list ) {
+            if ( $torrent_id -ne '' ) {
+                $torrents_list_required += $_
+            }
         }
-        elseif ( $delete_processed -eq 1 -And $_.category -eq $default_category ) {
-            $reqdata = 'hashes=' + $torrent_hash + '&deleteFiles=true'
-            Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/delete' ) -Body $reqdata -WebSession $sid -Method POST > $nul
-            $deleted++
+        # Есть в списке - пробуем удалить
+        else {
+            Dismount-ClientTorrent $torrent_id $torrent_hash
         }
+
     }
-    if ( $deleted -gt 0 ) {
-        Write-Host ( 'Из клиента удалено {0} раздач.' -f $deleted )
-    }
+
     return $torrents_list_required
 }
 

@@ -7,6 +7,10 @@ $runs = 0
 while( $true ) {
     $timer = 60
     if ( $args.count -gt 0 ) {
+        if ( $args[1] -ne $null ) {
+            try { $timer = [int]$args[1] } catch {}
+        }
+
         $proc, $param = $args[0].trim('_').Split('_')
         $run_file = "$PSScriptRoot/RT_{0}.ps1" -f $proc
         Write-Output ( 'Params: [{0}], file: {1}' -f ($args -Join ','), $run_file )
@@ -16,9 +20,6 @@ while( $true ) {
             } else {
                 .$run_file
             }
-        }
-        if ( $args[1] -ne $null ) {
-            try { $timer = [int]$args[1] } catch {}
         }
     }
     Write-Output ( '{0} Подождём {1} минут и попробуем ещё раз. Счётчик цикла: {2}' -f (Get-Date -Format t), $timer, ++$runs )

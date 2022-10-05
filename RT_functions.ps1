@@ -4,8 +4,12 @@ $pswd = '20RuTracker.ORG22'
 
 # лимит закачки на один диск в сутки
 $lv_750gb = 740 * 1024 * 1024 * 1024
+
+$google_folder_prefix = 'ArchRuT'
+
 # Файлы с данными, для общения между процессами
 $upload_log_file = "$PSScriptRoot\stash\uploads_all.xml"
+$archives_list_path = "$PSScriptRoot\stash\archives_list"
 $dones_log_file  = "$PSScriptRoot\stash\uploaded_files.txt"
 $remove_log_file = "$PSScriptRoot\stash\remove_files.txt"
 

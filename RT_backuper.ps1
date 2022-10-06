@@ -76,7 +76,6 @@ If ( $ok -eq $false) {
     Exit
 }
 
-
 # Проверим наличие заданных каталогов. (вероятно лучше перенести в проверку конфига)
 New-Item -ItemType Directory -Path $arch_params.progress -Force | Out-Null
 New-Item -ItemType Directory -Path $arch_params.finished -Force | Out-Null
@@ -84,6 +83,7 @@ New-Item -ItemType Directory -Path $arch_params.finished -Force | Out-Null
 Write-Host ('[backuper] Начинаем перебирать раздачи.')
 # Перебираем найденные раздачи и бекапим их.
 $torrents_left = $torrents_list
+$torrents_left = Export-Clixml $stash_folder.backup_list
 foreach ( $torrent in $torrents_list ) {
     # Проверка на переполнение каталога с архивами.
     while ( $true ) {

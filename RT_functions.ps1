@@ -7,6 +7,12 @@ $lv_750gb = 740 * 1024 * 1024 * 1024
 
 $google_folder_prefix = 'ArchRuT'
 
+$stash_folder = @{
+    default       = "$PSScriptRoot\stash"                   # Общий путь к папке
+    zip_list      = "$PSScriptRoot\stash\archived"          # Путь к спискам архивов по дискам
+    uploads_limit = "$PSScriptRoot\stash\uploads_limit.xml" # Файл записанных отдач (лимиты)
+}
+
 # Файлы с данными, для общения между процессами
 $upload_log_file = "$PSScriptRoot\stash\uploads_all.xml"
 $archives_list_path = "$PSScriptRoot\stash\archives_list"

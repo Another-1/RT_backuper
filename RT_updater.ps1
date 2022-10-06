@@ -7,7 +7,7 @@ $os, $folder_sep = Get-OsParams
 
 $arch_folders = Get-ChildItem $google_folders[0] -filter "$google_folder_prefix*" -Directory
 
-$sleep_min = [math]::Round( 24 * 60 / ($arch_folders.count * 2 ) )
+$sleep_min = [math]::Round( 24 * 60 / ($arch_folders.count * 1.5 ) )
 
 if ( $timer -ne $sleep_min ) {
   Write-Host ( 'Обнаружено дисков {0}, рекомендуемая пауза между запусками: {1} минут.' -f $arch_folders.count, $sleep_min )
@@ -17,9 +17,13 @@ if ( $timer -ne $sleep_min ) {
 # Собираем список гугл-дисков и проверяем наличие файла со списком архивов для каждого. Создаём если нет.
 # Проверяем даты обновления файлов и размер. Если прошло 24ч или файл пуст -> пора обновлять.
 # Выбираем первый диск по условиям выше и обновляем его.
-$update_folder = $arch_folders | % { Watch-FileExist ($archives_list_path + $folder_sep + $_.Name + '.txt') } |
+$update_folder = $arch_folders | % { Watch-FileExist ($stash_folder.zip_list + '\' + $_.Name + '.txt') } |
   ? { $_.Size -eq 0 -Or $_.LastWriteTime -lt ( Get-Date ).AddHours(-24) } | Sort-Object -Property LastWriteTime | Select -First 1
 
+if ( !$update_folder ) {
+  Write-Host 'Нет списков для обновления. Выходим.'
+  Exit
+}
 
 # Путь хранения архивов выбранного диска
 $update_path = ( $arch_folders | ? { $_.BaseName -eq $update_folder.BaseName } ).FullName

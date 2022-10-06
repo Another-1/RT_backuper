@@ -14,7 +14,7 @@ $file_path = $stash_folder.finished
 $file = Watch-FileExist $file_path
 
 
-$total = Get-Content $file_path | Get-Unique
+$total = Get-Content $file_path | Sort-Object -Unique
 $total_count = $total.count
 
 Write-Host ( '[cleaner] Обнаружено раздач: {0}.' -f $total_count )
@@ -72,5 +72,5 @@ $i = 0
 foreach ( $arch in $archives ) {
     $content = Get-Content $arch.FullName
     Write-Progress -Activity "Сортируем списки.." -Status ("Сортируем [{0}] {1} шт." -f $arch.BaseName, $content.count) -PercentComplete ($i++ * 100 / $archives.count)
-    $content | Get-Unique | Sort-Object | Out-File $arch.FullName
+    $content | Sort-Object -Unique | Out-File $arch.FullName
 }

@@ -36,7 +36,7 @@ if ( !$torrents_list ) {
     # Ищем раздачи, которые скачал клиент и добавил в буферный файл.
     $hash_file = Watch-FileExist $stash_folder.downloaded
     if ( $hash_file.Size ) {
-        $downloaded = ( Get-FileFirstContent $stash_folder.downloaded 20 ) | Get-Unique
+        $downloaded = ( Get-FileFirstContent $stash_folder.downloaded 20 )
         Write-Host ( 'Найдено раздач, которые клиент докачал: {0}.' -f $downloaded.count )
     }
 

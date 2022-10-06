@@ -77,7 +77,7 @@ function Clear-EmptyFolders ( $Path ) {
 # Получить из файла первые N строк
 function Get-FileFirstContent ( [string]$Path, [int]$First = 10 ) {
     # Вытаскиваем данные из файла.
-    $all_file = Get-Content $Path | Get-Unique
+    $all_file = Get-Content $Path | Sort-Object -Unique
     # Вытаскиваем первые N строк
     $selected = $all_file | Select -First $First
     # Остальное записываем обратно

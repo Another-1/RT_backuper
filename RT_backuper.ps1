@@ -116,7 +116,7 @@ foreach ( $torrent in $torrents_list ) {
     try {
         # Проверяем, что архив для такой раздачи ещё не создан.
         $zip_test = Test-PathTimer $zip_google_path
-        Write-Host ( '[check] Проверка в гугле заняла {0} сек, результат: {1}' -f $zip_test.exec, $zip_test.result )
+        Write-Host ( '[check][{0}] Проверка в гугле заняла {1} сек, результат: {2}' -f $disk_name, $zip_test.exec, $zip_test.result )
         if ( $zip_test.result ) {
             # Если раздача уже есть в гугле, то надо её удалить из клиента и добавить в локальный список архивированных.
             Dismount-ClientTorrent $torrent_id $torrent_hash

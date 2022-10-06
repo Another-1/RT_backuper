@@ -96,7 +96,7 @@ foreach ( $zip in $zip_list ) {
     Write-Host ( $text -f $torrent_id, $disk_id, $disk_name, $google_name )
     try {
         $zip_test = Test-PathTimer $zip_google_path
-        Write-Host ( '[check] Проверка в гугле заняла {0} сек, результат: {1}' -f $zip_test.exec, $zip_test.result )
+        Write-Host ( '[check][{0}] Проверка в гугле заняла {1} сек, результат: {2}' -f $disk_name, $zip_test.exec, $zip_test.result )
         if ( $zip_test.result ) {
             Dismount-ClientTorrent $torrent_id $torrent_hash
             throw '[skip] Такой архив уже существует на гугл-диске, удаляем файл и пропускаем раздачу.'
@@ -113,7 +113,7 @@ foreach ( $zip in $zip_list ) {
 
             # Считаем результаты архивации
             $time_valid = [math]::Round( ((Get-Date) - $start_measure).TotalSeconds, 1 )
-            Write-Host ( '[uploader] Проверка целостности завершена за {0} сек.' -f $time_valid )
+            Write-Host ( '[check] Проверка целостности завершена за {0} сек.' -f $time_valid )
         }
 
         # Перед переносом проверяем доступный трафик. 0 для получения актуальных данных.
@@ -142,7 +142,7 @@ foreach ( $zip in $zip_list ) {
         Write-Host ( '{0} {1} меньше чем лимит {2}, продолжаем!' -f $google_name, (Get-FileSize $today_size), (Get-FileSize $lv_750gb) )
         try {
             $zip_test = Test-PathTimer $zip_google_path
-            Write-Host ( '[check] Проверка в гугле заняла {0} сек, результат: {1}' -f $zip_test.exec, $zip_test.result )
+            Write-Host ( '[check][{0}] Проверка в гугле заняла {1} сек, результат: {2}' -f $disk_name, $zip_test.exec, $zip_test.result )
             if ( $zip_test.result ) {
                 Dismount-ClientTorrent $torrent_id $torrent_hash
                 throw '[skip] Такой архив уже существует на гугл-диске, удаляем файл и пропускаем раздачу.'
@@ -154,7 +154,7 @@ foreach ( $zip in $zip_list ) {
             $move_sec = [math]::Round( (Measure-Command {
                 Move-Item -path $zip_current_path -destination ( $zip_google_path ) -Force -ErrorAction Stop
             }).TotalSeconds, 1 )
-            if ( !$move_sec -Or $move_sec -le 1 ) {$move_sec = 1}
+            if ( !$move_sec ) {$move_sec = 0.1}
 
             $speed_move = (Get-FileSize ($torrent.size / $move_sec) -SI speed_2)
             Write-Host ( '[uploader] Готово! Завершено за {0} минут, средняя скорость {1}' -f [math]::Round($move_sec/60, 1) , $speed_move )

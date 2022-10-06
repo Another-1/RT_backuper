@@ -83,7 +83,7 @@ New-Item -ItemType Directory -Path $arch_params.finished -Force | Out-Null
 Write-Host ('[backuper] Начинаем перебирать раздачи.')
 # Перебираем найденные раздачи и бекапим их.
 $torrents_left = $torrents_list
-$torrents_left = Export-Clixml $stash_folder.backup_list
+$torrents_left | Export-Clixml $stash_folder.backup_list
 foreach ( $torrent in $torrents_list ) {
     # Проверка на переполнение каталога с архивами.
     while ( $true ) {
@@ -107,7 +107,7 @@ foreach ( $torrent in $torrents_list ) {
     # Полный путь хранения обрабатываемого архива и архива, который готов к заливке.
     $zip_path_progress = $arch_params.progress + $folder_sep + $zip_name
     $zip_path_finished = $arch_params.finished + $folder_sep + $zip_name
-    $zip_google_test   = $google_params.folders[0] + $disk_path + $zip_name
+    $zip_google_path   = $google_params.folders[0] + $disk_path + $zip_name
 
     Start-Pause
     Write-Host ''
@@ -115,7 +115,9 @@ foreach ( $torrent in $torrents_list ) {
 
     try {
         # Проверяем, что архив для такой раздачи ещё не создан.
-        if ( Test-Path $zip_google_test ) {
+        $zip_test = Test-PathTimer $zip_google_path
+        Write-Host ( '[check] Проверка в гугле заняла {0} сек, результат: {1}' -f $zip_test.exec, $zip_test.result )
+        if ( $zip_test.result ) {
             # Если раздача уже есть в гугле, то надо её удалить из клиента и добавить в локальный список архивированных.
             Dismount-ClientTorrent $torrent_id $torrent_hash
             throw '..раздача уже имеет архив в гугле, пропускаем.'

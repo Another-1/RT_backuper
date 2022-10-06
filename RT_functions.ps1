@@ -53,16 +53,24 @@ function Sync-Settings {
 }
 
 # Если файла нет - создать его
-function Watch-FileExist ( $FilePath ) {
-    If ( !(Test-Path $FilePath) ) {
-        New-Item -ItemType File -Path $FilePath -Force | Out-Null
+function Watch-FileExist ( $Path ) {
+    If ( !(Test-Path $Path) ) {
+        New-Item -ItemType File -Path $Path -Force | Out-Null
     }
-    return Get-Item $FilePath
+    return Get-Item $Path
+}
+
+function Test-PathTimer ( $Path ) {
+    $exec_time = [math]::Round( (Measure-Command {
+        $result = Test-Path $Path
+    }).TotalSeconds, 1 )
+
+    return @{ result = $result; exec = $exec_time}
 }
 
 # Удаление пустых папок.
-function Clear-EmptyFolders ( $FilePath ) {
-    Get-ChildItem $FilePath -Recurse | Where {$_.PSIsContainer -and @(Get-ChildItem -Lit $_.Fullname -r | Where {!$_.PSIsContainer}).Length -eq 0} | Remove-Item -Force
+function Clear-EmptyFolders ( $Path ) {
+    Get-ChildItem $Path -Recurse | Where {$_.PSIsContainer -and @(Get-ChildItem -Lit $_.Fullname -r | Where {!$_.PSIsContainer}).Length -eq 0} | Remove-Item -Force
 }
 
 function Get-Archives {

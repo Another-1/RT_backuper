@@ -95,7 +95,9 @@ foreach ( $zip in $zip_list ) {
     $text = '[uploader] Раздача: id={0}, disk=[{1}] {2}, path={3},'
     Write-Host ( $text -f $torrent_id, $disk_id, $disk_name, $google_name )
     try {
-        if ( Test-Path -Path $zip_google_path ) {
+        $zip_test = Test-PathTimer $zip_google_path
+        Write-Host ( '[check] Проверка в гугле заняла {0} сек, результат: {1}' -f $zip_test.exec, $zip_test.result )
+        if ( $zip_test.result ) {
             Dismount-ClientTorrent $torrent_id $torrent_hash
             throw '[skip] Такой архив уже существует на гугл-диске, удаляем файл и пропускаем раздачу.'
         }
@@ -139,7 +141,9 @@ foreach ( $zip in $zip_list ) {
 
         Write-Host ( '{0} {1} меньше чем лимит {2}, продолжаем!' -f $google_name, (Get-FileSize $today_size), (Get-FileSize $lv_750gb) )
         try {
-            if ( Test-Path -Path $zip_google_path ) {
+            $zip_test = Test-PathTimer $zip_google_path
+            Write-Host ( '[check] Проверка в гугле заняла {0} сек, результат: {1}' -f $zip_test.exec, $zip_test.result )
+            if ( $zip_test.result ) {
                 Dismount-ClientTorrent $torrent_id $torrent_hash
                 throw '[skip] Такой архив уже существует на гугл-диске, удаляем файл и пропускаем раздачу.'
             }

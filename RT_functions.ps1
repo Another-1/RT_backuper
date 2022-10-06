@@ -1,11 +1,10 @@
 . "$PSScriptRoot\config\RT_settings.ps1"
 
-$pswd = '20RuTracker.ORG22'
-
 # лимит закачки на один диск в сутки
 $lv_750gb = 740 * 1024 * 1024 * 1024
 
 $google_folder_prefix = 'ArchRuT'
+$pswd = '20RuTracker.ORG22'
 
 # Файлы с данными, для общения между процессами
 $stash_folder = @{

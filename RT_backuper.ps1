@@ -8,36 +8,48 @@ $os, $folder_sep = Get-OsParams
 Start-Pause
 Clear-Host
 
-$dones = Get-Archives $google_folders
-
 # Очищаем пустые папки в папке загрузок
 Clear-EmptyFolders $store_path
 
-Write-Host 'Авторизуемся в клиенте.'
-$sid = Initialize-Client
-
-# получаем список раздач из клиента
-Write-Host 'Получаем список раздач из клиента..'
-$torrents_list = Get-ClientTorrents $client_url $sid $args
-
-if ( $torrents_list -eq $null ) {
-    Write-Host 'Не удалось получить раздачи!'
+Write-Host '[backuper] Авторизуемся в клиенте.'
+try {
+    $sid = Initialize-Client
+} catch {
+    Write-Host ( 'Авторизация не удалась. {0}' -f $Error[0] ) -ForegroundColor Red
     Exit
 }
-Write-Host ( '..получено раздач: {0}.' -f $torrents_list.count )
 
-# по каждой раздаче получаем коммент, чтобы достать из него номер топика
-Write-Host ( 'Получаем номера топиков по раздачам..' )
-$torrents_list = Get-TopicIDs $torrents_list
-Write-Host ( '..получено топиков: {0}.' -f $torrents_list.count )
+# Пробуем найти список раздач, которые обрабатывались, но процесс прервался.
+try { $torrents_list = Import-Clixml $stash_folder.backup_list } catch {}
 
-# отбросим раздачи, для которых уже есть архив с тем же хэшем
-Write-Host 'Пропускаем уже заархивированные раздачи..'
-$was = $torrents_list.count
-$torrents_list = Get-Required $torrents_list $dones
+# Если список пуст, начинаем с начала.
+if ( !$torrents_list ) {
+    $dones, $hashes = Get-Archives
 
-if ( $was -ne $torrents_list.count ) {
-    Write-Host( '..пропущено раздач: {0}.' -f ($was - $torrents_list.count) )
+    # получаем список раздач из клиента
+    Write-Host 'Получаем список раздач из клиента..'
+    $torrents_list = Get-ClientTorrents $client_url $sid $args
+
+    if ( $torrents_list -eq $null ) {
+        Write-Host 'Не удалось получить раздачи!'
+        Exit
+    }
+    Write-Host ( '..от клиента получено раздач: {0}.' -f $torrents_list.count )
+
+    # по каждой раздаче получаем коммент, чтобы достать из него номер топика
+    Write-Host ( 'Получаем номера топиков по раздачам..' )
+    $torrents_list = Get-TopicIDs $torrents_list
+    Write-Host ( '..топиков с номерами получено: {0}.' -f $torrents_list.count )
+
+
+    # отбросим раздачи, для которых уже есть архив с тем же хэшем
+    Write-Host 'Пропускаем уже заархивированные раздачи..'
+    $was = $torrents_list.count
+    $torrents_list = Get-Required $torrents_list $dones
+
+    if ( $was -ne $torrents_list.count ) {
+        Write-Host( '..пропущено раздач: {0}.' -f ($was - $torrents_list.count) )
+    }
 }
 
 $proc_size = 0
@@ -46,7 +58,7 @@ $sum_size = ( $torrents_list | Measure-Object -sum size ).Sum
 $sum_cnt = $torrents_list.count
 $used_locs = [System.Collections.ArrayList]::new()
 $ok = $true
-Write-Host ( 'Объём новых раздач ({0} шт) {1}.' -f $sum_cnt, (Get-FileSize $sum_size) )
+Write-Host ( '[backuper] Объём новых раздач ({0} шт) {1}.' -f $sum_cnt, (Get-FileSize $sum_size) )
 
 # проверяем, что никакие раздачи не пересекаются по именам файлов (если файл один) или каталогов (если файлов много), чтобы не заархивировать не то
 Write-Host ( 'Проверяем уникальность путей сохранения раздач..' )
@@ -64,20 +76,23 @@ If ( $ok -eq $false) {
     Exit
 }
 
-# Костыль, для неполного конфига.
-if ( $tmp_drive_max -eq $null ) { $tmp_drive_max = 100 * [math]::Pow( 1024, 3) }
 
-$archived_folder_path = $tmp_drive + $folder_sep + 'finished'
+# Проверим наличие заданных каталогов. (вероятно лучше перенести в проверку конфига)
+New-Item -ItemType Directory -Path $arch_params.progress -Force | Out-Null
+New-Item -ItemType Directory -Path $arch_params.finished -Force | Out-Null
+
+Write-Host ('[backuper] Начинаем перебирать раздачи.')
 # Перебираем найденные раздачи и бекапим их.
+$torrents_left = $torrents_list
 foreach ( $torrent in $torrents_list ) {
-    # Проверка на переполнение диска архивами.
+    # Проверка на переполнение каталога с архивами.
     while ( $true ) {
-        $folder_size = Get-FolderSize $archived_folder_path
-        if ( !(Compare-MaxFolderSize $folder_size $tmp_drive_max) ) {
+        $folder_size = Get-FolderSize $arch_params.finished
+        if ( !(Compare-MaxFolderSize $folder_size $arch_params.finished_size) ) {
             break
         }
-        $text = '{2} Занятый объём диска {0} больше допустимого {1}. Подождём пока освободится.'
-        Write-Host ($text -f $archived_folder_path, (Get-FileSize $tmp_drive_max), (Get-Date -Format t) )
+        $text = '[{0}] Занятый объём каталога ({1}) {2} больше допустимого {3}. Подождём пока освободится.'
+        Write-Host ($text -f (Get-Date -Format t), $arch_params.finished, (Get-FileSize $folder_size), (Get-FileSize $arch_params.finished_size) )
         Start-Sleep -Seconds 60
     }
 
@@ -88,21 +103,19 @@ foreach ( $torrent in $torrents_list ) {
 
     # Имя арихва.
     $zip_name = $torrent_id.ToString() + '_' + $torrent.hash.ToLower() + '.7z'
-    # для Unix нужно экранировать кавычки и пробелы.
-    if ( $os -eq 'linux' ) {$torrent.content_path = $torrent.content_path.replace('"','\"') }
 
     # Полный путь хранения обрабатываемого архива и архива, который готов к заливке.
-    $zip_path_progress = $tmp_drive + $folder_sep + $zip_name
-    $zip_path_finished = $archived_folder_path + $folder_sep + $zip_name
-    $zip_path_google   = $google_folders[0] + $disk_path + $zip_name
+    $zip_path_progress = $arch_params.progress + $folder_sep + $zip_name
+    $zip_path_finished = $arch_params.finished + $folder_sep + $zip_name
+    $zip_google_test   = $google_params.folders[0] + $disk_path + $zip_name
 
     Start-Pause
     Write-Host ''
-    Write-Host ( 'Архивируем {0}, {1} ({2})' -f $torrent_id, $torrent.name, (Get-FileSize $torrent.size) ) -ForegroundColor Green
+    Write-Host ( '[torrent] Архивируем {0} ({2}), {1} ' -f $torrent_id, $torrent.name, (Get-FileSize $torrent.size) ) -ForegroundColor Green
 
     try {
         # Проверяем, что архив для такой раздачи ещё не создан.
-        if ( Test-Path $zip_path_google ) {
+        if ( Test-Path $zip_google_test ) {
             # Если раздача уже есть в гугле, то надо её удалить из клиента и добавить в локальный список архивированных.
             Dismount-ClientTorrent $torrent_id $torrent_hash
             throw '..раздача уже имеет архив в гугле, пропускаем.'
@@ -112,30 +125,36 @@ foreach ( $torrent in $torrents_list ) {
             throw '..раздача уже имеет архив ожидающий переноса в гугл, пропускаем.'
         }
 
-        # Удаляем файл в месте архивирования, если он есть откуда-то
+        # Удаляем файл в месте архивирования, если он прочему-то есть.
         if ( Test-Path $zip_path_progress ) { Remove-Item $zip_path_progress | Out-Null }
 
+        # для Unix нужно экранировать кавычки и пробелы.
+        if ( $os -eq 'linux' ) { $torrent.content_path = $torrent.content_path.replace('"','\"') }
         # Начинаем архивацию файла
-        $compression = Get-Compression $torrent_id
-        & $7z_path a $zip_path_progress $torrent.content_path "-p$pswd" "-mx$compression" "-mmt$cores" -mhe=on -sccUTF-8 -bb0
+        $compression = Get-Compression $torrent_id $arch_params
+        $start_measure = Get-Date
+        & $7z_path a $zip_path_progress $torrent.content_path "-p$pswd" "-mx$compression" ("-mmt" + $arch_params.cores) -mhe=on -sccUTF-8 -bb0
         if ( $LastExitCode -ne 0 ) {
             Remove-Item $zip_path_progress
             throw ( 'Архивация завершилась ошибкой: {0}. Удаляем файл.' -f $LastExitCode )
         }
-        # Считаем результаты архивации
-        $zip_size = (Get-Item $zip_path_progress).Length
 
+        # Считаем результаты архивации
+        $time_arch = [math]::Round( ((Get-Date) - $start_measure).TotalSeconds, 1 )
+        $zip_size = (Get-Item $zip_path_progress).Length
         $comp_perc = [math]::Round( $zip_size * 100 / $torrent.size )
-        Write-Host ( 'Размер {0} >> {1} (сжатие={2}, {3}%).' -f (Get-FileSize $torrent.size), (Get-FileSize $zip_size), $compression, $comp_perc )
+
+        $success_text = '[torrent] Успешно завершено за {0} сек [comp:{1}, cores:{2}, archSize:{3}, perc:{4}]'
+        Write-Host ( $success_text -f $time_arch, $compression, $arch_params.cores, (Get-FileSize $zip_size), $comp_perc )
+
         try {
             if ( Test-Path $zip_path_finished ) { Remove-Item $zip_path_finished | Out-Null }
-            Write-Host ( 'Перемещаем {0} в папку {1}' -f  $zip_name, $archived_folder_path )
-            New-Item -ItemType Directory -Path $archived_folder_path -Force | Out-Null
-            Move-Item -path $zip_path_progress -destination ( $zip_path_finished ) -Force -ErrorAction Stop
+            Write-Host ( 'Перемещаем {0} в каталог {1}' -f  $zip_name, $arch_params.finished )
+            Move-Item -path $zip_path_progress -destination $zip_path_finished -Force -ErrorAction Stop
             Write-Host 'Готово!'
         }
         catch {
-            Write-Host 'Не удалось переместить архив.'
+            Write-Host 'Не удалось переместить архив.' -ForegroundColor Red
             Pause
         }
     } catch {
@@ -145,6 +164,9 @@ foreach ( $torrent in $torrents_list ) {
     $proc_size += $torrent.size
     $text = 'Обработано раздач {0} ({1}) из {2} ({3})'
     Write-Host ( $text -f ++$proc_cnt, (Get-FileSize $proc_size), $sum_cnt, (Get-FileSize $sum_size) ) -ForegroundColor DarkCyan
+
+    # Перезаписываем данные раздач, которые осталось обработать.
+    $torrents_left = $torrents_left | ? { $_.state -ne $torrent_id } | Export-Clixml $stash_folder.backup_list
 
     Start-Stopping
     Start-Pause

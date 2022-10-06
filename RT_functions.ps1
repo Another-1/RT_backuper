@@ -11,6 +11,7 @@ $stash_folder = @{
     default       = "$PSScriptRoot\stash"                   # Общий путь к папке
     archived      = "$PSScriptRoot\stash\archived"          # Путь к спискам архивов по дискам
     uploads_limit = "$PSScriptRoot\stash\uploads_limit.xml" # Файл записанных отдач (лимиты)
+    backup_list   = "$PSScriptRoot\stash\backup_list.xml"   # Файл уже обработанного списка раздач. Для случая когда был перезапуск
 }
 
 # Файлы с данными, для общения между процессами
@@ -112,23 +113,30 @@ function Get-ClientTorrents ($client_url, $sid, $t_args) {
     }
 }
 
-function Get-TopicIDs( $torrents_list ) {
+function Get-TopicIDs( $torrents_list, $hashes ) {
     foreach ( $torrent in $torrents_list ) {
         $torrent.state = $nul
-        # ищем коммент в данных раздачи
-        try {
-            $reqdata = 'hash=' + $torrent.hash
-            $torprops = ( Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/properties' ) -Body $reqdata  -WebSession $sid -Method POST ).Content | ConvertFrom-Json
-            if ( $torprops.comment -match 'rutracker' ) {
-                $torrent.state = ( Select-String "\d*$" -InputObject $torprops.comment).Matches.Value
-            }
-        } catch { pause }
-        # если не удалось получить информацию об ID из коммента, сходим в API и попробуем получить там
+
+        # ищем ид раздачи в списке уже обработанных.
+        if ( $hashes ) {
+            $torrent.state = $hashes[ $torrent.hash ]
+        }
+        # ищем коммент в данных раздачи.
+        if ( $nul -eq $torrent.state ) {
+            try {
+                $reqdata = 'hash=' + $torrent.hash
+                $torprops = ( Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/properties' ) -Body $reqdata  -WebSession $sid -Method POST ).Content | ConvertFrom-Json
+                if ( $torprops.comment -match 'rutracker' ) {
+                    $torrent.state = ( Select-String "\d*$" -InputObject $torprops.comment).Matches.Value
+                }
+            } catch { pause }
+        }
+        # если не удалось получить информацию об ID из коммента, сходим в API и попробуем получить там.
         if ( $nul -eq $torrent.state ) {
             try {
                 $torrent.state = ( ( Invoke-WebRequest ( 'http://api.rutracker.org/v1/get_topic_id?by=hash&val=' + $torrent.hash ) ).content | ConvertFrom-Json ).result.($torrent.hash)
             } catch {
-                Write-Host ('Не удалось получить номер топика, hash={0}' -f $torrent.hash )
+                Write-Host ('[RT_API] Не удалось получить номер топика, hash={0}' -f $torrent.hash )
             }
         }
         # исправление путей для кривых раздач с одним файлом в папке
@@ -187,13 +195,14 @@ function Delete-ClientTorrent ( [int]$torrent_id, [string]$torrent_hash, [string
     }
 }
 
-function Get-Compression ( $torrent_id ) {
+# Вычисляем сжатие архива, в зависимости от раздела раздачи и параметров.
+function Get-Compression ( $torrent_id, $params ) {
     try {
         $topic = ( Invoke-WebRequest( 'http://api.rutracker.org/v1/get_tor_topic_data?by=topic_id&val=' + $torrent_id )).content | ConvertFrom-Json
         $forum_id = [int]$topic.result.($torrent_id).forum_id
-        $compression = $sections_compression[ $forum_id ]
+        $compression = $params.sections_compression[ $forum_id ]
     } catch {}
-    if ( $compression -eq $null ) { $compression = $default_compression }
+    if ( $compression -eq $null ) { $compression = $params.compression }
     if ( $compression -eq $null ) { $compression = 1 }
     return $compression
 }
@@ -229,7 +238,8 @@ function Get-StoredUploads ( $uploads_old = @{} ) {
 
 # Вычислить размер содержимого папки
 function Get-FolderSize ( [string]$folder_path ) {
-    return (Get-ChildItem -Recurse $folder_path | Measure-Object -Property Length -Sum).Sum
+    New-Item -ItemType Directory -Path $folder_path -Force | Out-Null
+    return (Get-ChildItem $folder_path -Recurse | Measure-Object -Property Length -Sum).Sum
 }
 
 function Compare-MaxFolderSize ( [long]$folder_size, [long]$folder_size_max ) {

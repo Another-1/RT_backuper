@@ -91,7 +91,7 @@ foreach ( $torrent in $torrents_list ) {
         if ( !(Compare-MaxFolderSize $folder_size $arch_params.finished_size) ) {
             break
         }
-        $text = '[{0}] Занятый объём каталога ({1}) {2} больше допустимого {3}. Подождём пока освободится.'
+        $text = '[limit][{0}] Занятый объём каталога ({1}) {2} больше допустимого {3}. Подождём пока освободится.'
         Write-Host ($text -f (Get-Date -Format t), $arch_params.finished, (Get-FileSize $folder_size), (Get-FileSize $arch_params.finished_size) )
         Start-Sleep -Seconds 60
     }
@@ -143,9 +143,10 @@ foreach ( $torrent in $torrents_list ) {
         $time_arch = [math]::Round( ((Get-Date) - $start_measure).TotalSeconds, 1 )
         $zip_size = (Get-Item $zip_path_progress).Length
         $comp_perc = [math]::Round( $zip_size * 100 / $torrent.size )
+        $speed_arch = (Get-FileSize ($torrent.size / $time_arch) -SI speed_2)
 
-        $success_text = '[torrent] Успешно завершено за {0} сек [comp:{1}, cores:{2}, archSize:{3}, perc:{4}]'
-        Write-Host ( $success_text -f $time_arch, $compression, $arch_params.cores, (Get-FileSize $zip_size), $comp_perc )
+        $success_text = '[torrent] Успешно завершено за {0} сек [comp:{1}, cores:{2}, archSize:{3}, perc:{4}, speed:{5}]'
+        Write-Host ( $success_text -f $time_arch, $compression, $arch_params.cores, (Get-FileSize $zip_size), $comp_perc, $speed_arch )
 
         try {
             if ( Test-Path $zip_path_finished ) { Remove-Item $zip_path_finished | Out-Null }

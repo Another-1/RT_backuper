@@ -20,6 +20,13 @@ $remove_log_file = "$PSScriptRoot\stash\remove_files.txt"
 
 $pause_file = "$PSScriptRoot\stash\pause.txt"
 
+$measure_names = @{
+    byte_2   = 'B','KiB','MiB','GiB','TiB','PiB'
+    byte_10  = 'B','KB', 'MB', 'GB', 'TB', 'PB'
+    speed_2  = 'B/s','KiB/s','MiB/s','GiB/s','TiB/s','PiB/s'
+    speed_10 = 'B/s','KB/s' ,'MB/s' ,'GB/s' ,'TB/s' ,'PB/s'
+}
+
 # Проверка версии PowerShell
 function Confirm-Version {
     If ( $PSVersionTable.PSVersion -lt [version]'7.1.0.0') {
@@ -293,11 +300,9 @@ function Start-Pause {
 }
 
 # Преобразовать размер файла в байтах, до ближайшего целого меньше базы
-function Get-FileSize ( [long]$size, [int]$base = 1024, [int]$pow = 0 ) {
-    $names = 'B','KiB','MiB','GiB','TiB','PiB'
-    if ( $base -ne 1024 ) {
-        $names = ''
-    }
+function Get-FileSize ( [long]$size, [int]$base = 1024, [int]$pow = 0, $SI = 'byte_2' ) {
+    $names = $measure_names[$SI]
+    if ( !$names ) { $names = $measure_names.byte_2 }
 
     $val = 0
     if ( $size -gt 0 ) {

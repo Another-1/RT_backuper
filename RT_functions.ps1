@@ -15,7 +15,6 @@ $stash_folder = @{
 }
 
 # Файлы с данными, для общения между процессами
-$upload_log_file = "$PSScriptRoot\stash\uploads_all.xml"
 $archives_list_path = "$PSScriptRoot\stash\archives_list"
 $dones_log_file  = "$PSScriptRoot\stash\uploaded_files.txt"
 $remove_log_file = "$PSScriptRoot\stash\remove_files.txt"
@@ -49,7 +48,7 @@ function Sync-Settings {
 
 # Если файла нет - создать его
 function Watch-FileExist ( $FilePath ) {
-    If ( !(Test-Path -path $FilePath) ) {
+    If ( !(Test-Path $FilePath) ) {
         New-Item -ItemType File -Path $FilePath -Force | Out-Null
     }
     return Get-Item $FilePath
@@ -219,16 +218,16 @@ function Get-TodayTraffic ( $uploads_all, $zip_size, $google_folder) {
         $uploads += @{ $now = $zip_size }
     }
     $uploads_all[$google_folder] = $uploads
-    $uploads_all | Export-Clixml -Path $upload_log_file
+    $uploads_all | Export-Clixml -Path $stash_folder.uploads_limit
     return ( $uploads.values | Measure-Object -sum ).Sum, $uploads_all
 }
 
 # Ищем файлик с данными выгрузок на диск и подгружаем его
 function Get-StoredUploads ( $uploads_old = @{} ) {
     $uploads_all = @{}
-    If ( Test-Path -path $upload_log_file ) {
+    If ( Test-Path $stash_folder.uploads_limit ) {
         try {
-            $uploads_all = Import-Clixml -Path $upload_log_file
+            $uploads_all = Import-Clixml -Path $stash_folder.uploads_limit
         } catch {
             $uploads_all = $uploads_old
         }
@@ -275,7 +274,7 @@ function Start-Pause {
         $pausetime = 0
 
         # Если есть файлик и в нём есть содержимое - ставим скрипт на паузу.
-        If ( Test-Path -path $pause_file) {
+        If ( Test-Path $pause_file) {
             $pause = ( Get-Content $pause_file | Select-Object -First 1 )
             if ( !($pause -eq $null) ) {
                 $needSleep = $true

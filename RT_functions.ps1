@@ -7,16 +7,16 @@ $lv_750gb = 740 * 1024 * 1024 * 1024
 
 $google_folder_prefix = 'ArchRuT'
 
+# Файлы с данными, для общения между процессами
 $stash_folder = @{
     default       = "$PSScriptRoot\stash"                   # Общий путь к папке
     archived      = "$PSScriptRoot\stash\archived"          # Путь к спискам архивов по дискам
     uploads_limit = "$PSScriptRoot\stash\uploads_limit.xml" # Файл записанных отдач (лимиты)
     backup_list   = "$PSScriptRoot\stash\backup_list.xml"   # Файл уже обработанного списка раздач. Для случая когда был перезапуск
+
+    finished      = "$PSScriptRoot\stash\finished.txt"
 }
 
-# Файлы с данными, для общения между процессами
-$dones_log_file  = "$PSScriptRoot\stash\uploaded_files.txt"
-$remove_log_file = "$PSScriptRoot\stash\remove_files.txt"
 
 $pause_file = "$PSScriptRoot\stash\pause.txt"
 
@@ -187,11 +187,9 @@ function Get-Required ( $torrents_list, $archives_list ) {
 
 # Добавляем архив в список обработанных и список для проверки на удаление
 function Dismount-ClientTorrent ( [int]$torrent_id, [string]$torrent_hash ) {
-    Watch-FileExist $remove_log_file | Out-Null
+    Watch-FileExist $stash_folder.finished | Out-Null
 
-    $zip_name = $torrent_id.ToString() + '_' + $torrent_hash.ToLower()
-    $zip_name | Out-File $remove_log_file -Append
-    $zip_name | Out-File $dones_log_file  -Append
+    ($torrent_id.ToString() + '_' + $torrent_hash.ToLower()) | Out-File $stash_folder.finished -Append
 }
 
 # Удаляет раздачу из клиента, если она принадлежит заданной категории и включено удаление.

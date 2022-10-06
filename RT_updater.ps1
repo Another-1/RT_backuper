@@ -5,7 +5,7 @@ if ( !( Sync-Settings ) ) { Write-Host 'Проверьте наличие и з�
 
 $os, $folder_sep = Get-OsParams
 
-$arch_folders = Get-ChildItem $google_folders[0] -filter "$google_folder_prefix*" -Directory
+$arch_folders = Get-ChildItem $google_params.folders[0] -filter "$google_folder_prefix*" -Directory
 
 $sleep_min = [math]::Round( 24 * 60 / ($arch_folders.count * 1.5 ) )
 

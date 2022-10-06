@@ -20,7 +20,10 @@ try {
 }
 
 # Пробуем найти список раздач, которые обрабатывались, но процесс прервался.
-try { $torrents_list = Import-Clixml $stash_folder.backup_list } catch {}
+try { 
+    $torrents_list = Import-Clixml $stash_folder.backup_list 
+    Write-Host ( 'Найдены недообработанные раздачи: {0}' -f $torrents_list.count )
+} catch {}
 
 # Если список пуст, начинаем с начала.
 if ( !$torrents_list ) {
@@ -80,10 +83,12 @@ If ( $ok -eq $false) {
 New-Item -ItemType Directory -Path $arch_params.progress -Force | Out-Null
 New-Item -ItemType Directory -Path $arch_params.finished -Force | Out-Null
 
-Write-Host ('[backuper] Начинаем перебирать раздачи.')
-# Перебираем найденные раздачи и бекапим их.
+# Записываем найденные раздачи в файлик.
 $torrents_left = $torrents_list
 $torrents_left | Export-Clixml $stash_folder.backup_list
+
+Write-Host ('[backuper] Начинаем перебирать раздачи.')
+# Перебираем найденные раздачи и бекапим их.
 foreach ( $torrent in $torrents_list ) {
     # Проверка на переполнение каталога с архивами.
     while ( $true ) {
@@ -169,7 +174,8 @@ foreach ( $torrent in $torrents_list ) {
     Write-Host ( $text -f ++$proc_cnt, (Get-FileSize $proc_size), $sum_cnt, (Get-FileSize $sum_size) ) -ForegroundColor DarkCyan
 
     # Перезаписываем данные раздач, которые осталось обработать.
-    $torrents_left = $torrents_left | ? { $_.state -ne $torrent_id } | Export-Clixml $stash_folder.backup_list
+    $torrents_left = $torrents_left | ? { $_.state -ne $torrent_id } 
+    $torrents_left | Export-Clixml $stash_folder.backup_list
 
     Start-Stopping
     Start-Pause

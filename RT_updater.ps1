@@ -17,7 +17,7 @@ if ( $timer -ne $sleep_min ) {
 # Собираем список гугл-дисков и проверяем наличие файла со списком архивов для каждого. Создаём если нет.
 # Проверяем даты обновления файлов и размер. Если прошло 24ч или файл пуст -> пора обновлять.
 # Выбираем первый диск по условиям выше и обновляем его.
-$update_folder = $arch_folders | % { Watch-FileExist ($stash_folder.zip_list + '\' + $_.Name + '.txt') } |
+$update_folder = $arch_folders | % { Watch-FileExist ($stash_folder.archived + '\' + $_.Name + '.txt') } |
   ? { $_.Size -eq 0 -Or $_.LastWriteTime -lt ( Get-Date ).AddHours(-24) } | Sort-Object -Property LastWriteTime | Select -First 1
 
 if ( !$update_folder ) {

@@ -9,7 +9,7 @@ $google_folder_prefix = 'ArchRuT'
 
 $stash_folder = @{
     default       = "$PSScriptRoot\stash"                   # Общий путь к папке
-    zip_list      = "$PSScriptRoot\stash\archived"          # Путь к спискам архивов по дискам
+    archived      = "$PSScriptRoot\stash\archived"          # Путь к спискам архивов по дискам
     uploads_limit = "$PSScriptRoot\stash\uploads_limit.xml" # Файл записанных отдач (лимиты)
 }
 
@@ -59,24 +59,24 @@ function Clear-EmptyFolders ( $FilePath ) {
     Get-ChildItem $FilePath -Recurse | Where {$_.PSIsContainer -and @(Get-ChildItem -Lit $_.Fullname -r | Where {!$_.PSIsContainer}).Length -eq 0} | Remove-Item -Force
 }
 
-function Get-Archives ( $google_folders ) {
-    Write-Host 'Смотрим, что уже заархивировано..'
-    $file = Watch-FileExist $dones_log_file
-    # Если файл пуст, или его обновление было более часа назад - обновляем заново
-    try {
-        $dones = Get-Content $dones_log_file
-    } catch {
-        $update = $true
-    }
-    if ( $file.size -eq 0 -Or $file.LastWriteTime -lt ( Get-Date ).AddHours(-24) ) {
-        $update = $true
-    }
-    if ( $update ) {
-        $dones = Get-ChildItem $google_folders[0] -Filter *.7z -Recurse | % { $_.BaseName }
-        $dones | Get-Unique | Sort-Object | Out-File $dones_log_file
-    }
-    Write-Host ( '.. обнаружено архивов {0}.' -f $dones.count )
-    return $dones
+function Get-Archives {
+    Write-Host '[archived] Смотрим, что уже заархивировано..'
+    $time_collect = [math]::Round( (Measure-Command {
+        $dones = Get-Content ( $stash_folder.archived + '\*.txt' )
+    }).TotalSeconds, 1 )
+
+    $time_parse = [math]::Round( (Measure-Command {
+        $hashes = @{}
+        $dones | % {
+            $id, $hash = $_.Split('_')
+            if ( $id -And $hash ) {
+                $hashes[$hash] = $id
+            }
+        }
+    }).TotalSeconds, 1 )
+
+    Write-Host ( '[archived] обнаружено архивов: {0} [{1} сек], хешей: {2} [{3} сек]' -f $dones.count, $time_collect, $hashes.count, $time_parse )
+    return $dones, $hashes
 }
 
 # По ид раздачи вычислить ид диска, название диска/папки, путь к диску

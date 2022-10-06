@@ -3,8 +3,9 @@
 if ( !(Confirm-Version) ) { Exit }
 If ( !( Sync-Settings ) ) { Write-Host 'Проверьте наличие и заполненность файла настроек в каталоге скрипта';  Pause; Exit }
 
-Start-Pause
 Clear-Host
+Start-Pause
+Start-Stopping
 
 $os, $folder_sep = Get-OsParams
 
@@ -35,18 +36,12 @@ Write-Host ( 'Начинаем обработку. Потребуется ите
 For ( $i = 1; $i -le $runs; $i++ ) {
     $percent = $i*100 / $runs
 
-    # Вытаскиваем данные из файла.
-    $all_file = Get-Content $file_path | Get-Unique
-    # Вытаскиваем первые N строк
-    $selected = $all_file | Select -First $step
-    # Остальное записываем обратно
-    $all_file | Select-Object -Skip $step | Out-File $file_path
-
+    $selected = Get-FileFirstContent $file_path $step
 
     $hashes = @{}
     $selected | % { $id, $hash = ( $_.Split('.')[0] ).Split('_'); $hashes[$hash] = $id }
 
-    Write-Host ( 'Итерация {0}, раздач: {1}, опрашиваем клиент.' -f $i, $hashes.count )
+    Write-Host ( 'Итерация {0}/{1}, раздач {2}, опрашиваем клиент.' -f $i, $runs, $hashes.count )
     $torrents = Get-ClientTorrents $client_url $sid $hashes.keys
     if ( !$torrents ) {
         Write-Host ( 'Не найдены раздачи в клиенте. Пропускаем.' )
@@ -68,3 +63,14 @@ For ( $i = 1; $i -le $runs; $i++ ) {
 # end foreach
 
 Write-Host ( 'Обработано {0} раздач.' -f $total_count )
+
+
+# После добавления раздач в списки, пересортируем их.
+Write-Progress -Activity "Сортируем списки.." -CurrentOperation "Обработка.."
+$archives = Get-ChildItem $stash_folder.archived -File -Filter ($google_folder_prefix + '*.txt') | ? { $_.Size }
+$i = 0
+foreach ( $arch in $archives ) {
+    $content = Get-Content $arch.FullName
+    Write-Progress -Activity "Сортируем списки.." -Status ("Сортируем [{0}] {1} шт." -f $arch.BaseName, $content.count) -PercentComplete ($i++ * 100 / $archives.count)
+    $content | Get-Unique | Sort-Object | Out-File $arch.FullName
+}

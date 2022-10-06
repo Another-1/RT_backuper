@@ -3,6 +3,10 @@
 if ( !(Confirm-Version) ) { Exit }
 if ( !( Sync-Settings ) ) { Write-Host 'Проверьте наличие и заполненность файла настроек в каталоге скрипта';  Pause; Exit }
 
+Clear-Host
+Start-Pause
+Start-Stopping
+
 $os, $folder_sep = Get-OsParams
 
 $arch_folders = Get-ChildItem $google_params.folders[0] -filter "$google_folder_prefix*" -Directory

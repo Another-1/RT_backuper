@@ -5,8 +5,9 @@ If ( !( Sync-Settings ) ) { Write-Host 'Проверьте наличие и з�
 
 $os, $folder_sep = Get-OsParams
 
-Start-Pause
 Clear-Host
+Start-Pause
+Start-Stopping
 
 # Очищаем пустые папки в папке загрузок
 Clear-EmptyFolders $store_path
@@ -19,59 +20,63 @@ try {
     Exit
 }
 
+# Загружаем списки заархивированных раздач.
+$dones, $hashes = Get-Archives
+
 # Пробуем найти список раздач, которые обрабатывались, но процесс прервался.
-try { 
-    $torrents_list = Import-Clixml $stash_folder.backup_list 
-    Write-Host ( 'Найдены недообработанные раздачи: {0}' -f $torrents_list.count )
+try {
+    $torrents_list = Import-Clixml $stash_folder.backup_list
+    if ( $torrents_list ) {
+        Write-Host ( 'Найдены недообработанные раздачи: {0}' -f $torrents_list.count )
+    }
 } catch {}
 
 # Если список пуст, начинаем с начала.
 if ( !$torrents_list ) {
-    $dones, $hashes = Get-Archives
+    # Ищем раздачи, которые скачал клиент и добавил в буферный файл.
+    $hash_file = Watch-FileExist $stash_folder.downloaded
+    if ( $hash_file.Size ) {
+        $downloaded = ( Get-FileFirstContent $stash_folder.downloaded 20 ) | Get-Unique
+        Write-Host ( 'Найдено раздач, которые клиент докачал: {0}.' -f $downloaded.count )
+    }
 
     # получаем список раздач из клиента
     Write-Host 'Получаем список раздач из клиента..'
-    $torrents_list = Get-ClientTorrents $client_url $sid $args
+    $exec_time = [math]::Round( (Measure-Command {
+        $torrents_list = Get-ClientTorrents $client_url $sid $downloaded
+    }).TotalSeconds, 1 )
 
     if ( $torrents_list -eq $null ) {
         Write-Host 'Не удалось получить раздачи!'
         Exit
     }
-    Write-Host ( '..от клиента получено раздач: {0}.' -f $torrents_list.count )
+    Write-Host ( '..от клиента получено раздач: {0} [{1} сек].' -f $torrents_list.count, $exec_time )
 
     # по каждой раздаче получаем коммент, чтобы достать из него номер топика
-    Write-Host ( 'Получаем номера топиков по раздачам..' )
-    $torrents_list = Get-TopicIDs $torrents_list
-    Write-Host ( '..топиков с номерами получено: {0}.' -f $torrents_list.count )
+    Write-Host ( 'Получаем номера топиков по раздачам и пропускаем уже заархивированное.' )
+    $exec_time = [math]::Round( (Measure-Command {
+        $torrents_list = Get-TopicIDs $torrents_list $hashes
+    }).TotalSeconds, 1 )
+    Write-Host ( 'Топиков с номерами получено: {0} [{1} сек].' -f $torrents_list.count, $exec_time )
+}
 
 
-    # отбросим раздачи, для которых уже есть архив с тем же хэшем
-    Write-Host 'Пропускаем уже заархивированные раздачи..'
-    $was = $torrents_list.count
-    $torrents_list = Get-Required $torrents_list $dones
+# проверяем, что никакие раздачи не пересекаются по именам файлов (если файл один) или каталогов (если файлов много), чтобы не заархивировать не то
+$used_locs = [System.Collections.ArrayList]::new()
+$ok = $true
+Write-Host ( 'Проверяем уникальность путей сохранения раздач..' )
 
-    if ( $was -ne $torrents_list.count ) {
-        Write-Host( '..пропущено раздач: {0}.' -f ($was - $torrents_list.count) )
+foreach ( $torrent in $torrents_list ) {
+    if ( $used_locs.keys -contains $torrent.content_path ) {
+        Write-Host ( 'Несколько раздач хранятся по пути "' + $torrent.content_path + '" !')
+        Write-Host ( 'Нажмите любую клавищу, исправьте и начните заново !')
+        $ok = $false
     }
-
-    
-    $used_locs = [System.Collections.ArrayList]::new()
-    $ok = $true
-    # проверяем, что никакие раздачи не пересекаются по именам файлов (если файл один) или каталогов (если файлов много), чтобы не заархивировать не то
-    Write-Host ( 'Проверяем уникальность путей сохранения раздач..' )
-
-    foreach ( $torrent in $torrents_list ) {
-        if ( $used_locs.keys -contains $torrent.content_path ) {
-            Write-Host ( 'Несколько раздач хранятся по пути "' + $torrent.content_path + '" !')
-            Write-Host ( 'Нажмите любую клавищу, исправьте и начните заново !')
-            $ok = $false
-        }
-        else { $used_locs += $torrent.content_path }
-    }
-    If ( $ok -eq $false) {
-        pause
-        Exit
-    }
+    else { $used_locs += $torrent.content_path }
+}
+If ( $ok -eq $false) {
+    pause
+    Exit
 }
 
 $proc_size = 0
@@ -176,10 +181,10 @@ foreach ( $torrent in $torrents_list ) {
     Write-Host ( $text -f ++$proc_cnt, (Get-FileSize $proc_size), $sum_cnt, (Get-FileSize $sum_size) ) -ForegroundColor DarkCyan
 
     # Перезаписываем данные раздач, которые осталось обработать.
-    $torrents_left = $torrents_left | ? { $_.state -ne $torrent_id } 
+    $torrents_left = $torrents_left | ? { $_.state -ne $torrent_id }
     $torrents_left | Export-Clixml $stash_folder.backup_list
 
-    Start-Stopping
     Start-Pause
+    Start-Stopping
 }
 # end foreach

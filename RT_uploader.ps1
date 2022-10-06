@@ -3,8 +3,9 @@
 if ( !(Confirm-Version) ) { Exit }
 If ( !( Sync-Settings ) ) { Write-Host 'Проверьте наличие и заполненность файла настроек в каталоге скрипта';  Pause; Exit }
 
-Start-Pause
 Clear-Host
+Start-Pause
+Start-Stopping
 
 Write-Host '[uploader] Начинаем процесс выгрузки архивов в гугл.'
 # Ищем данные о прошлых выгрузках в гугл.
@@ -176,7 +177,7 @@ foreach ( $zip in $zip_list ) {
     $proc_size += $torrent.size
     Write-Output ( 'Обработано раздач {0} ({1}) из {2} ({3})' -f ++$proc_cnt, (Get-FileSize $proc_size), $sum_cnt, (Get-FileSize $sum_size) )
 
-    Start-Stopping
     Start-Pause
+    Start-Stopping
 }
 # end foreach

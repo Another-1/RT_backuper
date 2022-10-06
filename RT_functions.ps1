@@ -14,7 +14,8 @@ $stash_folder = @{
     uploads_limit = "$PSScriptRoot\stash\uploads_limit.xml" # Файл записанных отдач (лимиты)
     backup_list   = "$PSScriptRoot\stash\backup_list.xml"   # Файл уже обработанного списка раздач. Для случая когда был перезапуск
 
-    finished      = "$PSScriptRoot\stash\finished.txt"
+    finished      = "$PSScriptRoot\stash\finished.txt"      # Файл id_hash раздач, которые были найдены в гугле или были заархивированны
+    downloaded    = "$PSScriptRoot\config\hashes.txt"       # Файл со списком свежескачанных раздач. Добавляется из клиента
 }
 
 
@@ -73,6 +74,20 @@ function Clear-EmptyFolders ( $Path ) {
     Get-ChildItem $Path -Recurse | Where {$_.PSIsContainer -and @(Get-ChildItem -Lit $_.Fullname -r | Where {!$_.PSIsContainer}).Length -eq 0} | Remove-Item -Force
 }
 
+# Получить из файла первые N строк
+function Get-FileFirstContent ( [string]$Path, [int]$First = 10 ) {
+    # Вытаскиваем данные из файла.
+    $all_file = Get-Content $Path | Get-Unique
+    # Вытаскиваем первые N строк
+    $selected = $all_file | Select -First $First
+    # Остальное записываем обратно
+    $all_file | Select-Object -Skip $First | Out-File $Path
+
+    return $selected
+}
+
+
+# Вытаскиваем список существующих архивов из списков по дискам.
 function Get-Archives {
     Write-Host '[archived] Смотрим, что уже заархивировано..'
     $time_collect = [math]::Round( (Measure-Command {
@@ -89,7 +104,7 @@ function Get-Archives {
         }
     }).TotalSeconds, 1 )
 
-    Write-Host ( '[archived] обнаружено архивов: {0} [{1} сек], хешей: {2} [{3} сек]' -f $dones.count, $time_collect, $hashes.count, $time_parse )
+    Write-Host ( '[archived] Обнаружено архивов: {0} [{1} сек], хешей: {2} [{3} сек]' -f $dones.count, $time_collect, $hashes.count, $time_parse )
     return $dones, $hashes
 }
 
@@ -127,12 +142,18 @@ function Get-ClientTorrents ($client_url, $sid, $t_args) {
 }
 
 function Get-TopicIDs( $torrents_list, $hashes ) {
+    $removed = 0
     foreach ( $torrent in $torrents_list ) {
         $torrent.state = $nul
 
-        # ищем ид раздачи в списке уже обработанных.
+        # Если хеш есть в списке обработанных, скипаем его и отправляем в клинер.
         if ( $hashes ) {
-            $torrent.state = $hashes[ $torrent.hash ]
+            $torrent_id = $hashes[ $torrent.hash ]
+            if ( $torrent_id ) {
+                $removed++
+                Dismount-ClientTorrent $torrent_id $torrent.hash
+                Continue
+            }
         }
         # ищем коммент в данных раздачи.
         if ( $nul -eq $torrent.state ) {
@@ -158,10 +179,15 @@ function Get-TopicIDs( $torrents_list, $hashes ) {
             $torrent.content_path = $torrent.save_path + $separator + ( $torrent.content_path.Replace( $torrent.save_path.ToString(), '') -replace ('^[\\/]', '') -replace ('[\\/].*$', '') )
         }
     }
+
+    if ( $removed ) {
+        Write-Host( '[delete] Пропущено раздач: {0}.' -f $removed )
+    }
     $torrents_list = $torrents_list | Where-Object { $nul -ne $_.state }
     return $torrents_list
 }
 
+# КМК, бесполезный функционал, если тоже самое выполняет Get-TopicIDs
 function Get-Required ( $torrents_list, $archives_list ) {
     $torrents_list_required = [System.Collections.ArrayList]::new()
     $torrents_list | ForEach-Object {
@@ -169,7 +195,7 @@ function Get-Required ( $torrents_list, $archives_list ) {
         $torrent_hash = $_.hash.ToLower()
         $zip_name = $torrent_id.ToString() + '_' + $torrent_hash
 
-        # Архиав нет в списке заархивированных
+        # Архива нет в списке заархивированных
         if ( $zip_name -notin $archives_list ) {
             if ( $torrent_id -ne '' ) {
                 $torrents_list_required += $_

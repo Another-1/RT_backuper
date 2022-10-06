@@ -53,31 +53,33 @@ if ( !$torrents_list ) {
     if ( $was -ne $torrents_list.count ) {
         Write-Host( '..пропущено раздач: {0}.' -f ($was - $torrents_list.count) )
     }
+
+    
+    $used_locs = [System.Collections.ArrayList]::new()
+    $ok = $true
+    # проверяем, что никакие раздачи не пересекаются по именам файлов (если файл один) или каталогов (если файлов много), чтобы не заархивировать не то
+    Write-Host ( 'Проверяем уникальность путей сохранения раздач..' )
+
+    foreach ( $torrent in $torrents_list ) {
+        if ( $used_locs.keys -contains $torrent.content_path ) {
+            Write-Host ( 'Несколько раздач хранятся по пути "' + $torrent.content_path + '" !')
+            Write-Host ( 'Нажмите любую клавищу, исправьте и начните заново !')
+            $ok = $false
+        }
+        else { $used_locs += $torrent.content_path }
+    }
+    If ( $ok -eq $false) {
+        pause
+        Exit
+    }
 }
 
 $proc_size = 0
 $proc_cnt = 0
 $sum_size = ( $torrents_list | Measure-Object -sum size ).Sum
 $sum_cnt = $torrents_list.count
-$used_locs = [System.Collections.ArrayList]::new()
-$ok = $true
 Write-Host ( '[backuper] Объём новых раздач ({0} шт) {1}.' -f $sum_cnt, (Get-FileSize $sum_size) )
 
-# проверяем, что никакие раздачи не пересекаются по именам файлов (если файл один) или каталогов (если файлов много), чтобы не заархивировать не то
-Write-Host ( 'Проверяем уникальность путей сохранения раздач..' )
-
-foreach ( $torrent in $torrents_list ) {
-    if ( $used_locs.keys -contains $torrent.content_path ) {
-        Write-Host ( 'Несколько раздач хранятся по пути "' + $torrent.content_path + '" !')
-        Write-Host ( 'Нажмите любую клавищу, исправьте и начните заново !')
-        $ok = $false
-    }
-    else { $used_locs += $torrent.content_path }
-}
-If ( $ok -eq $false) {
-    pause
-    Exit
-}
 
 # Проверим наличие заданных каталогов. (вероятно лучше перенести в проверку конфига)
 New-Item -ItemType Directory -Path $arch_params.progress -Force | Out-Null

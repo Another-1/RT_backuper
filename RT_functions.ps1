@@ -96,7 +96,7 @@ function Get-Archives {
 # По ид раздачи вычислить ид диска, название диска/папки, путь к диску
 function Get-DiskParams ( [int]$torrent_id, [string]$separator = '/' ) {
     $disk_id = [math]::Truncate(( $torrent_id - 1 ) / 300000) # 1..24
-    $disk_name = 'ArchRuT_' + ( 300000 * $disk_id + 1 ) + '-' + 300000 * ( $disk_id + 1 )
+    $disk_name = $google_folder_prefix + '_' + ( 300000 * $disk_id + 1 ) + '-' + 300000 * ( $disk_id + 1 )
     $disk_path = $separator + $disk_name + $separator
 
     return $disk_id, $disk_name, $disk_path
@@ -187,21 +187,22 @@ function Get-Required ( $torrents_list, $archives_list ) {
 
 # Добавляем архив в список обработанных и список для проверки на удаление
 function Dismount-ClientTorrent ( [int]$torrent_id, [string]$torrent_hash ) {
-    Watch-FileExist $stash_folder.finished | Out-Null
-
-    ($torrent_id.ToString() + '_' + $torrent_hash.ToLower()) | Out-File $stash_folder.finished -Append
+    if ( $upload_params.cleaner ) {
+        Watch-FileExist $stash_folder.finished | Out-Null
+        ($torrent_id.ToString() + '_' + $torrent_hash.ToLower()) | Out-File $stash_folder.finished -Append
+    }
 }
 
 # Удаляет раздачу из клиента, если она принадлежит заданной категории и включено удаление.
 function Delete-ClientTorrent ( [int]$torrent_id, [string]$torrent_hash, [string]$torrent_category ) {
-    if ( $delete_processed -eq 1 -And $default_category -eq $torrent_category ) {
+    if ( $upload_params.delete -eq 1 -And $upload_params.delete_category -eq $torrent_category ) {
         try {
-            Write-Host ( 'Удаляем из клиента раздачу {0}' -f $torrent_id )
+            Write-Host ( '[delete] Удаляем из клиента раздачу {0}' -f $torrent_id )
             $reqdata = 'hashes=' + $torrent_hash + '&deleteFiles=true'
             Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/delete' ) -Body $reqdata -WebSession $sid -Method POST | Out-Null
         }
         catch {
-            Write-Host ( 'Почему-то не получилось удалить раздачу {0}.' -f $torrent_id )
+            Write-Host ( '[delete] Почему-то не получилось удалить раздачу {0}.' -f $torrent_id )
         }
     }
 }

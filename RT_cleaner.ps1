@@ -23,12 +23,17 @@ if ( $total_count -eq 0 ) {
 
 $runs = [math]::Ceiling( $total_count / $step )
 
-Write-Host 'Авторизуемся в клиенте.'
-$sid = Initialize-Client
+Write-Host '[cleaner] Авторизуемся в клиенте.'
+try {
+    $sid = Initialize-Client
+} catch {
+    Write-Host ( 'Авторизация не удалась. {0}' -f $Error[0] ) -ForegroundColor Red
+    Exit
+}
 
+Write-Host ( 'Начинаем обработку. Потребуется итераций {0}.' -f $runs )
 For ( $i = 1; $i -le $runs; $i++ ) {
     $percent = $i*100 / $runs
-    Write-Progress -Activity "[cleaner] Обрабатываем, итерация: $i" -status "Собираем данные.." -percentComplete $percent
 
     # Вытаскиваем данные из файла.
     $all_file = Get-Content $file_path | Get-Unique
@@ -41,22 +46,20 @@ For ( $i = 1; $i -le $runs; $i++ ) {
     $hashes = @{}
     $selected | % { $id, $hash = ( $_.Split('.')[0] ).Split('_'); $hashes[$hash] = $id }
 
-    Write-Progress -Activity ("[cleaner] Обрабатываем, итерация: " + $i*$step) -status "Опрашиваем клиент.." -percentComplete $percent
+    Write-Host ( 'Итерация {0}, раздач: {1}, опрашиваем клиент.' -f $i, $hashes.count )
     $torrents = Get-ClientTorrents $client_url $sid $hashes.keys
     if ( !$torrents ) {
-        Write-Progress -Activity ("[cleaner] Обрабатываем, итерация: " + $i*$step) -status "Раздачи не найдены. Пропускаем." -percentComplete $percent
+        Write-Host ( 'Не найдены раздачи в клиенте. Пропускаем.' )
         Continue
     }
 
     foreach ( $torrent in $torrents ) {
         $id = $hashes[$torrent.hash]
 
-
         $disk_id, $disk_name, $disk_path = Get-DiskParams $id
         $archive = $stash_folder.archived + $folder_sep + $disk_name + '.txt'
 
         ($id.ToString() + '_' + $torrent.hash.ToLower()) | Out-File $archive -Append
-        Exit
 
         Write-Host ( '[cleaner] Пробуем удалить раздачу {0}, {1}' -f $id, $torrent.name )
         Delete-ClientTorrent $id $torrent.hash $torrent.category

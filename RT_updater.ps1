@@ -31,7 +31,9 @@ $update_path = ( $arch_folders | ? { $_.BaseName -eq $update_folder.BaseName } )
 Write-Host ( '[{0}] Начинаем обновление списка раздач диска.' -f $update_folder.BaseName )
 $exec_time = (Measure-Command {
   $zip_list = Get-ChildItem $update_path -Filter '*.7z' -File
-  $zip_list | % { $_.BaseName } | Out-File $update_folder.FullName
+  if ( $zip_list.count ) {
+    $zip_list | % { $_.BaseName } | Out-File $update_folder.FullName
+  }
 }).TotalSeconds
 
 $text = '[{0}] Обновление списка раздач заняло {1} секунд. Найдено архивов: {2} шт.'

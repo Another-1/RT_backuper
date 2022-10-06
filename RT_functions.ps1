@@ -15,7 +15,6 @@ $stash_folder = @{
 }
 
 # Файлы с данными, для общения между процессами
-$archives_list_path = "$PSScriptRoot\stash\archives_list"
 $dones_log_file  = "$PSScriptRoot\stash\uploaded_files.txt"
 $remove_log_file = "$PSScriptRoot\stash\remove_files.txt"
 

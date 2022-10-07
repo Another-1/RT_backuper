@@ -27,41 +27,9 @@ $measure_names = @{
 }
 
 
-
-# Вытаскиваем список существующих архивов из списков по дискам.
-function Get-Archives {
-    Write-Host '[archived] Смотрим, что уже заархивировано..'
-    $time_collect = [math]::Round( (Measure-Command {
-        $dones = Get-Content ( $stash_folder.archived + '\*.txt' )
-    }).TotalSeconds, 1 )
-
-    $time_parse = [math]::Round( (Measure-Command {
-        $hashes = @{}
-        $dones | % {
-            $id, $hash = $_.Split('_')
-            if ( $id -And $hash ) {
-                $hashes[$hash] = $id
-            }
-        }
-    }).TotalSeconds, 1 )
-
-    Write-Host ( '[archived] Обнаружено архивов: {0} [{1} сек], хешей: {2} [{3} сек]' -f $dones.count, $time_collect, $hashes.count, $time_parse )
-    return $dones, $hashes
-}
-
-# По ид раздачи вычислить ид диска, название диска/папки, путь к диску
-function Get-DiskParams ( [int]$torrent_id, [string]$separator = '/' ) {
-    $disk_id = [math]::Truncate(( $torrent_id - 1 ) / 300000) # 1..24
-    $disk_name = $google_folder_prefix + '_' + ( 300000 * $disk_id + 1 ) + '-' + 300000 * ( $disk_id + 1 )
-    $disk_path = $separator + $disk_name + $separator
-
-    return $disk_id, $disk_name, $disk_path
-}
-
-function Get-GoogleNum ( [int]$disk_id, [int]$folder_count = 1 ) {
-    return ($disk_id % $folder_count + 1)
-}
-
+###################################################################################################
+#################################  ФУНКЦИИ СВЯЗАННЫЕ С КЛИЕНТОМ  ##################################
+###################################################################################################
 # Авторизация в клиенте. В случае ошибок будет прерывание, если не передан параметр.
 function Initialize-Client ( $Retry = $false ) {
     $logindata = "username={0}&password={1}" -f $client.login, $client.password
@@ -116,6 +84,43 @@ function Get-ClientTorrents ( $Hashes ) {
         | Select-Object name, hash, content_path, save_path, state, size, category
         | Sort-Object -Property size
     return $torrents_list
+}
+
+# Удаляет раздачу из клиента, если она принадлежит заданной категории и включено удаление.
+function Delete-ClientTorrent ( [int]$torrent_id, [string]$torrent_hash, [string]$torrent_category ) {
+    if ( $upload_params.delete -eq 1 -And $upload_params.delete_category -eq $torrent_category ) {
+        try {
+            Write-Host ( '[delete] Удаляем из клиента раздачу {0}' -f $torrent_id )
+            $request = '?hashes=' + $torrent_hash + '&deleteFiles=true'
+            Read-Client 'torrents/delete' $request > $null
+        }
+        catch {
+            Write-Host ( '[delete] Почему-то не получилось удалить раздачу {0}.' -f $torrent_id )
+        }
+    }
+}
+###################################################################################################
+
+
+# Получить список существующих архивов из списков по дискам.
+function Get-Archives {
+    Write-Host '[archived] Смотрим, что уже заархивировано..'
+    $time_collect = [math]::Round( (Measure-Command {
+        $dones = Get-Content ( $stash_folder.archived + '\*.txt' )
+    }).TotalSeconds, 1 )
+
+    $time_parse = [math]::Round( (Measure-Command {
+        $hashes = @{}
+        $dones | % {
+            $id, $hash = $_.Split('_')
+            if ( $id -And $hash ) {
+                $hashes[$hash] = $id
+            }
+        }
+    }).TotalSeconds, 1 )
+
+    Write-Host ( '[archived] Обнаружено архивов: {0} [{1} сек], хешей: {2} [{3} сек]' -f $dones.count, $time_collect, $hashes.count, $time_parse )
+    return $dones, $hashes
 }
 
 # Найти ид раздач(топиков) в [списке архивов, комменте раздачи из клиента, api трекера].
@@ -188,7 +193,7 @@ function Get-Required ( $torrents_list, $archives_list ) {
     return $torrents_list_required
 }
 
-# Добавляем архив в список обработанных и список для проверки на удаление
+# Добавляем раздачу в список обработанных и возможно под удаление.
 function Dismount-ClientTorrent ( [int]$torrent_id, [string]$torrent_hash ) {
     if ( $upload_params.cleaner ) {
         Watch-FileExist $stash_folder.finished > $null
@@ -196,19 +201,6 @@ function Dismount-ClientTorrent ( [int]$torrent_id, [string]$torrent_hash ) {
     }
 }
 
-# Удаляет раздачу из клиента, если она принадлежит заданной категории и включено удаление.
-function Delete-ClientTorrent ( [int]$torrent_id, [string]$torrent_hash, [string]$torrent_category ) {
-    if ( $upload_params.delete -eq 1 -And $upload_params.delete_category -eq $torrent_category ) {
-        try {
-            Write-Host ( '[delete] Удаляем из клиента раздачу {0}' -f $torrent_id )
-            $request = '?hashes=' + $torrent_hash + '&deleteFiles=true'
-            Read-Client 'torrents/delete' $request > $null
-        }
-        catch {
-            Write-Host ( '[delete] Почему-то не получилось удалить раздачу {0}.' -f $torrent_id )
-        }
-    }
-}
 
 # Вычисляем сжатие архива, в зависимости от раздела раздачи и параметров.
 function Get-Compression ( $torrent_id, $params ) {
@@ -222,6 +214,21 @@ function Get-Compression ( $torrent_id, $params ) {
     return $compression
 }
 
+# По ид раздачи вычислить ид диска, название диска/папки, путь к диску
+function Get-DiskParams ( [int]$torrent_id, [string]$separator = '/' ) {
+    $disk_id = [math]::Truncate(( $torrent_id - 1 ) / 300000) # 1..24
+    $disk_name = $google_folder_prefix + '_' + ( 300000 * $disk_id + 1 ) + '-' + 300000 * ( $disk_id + 1 )
+    $disk_path = $separator + $disk_name + $separator
+
+    return $disk_id, $disk_name, $disk_path
+}
+
+# Вычислить номер клиента по ид диска и кол-ву акков.
+function Get-GoogleNum ( [int]$disk_id, [int]$user_accounts = 1 ) {
+    return ($disk_id % $user_accounts + 1)
+}
+
+# Записать размер выгруженного архива в файл и удалить старые записи.
 function Get-TodayTraffic ( $uploads_all, $zip_size, $google_folder) {
     $uploads_all = Get-StoredUploads $uploads_all
     $now = Get-date
@@ -279,7 +286,7 @@ function Get-OsParams {
 }
 
 
-# Преобразовать большое число в число в степени.
+# Преобразовать большое число в читаемое число с множителем нужной базы.
 function Get-BaseSize ( [long]$size, [int]$base = 1024, [int]$pow = 0, $SI = 'byte_2' ) {
     $names = $measure_names[$SI]
     if ( !$names ) { $names = $measure_names.byte_2 }
@@ -298,7 +305,7 @@ function Get-BaseSize ( [long]$size, [int]$base = 1024, [int]$pow = 0, $SI = 'by
     return ( $val ).ToString() + ' ' + $names[ $pow ]
 }
 
-# Если файла нет - создать его
+# Если файла нет - создать его и вернуть свойства.
 function Watch-FileExist ( $Path ) {
     If ( !(Test-Path $Path) ) {
         New-Item -ItemType File -Path $Path -Force > $null
@@ -319,9 +326,9 @@ function Get-FileFirstContent ( [string]$Path, [int]$First = 10 ) {
 }
 
 # Вычислить размер содержимого каталога.
-function Get-FolderSize ( [string]$folder_path ) {
-    New-Item -ItemType Directory -Path $folder_path -Force > $null
-    return (Get-ChildItem $folder_path -Recurse | Measure-Object -Property Length -Sum).Sum
+function Get-FolderSize ( $Path ) {
+    New-Item -ItemType Directory $Path -Force > $null
+    return (Get-ChildItem $Path -Recurse | Measure-Object -Property Length -Sum).Sum
 }
 
 # Сравнить размеры каталогов.
@@ -332,7 +339,7 @@ function Compare-MaxFolderSize ( [long]$folder_size, [long]$folder_size_max ) {
     return $false
 }
 
-# Удаление пустых папок.
+# Удаление пустых каталогов по заданному пути.
 function Clear-EmptyFolders ( $Path ) {
     Get-ChildItem $Path -Recurse | Where {$_.PSIsContainer -and @(Get-ChildItem -Lit $_.Fullname -r | Where {!$_.PSIsContainer}).Length -eq 0} | Remove-Item -Force
 }
@@ -391,6 +398,3 @@ function Start-Pause {
         }
     }
 }
-
-
-

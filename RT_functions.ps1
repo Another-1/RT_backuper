@@ -42,14 +42,14 @@ function Get-OsParams {
     $folder_separator = '/'
     if ( $PSVersionTable.OS.ToLower().contains('windows')) {
         $os = 'windows'
-        $folder_separator = ':\' 
+        $folder_separator = ':\'
     }
     return $os, $folder_separator
 }
 
 function Sync-Settings {
-    if ($nul -eq $client_url ) { return $false }
-    else { return $true }
+    if ( !$client -And !$client.url ) { return $false }
+    return $true
 }
 
 # Если файла нет - создать его
@@ -120,24 +120,58 @@ function Get-GoogleNum ( [int]$disk_id, [int]$folder_count = 1 ) {
     return ($disk_id % $folder_count + 1)
 }
 
-function Initialize-Client {
-    $logindata = "username=$webui_login&password=$webui_password"
-    $loginheader = @{ Referer = $client_url }
-    Invoke-WebRequest -Headers $loginheader -Body $logindata ( $client_url + '/api/v2/auth/login' ) -Method POST -SessionVariable sid > $nul
-    return $sid
+# Авторизация в клиенте. В случае ошибок будет прерывание, если не передан параметр.
+function Initialize-Client ( $Retry = $false ) {
+    $logindata = "username={0}&password={1}" -f $client.login, $client.password
+    $loginheader = @{ Referer = $client.url }
+    try {
+        $result = Invoke-WebRequest -Headers $loginheader -Body $logindata ( $client.url + '/api/v2/auth/login' ) -Method POST -SessionVariable sid
+        if ( $result.StatusCode -ne 200 ) {
+            throw 'You are banned.'
+        }
+        if ( $result.Content -ne 'Ok.') {
+            throw $result.Content
+        }
+        $client.sid = $sid
+    }
+    catch {
+        if ( !$Retry ) {
+            Write-Host ( '[client] Не удалось авторизоваться в клиенте, прерываем. Ошибка: {0}.' -f $Error[0] ) -ForegroundColor Red
+            Exit
+        }
+    }
 }
 
-function Get-ClientTorrents ($client_url, $sid, $t_args) {
-    if ( $t_args.Count -eq 0 ) {
-        $all_torrents_list = ( Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/info?filter=completed' ) -WebSession $sid ).Content | ConvertFrom-Json | Select-Object name, hash, content_path, save_path, state, size, category, priority | sort-object -Property size
-        $torrents_list = $all_torrents_list | Where-Object { $_.state -eq 'uploading' -or $_.state -eq 'pausedUP' -or $_.state -eq 'queuedUP' -or $_.state -eq 'stalledUP' }
-        return $torrents_list
+# Получить данные от клиента по заданному методу и параметрам. Параметры должны начинаться с ?
+function Read-Client ( [string]$Metod, [string]$Params = '' ) {
+    for ( $i = 1; $i -lt 5; $i++ ) {
+        try {
+            # Metod='torrents/info', Params='?filter=completed'
+            $data = Invoke-WebRequest -uri ( $client.url + '/api/v2/' + $Metod + $Params ) -WebSession $client.sid
+        }
+        catch {
+            Write-Host ( '[client][{0}] Не удалось получить данные методом [{1}]. Попробуем авторизоваться заново.' -f $i, $Metod )
+            Start-Sleep 60
+            Initialize-Client -Retry $true
+        }
     }
-    else {
-        $reqdata = 'hashes=' + ( $t_args -Join '|' )
-        $torrents_list = ( Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/info?filter=completed&' + $reqdata) -WebSession $sid ).Content | ConvertFrom-Json | Select-Object name, hash, content_path, save_path, state, size, category, priority | Where-Object { $_.state -ne 'downloading' -and $_.state -ne 'stalledDL' -and $_.state -ne 'queuedDL' -and $_.state -ne 'error' -and $_.state -ne 'missingFiles' } | sort-object -Property size
-        return $torrents_list
+    if ( !$data ) {
+        Write-Host ( '[client] Не удалось получить данные методом [{0}], Прерываем.' -f $Metod )
+        Exit
     }
+    return $data.Content
+}
+
+function Get-ClientTorrents ( $hashes_list ) {
+    $filter = '?filter=completed'
+    if ( $hashes_list.Count ) {
+        $filter+= '&hashes=' + ( $hashes_list -Join '|' )
+    }
+    $torrents_list = (Read-Client 'torrents/info' $filter )
+        | ConvertFrom-Json
+        | Select-Object name, hash, content_path, save_path, state, size, category, priority
+        | sort-object -Property size
+    return $torrents_list
 }
 
 function Get-TopicIDs( $torrents_list, $hashes ) {

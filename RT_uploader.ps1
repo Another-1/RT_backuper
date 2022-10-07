@@ -48,13 +48,7 @@ $sum_size = ( $zip_list | Measure-Object -sum size ).Sum
 Write-Host ( '[uploader] Найдено архивов: {0} ({1}), требующих переноса на гугл-диск, начинаем!' -f $sum_cnt, (Get-FileSize $sum_size) )
 if ( $sum_cnt -eq 0 ) {Exit}
 
-Write-Host '[uploader] Авторизуемся в клиенте.'
-try {
-    $sid = Initialize-Client
-} catch {
-    Write-Host ( 'Авторизация не удалась. {0}' -f $Error[0] ) -ForegroundColor Red
-    Exit
-}
+Initialize-Client
 
 # Перебираем архивы.
 foreach ( $zip in $zip_list ) {
@@ -163,6 +157,7 @@ foreach ( $zip in $zip_list ) {
 
             $speed_move = (Get-FileSize ($torrent.size / $move_sec) -SI speed_2)
             Write-Host ( '[uploader] Готово! Завершено за {0} минут, средняя скорость {1}' -f [math]::Round($move_sec/60, 1) , $speed_move )
+
             Dismount-ClientTorrent $torrent_id $torrent_hash
 
             # После успешного переноса архива записываем затраченный трафик

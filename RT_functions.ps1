@@ -125,6 +125,7 @@ function Initialize-Client ( $Retry = $false ) {
     $logindata = "username={0}&password={1}" -f $client.login, $client.password
     $loginheader = @{ Referer = $client.url }
     try {
+        Write-Host '[client] Авторизуемся в клиенте.'
         $result = Invoke-WebRequest -Headers $loginheader -Body $logindata ( $client.url + '/api/v2/auth/login' ) -Method POST -SessionVariable sid
         if ( $result.StatusCode -ne 200 ) {
             throw 'You are banned.'
@@ -162,6 +163,7 @@ function Read-Client ( [string]$Metod, [string]$Params = '' ) {
     return $data.Content
 }
 
+# Получить список завершённых раздач. Опционально, по списку хешей.
 function Get-ClientTorrents ( $Hashes ) {
     $filter = '?filter=completed'
     if ( $Hashes.Count ) {
@@ -169,11 +171,13 @@ function Get-ClientTorrents ( $Hashes ) {
     }
     $torrents_list = (Read-Client 'torrents/info' $filter )
         | ConvertFrom-Json
-        | Select-Object name, hash, content_path, save_path, state, size, category, priority
-        | sort-object -Property size
+        | Select-Object name, hash, content_path, save_path, state, size, category
+        | Sort-Object -Property size
     return $torrents_list
 }
 
+# Найти ид раздач(топиков) в [списке архивов, комменте раздачи из клиента, api трекера].
+# Если раздача уже есть в списке архивов, то она исключается из итогового набора раздач.
 function Get-TopicIDs( $torrents_list, $hashes ) {
     $removed = 0
     foreach ( $torrent in $torrents_list ) {
@@ -190,13 +194,11 @@ function Get-TopicIDs( $torrents_list, $hashes ) {
         }
         # ищем коммент в данных раздачи.
         if ( $nul -eq $torrent.state ) {
-            try {
-                $reqdata = 'hash=' + $torrent.hash
-                $torprops = ( Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/properties' ) -Body $reqdata  -WebSession $sid -Method POST ).Content | ConvertFrom-Json
-                if ( $torprops.comment -match 'rutracker' ) {
-                    $torrent.state = ( Select-String "\d*$" -InputObject $torprops.comment).Matches.Value
-                }
-            } catch { pause }
+            $filter = '?hash=' + $torrent.hash
+            $torprops = (Read-Client 'torrents/properties' $filter ) | ConvertFrom-Json
+            if ( $torprops.comment -match 'rutracker' ) {
+                $torrent.state = ( Select-String "\d*$" -InputObject $torprops.comment ).Matches.Value
+            }
         }
         # если не удалось получить информацию об ID из коммента, сходим в API и попробуем получить там.
         if ( $nul -eq $torrent.state ) {
@@ -257,8 +259,8 @@ function Delete-ClientTorrent ( [int]$torrent_id, [string]$torrent_hash, [string
     if ( $upload_params.delete -eq 1 -And $upload_params.delete_category -eq $torrent_category ) {
         try {
             Write-Host ( '[delete] Удаляем из клиента раздачу {0}' -f $torrent_id )
-            $reqdata = 'hashes=' + $torrent_hash + '&deleteFiles=true'
-            Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/delete' ) -Body $reqdata -WebSession $sid -Method POST > $null
+            $request = '?hashes=' + $torrent_hash + '&deleteFiles=true'
+            Read-Client 'torrents/delete' $request > $null
         }
         catch {
             Write-Host ( '[delete] Почему-то не получилось удалить раздачу {0}.' -f $torrent_id )

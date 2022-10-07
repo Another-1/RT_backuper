@@ -12,13 +12,7 @@ Start-Stopping
 # Очищаем пустые папки в папке загрузок
 Clear-EmptyFolders $store_path
 
-Write-Host '[backuper] Авторизуемся в клиенте.'
-try {
-    $sid = Initialize-Client
-} catch {
-    Write-Host ( 'Авторизация не удалась. {0}' -f $Error[0] ) -ForegroundColor Red
-    Exit
-}
+Initialize-Client
 
 # Загружаем списки заархивированных раздач.
 $dones, $hashes = Get-Archives

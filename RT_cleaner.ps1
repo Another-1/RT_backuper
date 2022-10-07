@@ -22,16 +22,9 @@ if ( $total_count -eq 0 ) {
     Exit
 }
 
+Initialize-Client
+
 $runs = [math]::Ceiling( $total_count / $step )
-
-Write-Host '[cleaner] Авторизуемся в клиенте.'
-try {
-    $sid = Initialize-Client
-} catch {
-    Write-Host ( 'Авторизация не удалась. {0}' -f $Error[0] ) -ForegroundColor Red
-    Exit
-}
-
 Write-Host ( 'Начинаем обработку. Потребуется итераций {0}.' -f $runs )
 $changed = @()
 For ( $i = 1; $i -le $runs; $i++ ) {
@@ -63,7 +56,6 @@ For ( $i = 1; $i -le $runs; $i++ ) {
     }
 }
 # end foreach
-
 Write-Host ( 'Обработано {0} раздач.' -f $total_count )
 
 

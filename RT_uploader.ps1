@@ -12,7 +12,7 @@ Write-Host '[uploader] Начинаем процесс выгрузки архи
 $uploads_all = Get-StoredUploads
 $uploads_all.GetEnumerator() | Sort-Object -Property Key | % {
     $temp_size = ( $_.value.values | Measure-Object -sum ).Sum
-    Write-Host ( 'Для диска {0} выгружено: {1}' -f $_.key, ( Get-FileSize $temp_size) )
+    Write-Host ( 'Для диска {0} выгружено: {1}' -f $_.key, ( Get-BaseSize $temp_size) )
 }
 
 $os, $folder_sep = Get-OsParams
@@ -45,7 +45,7 @@ $proc_size = 0
 $sum_cnt = $zip_list.count
 $sum_size = ( $zip_list | Measure-Object -sum size ).Sum
 
-Write-Host ( '[uploader] Найдено архивов: {0} ({1}), требующих переноса на гугл-диск, начинаем!' -f $sum_cnt, (Get-FileSize $sum_size) )
+Write-Host ( '[uploader] Найдено архивов: {0} ({1}), требующих переноса на гугл-диск, начинаем!' -f $sum_cnt, (Get-BaseSize $sum_size) )
 if ( $sum_cnt -eq 0 ) {Exit}
 
 Initialize-Client
@@ -73,7 +73,7 @@ foreach ( $zip in $zip_list ) {
     }
 
     Write-Host ''
-    Write-Host ( '[uploader] Начинаем перенос раздачи {0} ({1}), {2}' -f $torrent_id, (Get-FileSize $zip.Size), $torrent.name ) -ForegroundColor Green
+    Write-Host ( '[uploader] Начинаем перенос раздачи {0} ({1}), {2}' -f $torrent_id, (Get-BaseSize $zip.Size), $torrent.name ) -ForegroundColor Green
 
     # Если подключён один диск - указатель =0, если дисков > 1, то указатель =(выбранный акк-1)
     $folder_pointer = 0
@@ -120,8 +120,8 @@ foreach ( $zip in $zip_list ) {
 
         # Если за последние 24ч, по выбранному аккаунту, было отправлено более квоты, то ждём.
         while ( $today_size -gt $lv_750gb ) {
-            Write-Host ( '[limit][{0}] Трафик за прошедшие 24ч по диску {1} уже {2}' -f (Get-Date -Format t), $google_name, (Get-FileSize $today_size ) )
-            Write-Host ( '[limit] Подождём часик чтобы не выйти за лимит {0} (сообщение будет повторяться пока не вернёмся в лимит).' -f (Get-FileSize $lv_750gb ) )
+            Write-Host ( '[limit][{0}] Трафик за прошедшие 24ч по диску {1} уже {2}' -f (Get-Date -Format t), $google_name, (Get-BaseSize $today_size ) )
+            Write-Host ( '[limit] Подождём часик чтобы не выйти за лимит {0} (сообщение будет повторяться пока не вернёмся в лимит).' -f (Get-BaseSize $lv_750gb ) )
             Start-Sleep -Seconds ( 60 * 60 )
 
             Start-Pause
@@ -138,7 +138,7 @@ foreach ( $zip in $zip_list ) {
             }
         }
 
-        Write-Host ( '[limit] {0} {1} меньше чем лимит {2}, продолжаем!' -f $google_name, (Get-FileSize $today_size), (Get-FileSize $lv_750gb) )
+        Write-Host ( '[limit] {0} {1} меньше чем лимит {2}, продолжаем!' -f $google_name, (Get-BaseSize $today_size), (Get-BaseSize $lv_750gb) )
         try {
             $zip_test = Test-PathTimer $zip_google_path
             Write-Host ( '[check][{0}] Проверка в гугле заняла {1} сек, результат: {2}' -f $disk_name, $zip_test.exec, $zip_test.result )
@@ -155,7 +155,7 @@ foreach ( $zip in $zip_list ) {
             }).TotalSeconds, 1 )
             if ( !$move_sec ) {$move_sec = 0.1}
 
-            $speed_move = (Get-FileSize ($torrent.size / $move_sec) -SI speed_2)
+            $speed_move = (Get-BaseSize ($torrent.size / $move_sec) -SI speed_2)
             Write-Host ( '[uploader] Готово! Завершено за {0} минут, средняя скорость {1}' -f [math]::Round($move_sec/60, 1) , $speed_move )
 
             Dismount-ClientTorrent $torrent_id $torrent_hash
@@ -173,7 +173,7 @@ foreach ( $zip in $zip_list ) {
     }
 
     $proc_size += $torrent.size
-    Write-Output ( '[uploader] Обработано раздач {0} ({1}) из {2} ({3})' -f ++$proc_cnt, (Get-FileSize $proc_size), $sum_cnt, (Get-FileSize $sum_size) )
+    Write-Output ( '[uploader] Обработано раздач {0} ({1}) из {2} ({3})' -f ++$proc_cnt, (Get-BaseSize $proc_size), $sum_cnt, (Get-BaseSize $sum_size) )
 
     Start-Pause
     Start-Stopping

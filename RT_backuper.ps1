@@ -77,7 +77,7 @@ $proc_size = 0
 $proc_cnt = 0
 $sum_size = ( $torrents_list | Measure-Object -sum size ).Sum
 $sum_cnt = $torrents_list.count
-Write-Host ( '[backuper] Объём новых раздач ({0} шт) {1}.' -f $sum_cnt, (Get-FileSize $sum_size) )
+Write-Host ( '[backuper] Объём новых раздач ({0} шт) {1}.' -f $sum_cnt, (Get-BaseSize $sum_size) )
 
 
 # Проверим наличие заданных каталогов. (вероятно лучше перенести в проверку конфига)
@@ -98,7 +98,7 @@ foreach ( $torrent in $torrents_list ) {
             break
         }
         $text = '[limit][{0}] Занятый объём каталога ({1}) {2} больше допустимого {3}. Подождём пока освободится.'
-        Write-Host ($text -f (Get-Date -Format t), $arch_params.finished, (Get-FileSize $folder_size), (Get-FileSize $arch_params.finished_size) )
+        Write-Host ($text -f (Get-Date -Format t), $arch_params.finished, (Get-BaseSize $folder_size), (Get-BaseSize $arch_params.finished_size) )
         Start-Sleep -Seconds 60
     }
 
@@ -117,7 +117,7 @@ foreach ( $torrent in $torrents_list ) {
 
     Start-Pause
     Write-Host ''
-    Write-Host ( '[torrent] Архивируем {0} ({2}), {1} ' -f $torrent_id, $torrent.name, (Get-FileSize $torrent.size) ) -ForegroundColor Green
+    Write-Host ( '[torrent] Архивируем {0} ({2}), {1} ' -f $torrent_id, $torrent.name, (Get-BaseSize $torrent.size) ) -ForegroundColor Green
 
     try {
         # Проверяем, что архив для такой раздачи ещё не создан.
@@ -158,10 +158,10 @@ foreach ( $torrent in $torrents_list ) {
         $time_arch = [math]::Round( ((Get-Date) - $start_measure).TotalSeconds, 1 )
         $zip_size = (Get-Item $zip_path_progress).Length
         $comp_perc = [math]::Round( $zip_size * 100 / $torrent.size )
-        $speed_arch = (Get-FileSize ($torrent.size / $time_arch) -SI speed_2)
+        $speed_arch = (Get-BaseSize ($torrent.size / $time_arch) -SI speed_2)
 
         $success_text = '[torrent] Успешно завершено за {0} сек [comp:{1}, cores:{2}, archSize:{3}, perc:{4}, speed:{5}]'
-        Write-Host ( $success_text -f $time_arch, $compression, $arch_params.cores, (Get-FileSize $zip_size), $comp_perc, $speed_arch )
+        Write-Host ( $success_text -f $time_arch, $compression, $arch_params.cores, (Get-BaseSize $zip_size), $comp_perc, $speed_arch )
 
         try {
             if ( Test-Path $zip_path_finished ) { Remove-Item $zip_path_finished }
@@ -179,7 +179,7 @@ foreach ( $torrent in $torrents_list ) {
 
     $proc_size += $torrent.size
     $text = 'Обработано раздач {0} ({1}) из {2} ({3})'
-    Write-Host ( $text -f ++$proc_cnt, (Get-FileSize $proc_size), $sum_cnt, (Get-FileSize $sum_size) ) -ForegroundColor DarkCyan
+    Write-Host ( $text -f ++$proc_cnt, (Get-BaseSize $proc_size), $sum_cnt, (Get-BaseSize $sum_size) ) -ForegroundColor DarkCyan
 
     # Перезаписываем данные раздач, которые осталось обработать.
     $torrents_left = $torrents_left | ? { $_.state -ne $torrent_id }

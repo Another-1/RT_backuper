@@ -25,7 +25,7 @@ if ( $args.count -eq 0 ) {
 $uploads_all = Get-StoredUploads
 $uploads_all.GetEnumerator() | % {
     $temp_size = ( $_.value.values | Measure-Object -sum ).Sum
-    Write-Host ( 'Для диска ' + $_.key + ' выгружено: ' + ( Get-FileSize $temp_size) + ' (' + $temp_size + ' B).' )
+    Write-Host ( 'Для диска ' + $_.key + ' выгружено: ' + ( Get-BaseSize $temp_size) + ' (' + $temp_size + ' B).' )
 }
 
 Write-Output 'Авторизуемся в клиенте..'
@@ -66,7 +66,7 @@ $sum_size = ( $torrents_list | Measure-Object -sum size ).Sum
 $sum_cnt = $torrents_list.count
 $used_locs = [System.Collections.ArrayList]::new()
 $ok = $true
-Write-Output ( 'Объём новых раздач (' + $sum_cnt + ' шт) ' + ( Get-FileSize $sum_size) + ' (' + $sum_size + ' B).' )
+Write-Output ( 'Объём новых раздач (' + $sum_cnt + ' шт) ' + ( Get-BaseSize $sum_size) + ' (' + $sum_size + ' B).' )
 
 if ( $args.count -eq 0 ) {
     # проверяем, что никакие раздачи не пересекаются по именам файлов (если файл один) или каталогов (если файлов много), чтобы не заархивировать не то
@@ -115,7 +115,7 @@ foreach ( $torrent in $torrents_list ) {
     if ( -not ( Test-Path -Path $zip_name ) ) {
         $tmp_zip_name = ( $tmp_drive + $drive_separator + $torrents_id + '_' + $torrent.hash.ToLower() + '.7z' )
 
-        Write-Host ( 'Архивируем ' + $torrents_id + ', ' + (Get-FileSize $torrent.size) + ', ' + $torrent.name + ' на диск ' + $google_folder ) -ForegroundColor Blue
+        Write-Host ( 'Архивируем ' + $torrents_id + ', ' + (Get-BaseSize $torrent.size) + ', ' + $torrent.name + ' на диск ' + $google_folder ) -ForegroundColor Blue
         If ( Test-Path -path $tmp_zip_name ) {
             Write-Output 'Похоже, такой архив уже пишется в параллельной сессии. Пропускаем'
             continue
@@ -135,8 +135,8 @@ foreach ( $torrent in $torrents_list ) {
 
             # Если за последние 24ч было отправлено более квоты, то ждём
             while ( $today_size -gt $lv_750gb ) {
-                Write-Output ( 'Трафик за прошедшие 24ч по диску ' + $google_folder + ' уже ' + (Get-FileSize $today_size ) )
-                Write-Output ( 'Подождём часик чтобы не выйти за лимит ' + (Get-FileSize $lv_750gb ) + ' (сообщение будет повторяться пока не вернёмся в лимит).' )
+                Write-Output ( 'Трафик за прошедшие 24ч по диску ' + $google_folder + ' уже ' + (Get-BaseSize $today_size ) )
+                Write-Output ( 'Подождём часик чтобы не выйти за лимит ' + (Get-BaseSize $lv_750gb ) + ' (сообщение будет повторяться пока не вернёмся в лимит).' )
                 Start-Sleep -Seconds (60 * 60 )
 
                 $today_size, $uploads_all = Get-TodayTraffic $uploads_all 0 $google_folder
@@ -152,7 +152,7 @@ foreach ( $torrent in $torrents_list ) {
                 }
             }
 
-            Write-Output ( ( Get-FileSize $today_size ) + ' пока ещё меньше чем лимит ' + ( Get-FileSize $lv_750gb ) + ', продолжаем!' )
+            Write-Output ( ( Get-BaseSize $today_size ) + ' пока ещё меньше чем лимит ' + ( Get-BaseSize $lv_750gb ) + ', продолжаем!' )
             try {
                 if ( Test-Path -Path $zip_name ) {
                     Write-Output 'Такой архив уже существует на гугл-диске, удаляем файл и пропускаем раздачу.'
@@ -182,8 +182,8 @@ foreach ( $torrent in $torrents_list ) {
 
     $proc_cnt++
     $proc_size += $torrent.size
-    Write-Output ( 'Обработано раздач ' + $proc_cnt + ' (' + (Get-FileSize $proc_size) + ') из ' + `
-        $sum_cnt + ' (' + (Get-FileSize $sum_size) + ')' )
+    Write-Output ( 'Обработано раздач ' + $proc_cnt + ' (' + (Get-BaseSize $proc_size) + ') из ' + `
+        $sum_cnt + ' (' + (Get-BaseSize $sum_size) + ')' )
     Start-Stopping
     Start-Pause
 }

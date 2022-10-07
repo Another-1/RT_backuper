@@ -280,7 +280,7 @@ function Get-OsParams {
 
 
 # Преобразовать большое число в число в степени.
-function Get-FileSize ( [long]$size, [int]$base = 1024, [int]$pow = 0, $SI = 'byte_2' ) {
+function Get-BaseSize ( [long]$size, [int]$base = 1024, [int]$pow = 0, $SI = 'byte_2' ) {
     $names = $measure_names[$SI]
     if ( !$names ) { $names = $measure_names.byte_2 }
 

@@ -33,6 +33,7 @@ try {
 }
 
 Write-Host ( 'Начинаем обработку. Потребуется итераций {0}.' -f $runs )
+$changed = @()
 For ( $i = 1; $i -le $runs; $i++ ) {
     $percent = $i*100 / $runs
 
@@ -53,6 +54,7 @@ For ( $i = 1; $i -le $runs; $i++ ) {
 
         $disk_id, $disk_name, $disk_path = Get-DiskParams $id
         $archive = $stash_folder.archived + $folder_sep + $disk_name + '.txt'
+        $changed += $disk_name
 
         ($id.ToString() + '_' + $torrent.hash.ToLower()) | Out-File $archive -Append
 
@@ -68,7 +70,7 @@ Write-Host ( 'Обработано {0} раздач.' -f $total_count )
 # После добавления раздач в списки, пересортируем их.
 Write-Progress -Activity "Сортируем списки.." -CurrentOperation "Обработка.."
 Write-Host '[updater] Сортируем списки..'
-$archives = Get-ChildItem $stash_folder.archived -File -Filter ($google_folder_prefix + '*.txt') | ? { $_.Size }
+$archives = Get-ChildItem $stash_folder.archived -File -Filter ($google_folder_prefix + '*.txt') | ? { $_.Size -And $_.BaseName -in $changed }
 $i = 0
 foreach ( $arch in $archives ) {
     Write-Host ( '[updater] Сортируем [{0}] {1} шт.'  -f $arch.BaseName, $content.count )

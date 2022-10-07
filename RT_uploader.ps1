@@ -92,7 +92,6 @@ foreach ( $zip in $zip_list ) {
     $zip_current_path = $arch_params.finished + $folder_sep + $zip.Name
     $zip_google_path = $google_path + $disk_path + $zip.Name
 
-    $delete_torrent = $true
     $text = '[uploader] Раздача: id={0}, disk=[{1}] {2}, path={3},'
     Write-Host ( $text -f $torrent_id, $disk_id, $disk_name, $google_name )
     try {
@@ -106,9 +105,14 @@ foreach ( $zip in $zip_list ) {
         if ( $upload_params.validate ) {
             Write-Host '[uploader] Начинаем проверку архива перед отправкой в гугл.'
             $start_measure = Get-Date
-            & $7z_path t $zip_current_path "-p$pswd"
+
+            if ( $arch_params.h7z ) {
+                & $arch_params.p7z t $zip_current_path "-p$pswd" > $null
+            } else {
+                & $arch_params.p7z t $zip_current_path "-p$pswd"
+            }
+
             if ( $LastExitCode -ne 0 ) {
-                $delete_torrent = $false
                 throw ( '[check] Архив не прошёл проверку целостности, код ошибки: {0}. Удаляем файл.' -f $LastExitCode )
             }
 
@@ -165,12 +169,11 @@ foreach ( $zip in $zip_list ) {
             Get-TodayTraffic $uploads_all $zip.Size $google_name > $null
         }
         catch {
-            $delete_torrent = $false
             Write-Host '[uploader] Не удалось отправить файл на гугл-диск'
             Pause
         }
     } catch {
-        # Remove-Item $zip_current_path
+        Remove-Item $zip_current_path
         Write-Host $Error[0] -ForegroundColor Red
     }
 

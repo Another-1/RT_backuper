@@ -144,10 +144,17 @@ foreach ( $torrent in $torrents_list ) {
 
         # для Unix нужно экранировать кавычки и пробелы.
         if ( $os -eq 'linux' ) { $torrent.content_path = $torrent.content_path.replace('"','\"') }
-        # Начинаем архивацию файла
         $compression = Get-Compression $torrent_id $arch_params
         $start_measure = Get-Date
-        & $7z_path a $zip_path_progress $torrent.content_path "-p$pswd" "-mx$compression" ("-mmt" + $arch_params.cores) -mhe=on -sccUTF-8 -bb0
+
+        # Начинаем архивацию файла
+        Write-Host 'Архивация начата.'
+        if ( $arch_params.h7z ) {
+            & $arch_params.p7z a $zip_path_progress $torrent.content_path "-p$pswd" "-mx$compression" ("-mmt" + $arch_params.cores) -mhe=on -sccUTF-8 -bb0 > $null
+        } else {
+            & $arch_params.p7z a $zip_path_progress $torrent.content_path "-p$pswd" "-mx$compression" ("-mmt" + $arch_params.cores) -mhe=on -sccUTF-8 -bb0
+        }
+
         if ( $LastExitCode -ne 0 ) {
             Remove-Item $zip_path_progress
             throw ( 'Архивация завершилась ошибкой: {0}. Удаляем файл.' -f $LastExitCode )

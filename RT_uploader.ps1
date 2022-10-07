@@ -109,7 +109,7 @@ foreach ( $zip in $zip_list ) {
             & $7z_path t $zip_current_path "-p$pswd"
             if ( $LastExitCode -ne 0 ) {
                 $delete_torrent = $false
-                throw ( 'Архив не прошёл проверку целостности, код ошибки: {0}. Удаляем файл.' -f $LastExitCode )
+                throw ( '[check] Архив не прошёл проверку целостности, код ошибки: {0}. Удаляем файл.' -f $LastExitCode )
             }
 
             # Считаем результаты архивации
@@ -140,7 +140,7 @@ foreach ( $zip in $zip_list ) {
             }
         }
 
-        Write-Host ( '{0} {1} меньше чем лимит {2}, продолжаем!' -f $google_name, (Get-FileSize $today_size), (Get-FileSize $lv_750gb) )
+        Write-Host ( '[limit] {0} {1} меньше чем лимит {2}, продолжаем!' -f $google_name, (Get-FileSize $today_size), (Get-FileSize $lv_750gb) )
         try {
             $zip_test = Test-PathTimer $zip_google_path
             Write-Host ( '[check][{0}] Проверка в гугле заняла {1} сек, результат: {2}' -f $disk_name, $zip_test.exec, $zip_test.result )
@@ -150,7 +150,7 @@ foreach ( $zip in $zip_list ) {
             }
 
             Write-Host 'Перемещаем архив на гугл-диск...'
-            New-Item -ItemType Directory -Path ($google_path + $disk_path) -Force | Out-Null
+            New-Item -ItemType Directory -Path ($google_path + $disk_path) -Force > $null
 
             $move_sec = [math]::Round( (Measure-Command {
                 Move-Item -path $zip_current_path -destination ( $zip_google_path ) -Force -ErrorAction Stop
@@ -162,11 +162,11 @@ foreach ( $zip in $zip_list ) {
             Dismount-ClientTorrent $torrent_id $torrent_hash
 
             # После успешного переноса архива записываем затраченный трафик
-            Get-TodayTraffic $uploads_all $zip.Size $google_name | Out-Null
+            Get-TodayTraffic $uploads_all $zip.Size $google_name > $null
         }
         catch {
             $delete_torrent = $false
-            Write-Host 'Не удалось отправить файл на гугл-диск'
+            Write-Host '[uploader] Не удалось отправить файл на гугл-диск'
             Pause
         }
     } catch {
@@ -175,7 +175,7 @@ foreach ( $zip in $zip_list ) {
     }
 
     $proc_size += $torrent.size
-    Write-Output ( 'Обработано раздач {0} ({1}) из {2} ({3})' -f ++$proc_cnt, (Get-FileSize $proc_size), $sum_cnt, (Get-FileSize $sum_size) )
+    Write-Output ( '[uploader] Обработано раздач {0} ({1}) из {2} ({3})' -f ++$proc_cnt, (Get-FileSize $proc_size), $sum_cnt, (Get-FileSize $sum_size) )
 
     Start-Pause
     Start-Stopping

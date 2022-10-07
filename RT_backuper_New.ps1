@@ -162,7 +162,7 @@ foreach ( $torrent in $torrents_list ) {
                     Write-Output 'Готово.'
 
                     # После умпешного переноса архива записываем затраченный трафик
-                    Get-TodayTraffic $uploads_all $zip_size $google_folder | Out-Null
+                    Get-TodayTraffic $uploads_all $zip_size $google_folder > $null
                 }
             }
             catch {

@@ -87,8 +87,8 @@ Write-Host ( '[backuper] Объём новых раздач ({0} шт) {1}.' -f 
 
 
 # Проверим наличие заданных каталогов. (вероятно лучше перенести в проверку конфига)
-New-Item -ItemType Directory -Path $arch_params.progress -Force | Out-Null
-New-Item -ItemType Directory -Path $arch_params.finished -Force | Out-Null
+New-Item -ItemType Directory -Path $arch_params.progress -Force > $null
+New-Item -ItemType Directory -Path $arch_params.finished -Force > $null
 
 # Записываем найденные раздачи в файлик.
 $torrents_left = $torrents_list
@@ -132,15 +132,15 @@ foreach ( $torrent in $torrents_list ) {
         if ( $zip_test.result ) {
             # Если раздача уже есть в гугле, то надо её удалить из клиента и добавить в локальный список архивированных.
             Dismount-ClientTorrent $torrent_id $torrent_hash
-            throw '..раздача уже имеет архив в гугле, пропускаем.'
+            throw '[skip] Раздача уже имеет архив в гугле, пропускаем.'
 
         }
         if ( Test-Path $zip_path_finished ) {
-            throw '..раздача уже имеет архив ожидающий переноса в гугл, пропускаем.'
+            throw '[skip] Раздача уже имеет архив ожидающий переноса в гугл, пропускаем.'
         }
 
         # Удаляем файл в месте архивирования, если он прочему-то есть.
-        if ( Test-Path $zip_path_progress ) { Remove-Item $zip_path_progress | Out-Null }
+        if ( Test-Path $zip_path_progress ) { Remove-Item $zip_path_progress }
 
         # для Unix нужно экранировать кавычки и пробелы.
         if ( $os -eq 'linux' ) { $torrent.content_path = $torrent.content_path.replace('"','\"') }
@@ -163,7 +163,7 @@ foreach ( $torrent in $torrents_list ) {
         Write-Host ( $success_text -f $time_arch, $compression, $arch_params.cores, (Get-FileSize $zip_size), $comp_perc, $speed_arch )
 
         try {
-            if ( Test-Path $zip_path_finished ) { Remove-Item $zip_path_finished | Out-Null }
+            if ( Test-Path $zip_path_finished ) { Remove-Item $zip_path_finished }
             Write-Host ( 'Перемещаем {0} в каталог {1}' -f  $zip_name, $arch_params.finished )
             Move-Item -path $zip_path_progress -destination $zip_path_finished -Force -ErrorAction Stop
             Write-Host 'Готово!'

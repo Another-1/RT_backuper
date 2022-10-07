@@ -55,7 +55,7 @@ function Sync-Settings {
 # Если файла нет - создать его
 function Watch-FileExist ( $Path ) {
     If ( !(Test-Path $Path) ) {
-        New-Item -ItemType File -Path $Path -Force | Out-Null
+        New-Item -ItemType File -Path $Path -Force > $null
     }
     return Get-Item $Path
 }
@@ -213,7 +213,7 @@ function Get-Required ( $torrents_list, $archives_list ) {
 # Добавляем архив в список обработанных и список для проверки на удаление
 function Dismount-ClientTorrent ( [int]$torrent_id, [string]$torrent_hash ) {
     if ( $upload_params.cleaner ) {
-        Watch-FileExist $stash_folder.finished | Out-Null
+        Watch-FileExist $stash_folder.finished > $null
         ($torrent_id.ToString() + '_' + $torrent_hash.ToLower()) | Out-File $stash_folder.finished -Append
     }
 }
@@ -224,7 +224,7 @@ function Delete-ClientTorrent ( [int]$torrent_id, [string]$torrent_hash, [string
         try {
             Write-Host ( '[delete] Удаляем из клиента раздачу {0}' -f $torrent_id )
             $reqdata = 'hashes=' + $torrent_hash + '&deleteFiles=true'
-            Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/delete' ) -Body $reqdata -WebSession $sid -Method POST | Out-Null
+            Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/delete' ) -Body $reqdata -WebSession $sid -Method POST > $null
         }
         catch {
             Write-Host ( '[delete] Почему-то не получилось удалить раздачу {0}.' -f $torrent_id )
@@ -275,7 +275,7 @@ function Get-StoredUploads ( $uploads_old = @{} ) {
 
 # Вычислить размер содержимого папки
 function Get-FolderSize ( [string]$folder_path ) {
-    New-Item -ItemType Directory -Path $folder_path -Force | Out-Null
+    New-Item -ItemType Directory -Path $folder_path -Force > $null
     return (Get-ChildItem $folder_path -Recurse | Measure-Object -Property Length -Sum).Sum
 }
 

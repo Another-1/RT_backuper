@@ -43,7 +43,7 @@ if ( !$torrents_list ) {
     # получаем список раздач из клиента
     Write-Host 'Получаем список раздач из клиента..'
     $exec_time = [math]::Round( (Measure-Command {
-        $torrents_list = Get-ClientTorrents $client_url $sid $downloaded
+        $torrents_list = Get-ClientTorrents $downloaded
     }).TotalSeconds, 1 )
 
     if ( $torrents_list -eq $null ) {

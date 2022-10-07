@@ -162,10 +162,10 @@ function Read-Client ( [string]$Metod, [string]$Params = '' ) {
     return $data.Content
 }
 
-function Get-ClientTorrents ( $hashes_list ) {
+function Get-ClientTorrents ( $Hashes ) {
     $filter = '?filter=completed'
-    if ( $hashes_list.Count ) {
-        $filter+= '&hashes=' + ( $hashes_list -Join '|' )
+    if ( $Hashes.Count ) {
+        $filter+= '&hashes=' + ( $Hashes -Join '|' )
     }
     $torrents_list = (Read-Client 'torrents/info' $filter )
         | ConvertFrom-Json

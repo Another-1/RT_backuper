@@ -34,11 +34,11 @@ $sid = Initialize-Client
 # получаем список раздач из клиента
 if ( $args.Count -eq 0) {
     Write-Output 'Получаем список раздач из клиента..'
-    $torrents_list = Get-ClientTorrents $client_url $sid $args
+    $torrents_list = Get-ClientTorrents $args
 }
 else {
     Write-Output 'Получаем общую информацию о раздаче из клиента..'
-    $torrents_list = Get-ClientTorrents $client_url $sid $args
+    $torrents_list = Get-ClientTorrents $args
 }
 
 

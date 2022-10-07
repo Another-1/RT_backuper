@@ -65,7 +65,7 @@ foreach ( $zip in $zip_list ) {
     }
 
     $torrent_id, $torrent_hash = ( $zip.Name.Split('.')[0] ).Split('_')
-    $torrent = Get-ClientTorrents $client_url $sid @( $torrent_hash )
+    $torrent = Get-ClientTorrents @( $torrent_hash )
 
     # Собираем имя и путь хранения архива раздачи.
     $disk_id, $disk_name, $disk_path = Get-DiskParams $torrent_id $folder_sep

@@ -43,7 +43,7 @@ For ( $i = 1; $i -le $runs; $i++ ) {
     $selected | % { $id, $hash = ( $_.Split('.')[0] ).Split('_'); $hashes[$hash] = $id }
 
     Write-Host ( 'Итерация {0}/{1}, раздач {2}, опрашиваем клиент.' -f $i, $runs, $hashes.count )
-    $torrents = Get-ClientTorrents $client_url $sid $hashes.keys
+    $torrents = Get-ClientTorrents $hashes.keys
     if ( !$torrents ) {
         Write-Host ( 'Не найдены раздачи в клиенте. Пропускаем.' )
         Continue

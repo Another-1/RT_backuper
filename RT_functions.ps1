@@ -15,10 +15,9 @@ $stash_folder = @{
 
     finished      = "$PSScriptRoot\stash\finished.txt"      # Файл id_hash раздач, которые были найдены в гугле или были заархивированны
     downloaded    = "$PSScriptRoot\config\hashes.txt"       # Файл со списком свежескачанных раздач. Добавляется из клиента
+
+    pause         = "$PSScriptRoot\stash\pause.txt"         # Если в файле что-то есть, скрипт встанет на паузу.
 }
-
-
-$pause_file = "$PSScriptRoot\stash\pause.txt"
 
 $measure_names = @{
     byte_2   = 'B','KiB','MiB','GiB','TiB','PiB'
@@ -27,63 +26,6 @@ $measure_names = @{
     speed_10 = 'B/s','KB/s' ,'MB/s' ,'GB/s' ,'TB/s' ,'PB/s'
 }
 
-# Проверка версии PowerShell
-function Confirm-Version {
-    If ( $PSVersionTable.PSVersion -lt [version]'7.1.0.0') {
-        Write-Host 'У вас слишком древний PowerShell, обновитесь с https://github.com/PowerShell/PowerShell#get-powershell ' -ForegroundColor Red
-        Pause
-        return $false
-    }
-    return $true
-}
-
-function Get-OsParams {
-    $os = 'linux'
-    $folder_separator = '/'
-    if ( $PSVersionTable.OS.ToLower().contains('windows')) {
-        $os = 'windows'
-        $folder_separator = ':\'
-    }
-    return $os, $folder_separator
-}
-
-function Sync-Settings {
-    if ( !$client -And !$client.url ) { return $false }
-    return $true
-}
-
-# Если файла нет - создать его
-function Watch-FileExist ( $Path ) {
-    If ( !(Test-Path $Path) ) {
-        New-Item -ItemType File -Path $Path -Force > $null
-    }
-    return Get-Item $Path
-}
-
-function Test-PathTimer ( $Path ) {
-    $exec_time = [math]::Round( (Measure-Command {
-        $result = Test-Path $Path
-    }).TotalSeconds, 1 )
-
-    return @{ result = $result; exec = $exec_time}
-}
-
-# Удаление пустых папок.
-function Clear-EmptyFolders ( $Path ) {
-    Get-ChildItem $Path -Recurse | Where {$_.PSIsContainer -and @(Get-ChildItem -Lit $_.Fullname -r | Where {!$_.PSIsContainer}).Length -eq 0} | Remove-Item -Force
-}
-
-# Получить из файла первые N строк
-function Get-FileFirstContent ( [string]$Path, [int]$First = 10 ) {
-    # Вытаскиваем данные из файла.
-    $all_file = Get-Content $Path | Sort-Object -Unique
-    # Вытаскиваем первые N строк
-    $selected = $all_file | Select -First $First
-    # Остальное записываем обратно
-    $all_file | Select-Object -Skip $First | Out-File $Path
-
-    return $selected
-}
 
 
 # Вытаскиваем список существующих архивов из списков по дискам.
@@ -309,12 +251,80 @@ function Get-StoredUploads ( $uploads_old = @{} ) {
     return $uploads_all
 }
 
-# Вычислить размер содержимого папки
+# Проверка версии PowerShell.
+function Confirm-Version {
+    If ( $PSVersionTable.PSVersion -lt [version]'7.1.0.0') {
+        Write-Host 'У вас слишком древний PowerShell, обновитесь с https://github.com/PowerShell/PowerShell#get-powershell ' -ForegroundColor Red
+        Pause
+        return $false
+    }
+    return $true
+}
+
+# Проверка/валидация настроек.
+function Sync-Settings {
+    if ( !$client -And !$client.url ) { return $false }
+    return $true
+}
+
+# Получение данных об используемой ОС.
+function Get-OsParams {
+    $os = 'linux'
+    $folder_separator = '/'
+    if ( $PSVersionTable.OS.ToLower().contains('windows')) {
+        $os = 'windows'
+        $folder_separator = ':\'
+    }
+    return $os, $folder_separator
+}
+
+
+# Преобразовать большое число в число в степени.
+function Get-FileSize ( [long]$size, [int]$base = 1024, [int]$pow = 0, $SI = 'byte_2' ) {
+    $names = $measure_names[$SI]
+    if ( !$names ) { $names = $measure_names.byte_2 }
+
+    $val = 0
+    if ( $size -gt 0 ) {
+        if ( $pow -le 0 ) {
+            $pow = [math]::Floor( [math]::Log( $size, $base) )
+        }
+        if ( $pow -gt $names.count - 1 ) {
+            $pow = $names.count - 1
+        }
+        $val = [math]::Round( $size / [math]::Pow($base, $pow), 1)
+    }
+
+    return ( $val ).ToString() + ' ' + $names[ $pow ]
+}
+
+# Если файла нет - создать его
+function Watch-FileExist ( $Path ) {
+    If ( !(Test-Path $Path) ) {
+        New-Item -ItemType File -Path $Path -Force > $null
+    }
+    return Get-Item $Path
+}
+
+# Получить из файла первые N строк
+function Get-FileFirstContent ( [string]$Path, [int]$First = 10 ) {
+    # Вытаскиваем данные из файла.
+    $all_file = Get-Content $Path | Sort-Object -Unique
+    # Вытаскиваем первые N строк
+    $selected = $all_file | Select -First $First
+    # Остальное записываем обратно
+    $all_file | Select-Object -Skip $First | Out-File $Path
+
+    return $selected
+}
+
+# Вычислить размер содержимого каталога.
 function Get-FolderSize ( [string]$folder_path ) {
     New-Item -ItemType Directory -Path $folder_path -Force > $null
     return (Get-ChildItem $folder_path -Recurse | Measure-Object -Property Length -Sum).Sum
 }
 
+# Сравнить размеры каталогов.
 function Compare-MaxFolderSize ( [long]$folder_size, [long]$folder_size_max ) {
     if ( $folder_size -gt $folder_size_max ) {
         return $true
@@ -322,7 +332,21 @@ function Compare-MaxFolderSize ( [long]$folder_size, [long]$folder_size_max ) {
     return $false
 }
 
-# Запуск бекапа только в заданный промежуток времени (от старт до стоп)
+# Удаление пустых папок.
+function Clear-EmptyFolders ( $Path ) {
+    Get-ChildItem $Path -Recurse | Where {$_.PSIsContainer -and @(Get-ChildItem -Lit $_.Fullname -r | Where {!$_.PSIsContainer}).Length -eq 0} | Remove-Item -Force
+}
+
+# Test-Path с временем выполнения.
+function Test-PathTimer ( $Path ) {
+    $exec_time = [math]::Round( (Measure-Command {
+        $result = Test-Path $Path
+    }).TotalSeconds, 1 )
+
+    return @{ result = $result; exec = $exec_time}
+}
+
+# Обеспечение работы скрипта только в заданный промежуток времени (от старт до стоп).
 function Start-Stopping {
     if ( $start_time -eq $null -Or $stop_time -eq $null) { return }
     if ( $start_time -gt $stop_time ) { return }
@@ -343,13 +367,14 @@ function Start-Stopping {
 
 # Ставим скрипт на паузу если имеется заданный файл с содержимым.
 function Start-Pause {
+    $pause_path = $stash_folder.pause
     while ( $true ) {
         $needSleep = $false
         $pausetime = 0
 
         # Если есть файлик и в нём есть содержимое - ставим скрипт на паузу.
-        If ( Test-Path $pause_file) {
-            $pause = ( Get-Content $pause_file | Select-Object -First 1 )
+        If ( Test-Path $pause_path) {
+            $pause = ( Get-Content $pause_path | Select-Object -First 1 )
             if ( !($pause -eq $null) ) {
                 $needSleep = $true
                 $pausetime = $pause -as [int]
@@ -367,21 +392,5 @@ function Start-Pause {
     }
 }
 
-# Преобразовать размер файла в байтах, до ближайшего целого меньше базы
-function Get-FileSize ( [long]$size, [int]$base = 1024, [int]$pow = 0, $SI = 'byte_2' ) {
-    $names = $measure_names[$SI]
-    if ( !$names ) { $names = $measure_names.byte_2 }
 
-    $val = 0
-    if ( $size -gt 0 ) {
-        if ( $pow -le 0 ) {
-            $pow = [math]::Floor( [math]::Log( $size, $base) )
-        }
-        if ( $pow -gt $names.count - 1 ) {
-            $pow = $names.count - 1
-        }
-        $val = [math]::Round( $size / [math]::Pow($base, $pow), 1)
-    }
 
-    return ( $val ).ToString() + ' ' + $names[ $pow ]
-}

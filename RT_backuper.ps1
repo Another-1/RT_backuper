@@ -167,8 +167,10 @@ foreach ( $torrent in $torrents_list ) {
         try {
             if ( Test-Path $zip_path_finished ) { Remove-Item $zip_path_finished }
             Write-Host ( 'Перемещаем {0} в каталог {1}' -f  $zip_name, $arch_params.finished )
-            Move-Item -path $zip_path_progress -destination $zip_path_finished -Force -ErrorAction Stop
-            Write-Host 'Готово!'
+            $move_sec = [math]::Round( (Measure-Command {
+                Move-Item -path $zip_path_progress -destination $zip_path_finished -Force -ErrorAction Stop
+            }).TotalSeconds, 1 )
+            Write-Host ( 'Готово! Перенос осуществлён за {0} сек, средняя скорость {1}' -f $move_sec, (Get-BaseSize ($zip_size / $move_sec) -SI speed_2) )
             Export-TorrentProperties $arch_name $torrent
         }
         catch {

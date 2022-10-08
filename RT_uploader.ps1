@@ -29,16 +29,24 @@ if ( $google_params.folders.count -gt 1 ) {
 
 # Если используемых акков >1 и передан параметр с номером, то используем балансировку.
 if ( $args.count -ne 0 -and $google_params.accounts_count -gt 1 ) {
-    $google_load_num = $args[0]
-    if ( $google_load_num -gt $google_params.accounts_count) {
-        Write-Host ( '[uploader] Неверный параметр балансировки "{0}". Акканутов подключено {1}. Прерываем.' -f $google_load_num, $google_params.accounts_count ) -ForegroundColor Red
+    $uploader_num = $args[0]
+
+    if ( $google_params.uploaders_count -gt $google_params.accounts_count ) {
+        $text = '[balance] Неверный набор параметров accounts_count:{0} >= uploaders_count:{1}.' -f $google_params.accounts_count, $google_params.uploaders_count
+        Write-Host $text -ForegroundColor Red
+        Write-Host 'Параметры скорректированы, но проверьте файл настроек.'
+        $google_params.uploaders_count = $google_params.accounts_count
+    }
+
+    if ( $uploader_num -gt $google_params.uploaders_count) {
+        Write-Host ( '[balance] Неверный параметр балансировки "{0}". Акканутов подключено {1}. Прерываем.' -f $uploader_num, $google_params.uploaders_count ) -ForegroundColor Red
         Exit
     }
-    Write-Host ( '[uploader] Включена балансировка выгрузки. Выбранный аккаунт: {0}' -f $google_load_num ) -ForegroundColor Yellow
+    Write-Host ( '[balance] Включена балансировка выгрузки. Выбранный аккаунт: {0}' -f $uploader_num ) -ForegroundColor Yellow
 }
 
 # Ищем список архивов, которые нужно перенести
-$zip_list = Get-ChildItem $arch_params.finished -Recurse
+$zip_list = Get-ChildItem $arch_params.finished -Filter '*.7z'
 
 $proc_cnt = 0
 $proc_size = 0
@@ -64,11 +72,10 @@ foreach ( $zip in $zip_list ) {
     # Собираем имя и путь хранения архива раздачи.
     $disk_id, $disk_name, $disk_path = Get-DiskParams $torrent_id $folder_sep
 
-    # Если подключено несколько гугл-акков, вычисляем номер акка для раздачи.
-    $google_num = Get-GoogleNum $disk_id $google_params.accounts_count
-
-    if ( $google_load_num -And $google_load_num -ne $google_num ) {
-        Write-Host ( '[skip] Пропущена раздача {0} для аккаунта {1}.' -f $torrent_id, $google_num ) -ForegroundColor Yellow
+    # Вычисляем выгружаемый аккаунт и номер процесса выгрузки.
+    $order = Get-GoogleNum $disk_id -Accounts $google_params.accounts_count -Uploaders $google_params.uploaders_count
+    if ( $uploader_num -And $uploader_num -ne $order.upload ) {
+        Write-Host ( '[skip] Пропущена раздача {0} для другого процесса выгрузки {1}.' -f $torrent_id, $order.upload ) -ForegroundColor Yellow
         Continue
     }
 
@@ -79,13 +86,13 @@ foreach ( $zip in $zip_list ) {
     # Если подключён один диск - указатель =0, если дисков > 1, то указатель =(выбранный акк-1)
     $folder_pointer = 0
     if ( $google_params.folders.count -gt 1 ) {
-        $folder_pointer = $google_num - 1
+        $folder_pointer = $order.account - 1
     }
     $google_path = $google_params.folders[$folder_pointer]
-    $google_name = $google_path + "($google_num)"
+    $google_name = ( '{0}({1})' -f $google_path, $order.account )
 
     $zip_current_path = $arch_params.finished + $folder_sep + $zip.Name
-    $zip_google_path = $google_path + $disk_path + $zip.Name
+    $zip_google_path  = $google_path + $disk_path + $zip.Name
 
     $text = '[uploader] Раздача: id={0}, disk=[{1}] {2}, path={3},'
     Write-Host ( $text -f $torrent_id, $disk_id, $disk_name, $google_name )

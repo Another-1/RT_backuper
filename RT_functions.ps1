@@ -223,8 +223,11 @@ function Get-DiskParams ( [int]$torrent_id, [string]$separator = '/' ) {
 }
 
 # Вычислить номер клиента по ид диска и кол-ву акков.
-function Get-GoogleNum ( [int]$disk_id, [int]$user_accounts = 1 ) {
-    return ($disk_id % $user_accounts + 1)
+function Get-GoogleNum ( [int]$DiskId, [int]$Accounts = 1, [int]$Uploaders = 1 ) {
+    return @{
+        account = ($DiskId % $Accounts  + 1)
+        upload  = ($DiskId % $Uploaders + 1)
+    }
 }
 
 # Записать размер выгруженного архива в файл и удалить старые записи.

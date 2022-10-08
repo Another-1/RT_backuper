@@ -65,8 +65,8 @@ Write-Host '[updater] Сортируем списки..'
 $archives = Get-ChildItem $stash_folder.archived -File -Filter ($google_folder_prefix + '*.txt') | ? { $_.Size -And $_.BaseName -in $changed }
 $i = 0
 foreach ( $arch in $archives ) {
-    Write-Host ( '[updater] Сортируем [{0}] {1} шт.'  -f $arch.BaseName, $content.count )
     $content = Get-Content $arch.FullName
+    Write-Host ( '[updater] Сортируем [{0}] {1} шт.'  -f $arch.BaseName, $content.count )
     Write-Progress -Activity "Сортируем списки.." -Status ("Сортируем [{0}] {1} шт." -f $arch.BaseName, $content.count) -PercentComplete ($i++ * 100 / $archives.count)
     $content | Sort-Object -Unique | Out-File $arch.FullName
 }

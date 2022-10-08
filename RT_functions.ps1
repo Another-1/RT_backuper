@@ -14,6 +14,7 @@ $stash_folder = @{
     backup_list   = "$PSScriptRoot\stash\backup_list.xml"   # Файл уже обработанного списка раздач. Для случая когда был перезапуск
 
     finished      = "$PSScriptRoot\stash\finished.txt"      # Файл id_hash раздач, которые были найдены в гугле или были заархивированны
+    torrents      = "$PSScriptRoot\stash\torrents\"         # Каталог хранения данных раздачи
     downloaded    = "$PSScriptRoot\config\hashes.txt"       # Файл со списком свежескачанных раздач. Добавляется из клиента
 
     pause         = "$PSScriptRoot\stash\pause.txt"         # Если в файле что-то есть, скрипт встанет на паузу.
@@ -56,19 +57,17 @@ function Initialize-Client ( $Retry = $false ) {
 # Получить данные от клиента по заданному методу и параметрам. Параметры должны начинаться с ?
 function Read-Client ( [string]$Metod, [string]$Params = '' ) {
     for ( $i = 1; $i -lt 5; $i++ ) {
+        $url = $client.url + '/api/v2/' + $Metod + $Params
         try {
             # Metod='torrents/info', Params='?filter=completed'
-            $data = Invoke-WebRequest -uri ( $client.url + '/api/v2/' + $Metod + $Params ) -WebSession $client.sid
+            $data = Invoke-WebRequest -uri $url -WebSession $client.sid
+            Break
         }
         catch {
             Write-Host ( '[client][{0}] Не удалось получить данные методом [{1}]. Попробуем авторизоваться заново.' -f $i, $Metod )
             Start-Sleep 60
             Initialize-Client -Retry $true
         }
-    }
-    if ( !$data ) {
-        Write-Host ( '[client] Не удалось получить данные методом [{0}], Прерываем.' -f $Metod )
-        Exit
     }
     return $data.Content
 }
@@ -256,6 +255,27 @@ function Get-StoredUploads ( $uploads_old = @{} ) {
         }
     }
     return $uploads_all
+}
+
+# Записать данные раздачи в файл.
+function Export-TorrentProperties ( $Name, $Data ) {
+    $Path = $stash_folder.torrents + $Name + '.xml'
+    Watch-FileExist $Path > $null
+    $torrent | Export-Clixml $Path
+}
+
+# Получить данные раздачи из файла или клиента.
+function Import-TorrentProperties ( $Name, $Hash ) {
+    $Path = $stash_folder.torrents + $Name + '.xml'
+    if ( Test-Path $Path ) {
+        $torrent = Import-Clixml $Path
+        Remove-Item $Path
+    }
+    if ( !$torrent -And $Hash ) {
+        $torrent = Get-ClientTorrents @( $Hash )
+    }
+
+    return $torrent
 }
 
 # Проверка версии PowerShell.

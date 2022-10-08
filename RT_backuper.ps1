@@ -108,7 +108,8 @@ foreach ( $torrent in $torrents_list ) {
     $disk_id, $disk_name, $disk_path = Get-DiskParams $torrent_id $folder_sep
 
     # Имя арихва.
-    $zip_name = $torrent_id.ToString() + '_' + $torrent.hash.ToLower() + '.7z'
+    $arch_name = $torrent_id.ToString() + '_' + $torrent.hash.ToLower()
+    $zip_name = $arch_name + '.7z'
 
     # Полный путь хранения обрабатываемого архива и архива, который готов к заливке.
     $zip_path_progress = $arch_params.progress + $folder_sep + $zip_name
@@ -168,6 +169,7 @@ foreach ( $torrent in $torrents_list ) {
             Write-Host ( 'Перемещаем {0} в каталог {1}' -f  $zip_name, $arch_params.finished )
             Move-Item -path $zip_path_progress -destination $zip_path_finished -Force -ErrorAction Stop
             Write-Host 'Готово!'
+            Export-TorrentProperties $arch_name $torrent
         }
         catch {
             Write-Host 'Не удалось переместить архив.' -ForegroundColor Red

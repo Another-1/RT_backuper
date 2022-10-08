@@ -46,8 +46,9 @@ $sum_cnt = $zip_list.count
 $sum_size = ( $zip_list | Measure-Object -sum size ).Sum
 
 Write-Host ( '[uploader] Найдено архивов: {0} ({1}), требующих переноса на гугл-диск, начинаем!' -f $sum_cnt, (Get-BaseSize $sum_size) )
-if ( $sum_cnt -eq 0 ) {Exit}
+if ( $sum_cnt -eq 0 ) { Exit }
 
+Start-Sleep -Seconds (Get-Random -Minimum 2 -Maximum 10)
 Initialize-Client
 
 # Перебираем архивы.
@@ -59,7 +60,6 @@ foreach ( $zip in $zip_list ) {
     }
 
     $torrent_id, $torrent_hash = ( $zip.Name.Split('.')[0] ).Split('_')
-    $torrent = Get-ClientTorrents @( $torrent_hash )
 
     # Собираем имя и путь хранения архива раздачи.
     $disk_id, $disk_name, $disk_path = Get-DiskParams $torrent_id $folder_sep
@@ -72,6 +72,7 @@ foreach ( $zip in $zip_list ) {
         Continue
     }
 
+    $torrent = Import-TorrentProperties $zip.Name $torrent_hash
     Write-Host ''
     Write-Host ( '[uploader] Начинаем перенос раздачи {0} ({1}), {2}' -f $torrent_id, (Get-BaseSize $zip.Size), $torrent.name ) -ForegroundColor Green
 

@@ -108,19 +108,20 @@ foreach ( $torrent in $torrents_list ) {
     $disk_id, $disk_name, $disk_path = Get-DiskParams $torrent_id $folder_sep
 
     # Имя арихва.
-    $arch_name = $torrent_id.ToString() + '_' + $torrent.hash.ToLower()
-    $zip_name = $arch_name + '.7z'
+    $base_name = $torrent_id.ToString() + '_' + $torrent.hash.ToLower()
+    $full_name = $base_name + '.7z'
 
     # Полный путь хранения обрабатываемого архива и архива, который готов к заливке.
-    $zip_path_progress = $arch_params.progress + $folder_sep + $zip_name
-    $zip_path_finished = $arch_params.finished + $folder_sep + $zip_name
-    $zip_google_path   = $google_params.folders[0] + $disk_path + $zip_name
+    $zip_path_progress = $arch_params.progress + $folder_sep + $full_name
+    $zip_path_finished = $arch_params.finished + $folder_sep + $full_name
+    $zip_google_path   = $google_params.folders[0] + $disk_path + $full_name
 
     Start-Pause
     Write-Host ''
     Write-Host ( '[torrent] Архивируем {0} ({2}), {1} ' -f $torrent_id, $torrent.name, (Get-BaseSize $torrent.size) ) -ForegroundColor Green
 
     try {
+        Write-Host 'Проверяем гугл-диск ' + $zip_google_path
         # Проверяем, что архив для такой раздачи ещё не создан.
         $zip_test = Test-PathTimer $zip_google_path
         Write-Host ( '[check][{0}] Проверка в гугле заняла {1} сек, результат: {2}' -f $disk_name, $zip_test.exec, $zip_test.result )
@@ -166,12 +167,10 @@ foreach ( $torrent in $torrents_list ) {
 
         try {
             if ( Test-Path $zip_path_finished ) { Remove-Item $zip_path_finished }
-            Write-Host ( 'Перемещаем {0} в каталог {1}' -f  $zip_name, $arch_params.finished )
-            $move_sec = [math]::Round( (Measure-Command {
-                Move-Item -path $zip_path_progress -destination $zip_path_finished -Force -ErrorAction Stop
-            }).TotalSeconds, 1 )
-            Write-Host ( 'Готово! Перенос осуществлён за {0} сек, средняя скорость {1}' -f $move_sec, (Get-BaseSize ($zip_size / $move_sec) -SI speed_2) )
-            Export-TorrentProperties $arch_name $torrent
+            Write-Host ( 'Перемещаем {0} в каталог {1}' -f  $base_name, $arch_params.finished )
+            Move-Item -path $zip_path_progress -destination $zip_path_finished -Force -ErrorAction Stop
+            Write-Host 'Готово!'
+            Export-TorrentProperties $base_name $torrent
         }
         catch {
             Write-Host 'Не удалось переместить архив.' -ForegroundColor Red

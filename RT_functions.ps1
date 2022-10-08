@@ -104,6 +104,7 @@ function Delete-ClientTorrent ( [int]$torrent_id, [string]$torrent_hash, [string
 # Получить список существующих архивов из списков по дискам.
 function Get-Archives {
     Write-Host '[archived] Смотрим, что уже заархивировано..'
+    Sync-ArchList $true
     $time_collect = [math]::Round( (Measure-Command {
         $dones = Get-Content ( $stash_folder.archived + '\*.txt' )
     }).TotalSeconds, 1 )
@@ -192,6 +193,42 @@ function Get-Required ( $torrents_list, $archives_list ) {
     return $torrents_list_required
 }
 
+# Обновить список архивов в локальной "БД".
+function Sync-ArchList ( $All = $false ) {
+    $arch_folders = Get-ChildItem $google_params.folders[0] -filter "$google_folder_prefix*" -Directory
+
+    # Собираем список гугл-дисков и проверяем наличие файла со списком архивов для каждого. Создаём если нет.
+    # Проверяем даты обновления файлов и размер. Если прошло 6ч или файл пуст -> пора обновлять.
+    $folders = $arch_folders | % { Watch-FileExist ($stash_folder.archived + '\' + $_.Name + '.txt') }
+        | ? { $_.Size -eq 0 -Or $_.LastWriteTime -lt ( Get-Date ).AddHours( -6 ) }
+        | Sort-Object -Property LastWriteTime, BaseName
+
+    # Выбираем первый диск по условиям выше и обновляем его.
+    if ( !$All ) {
+        $folders = $folders | Select -First 1
+    }
+
+    if ( !$folders ) {
+        Write-Host '[updater] Нет списков для обновления. Выходим.'
+        return
+    }
+
+    foreach ( $folder in $folders ) {
+        $arch_path = ( $arch_folders | ? { $folder.BaseName -eq $_.BaseName } ).FullName
+
+        Write-Host ( '[updater][{0}] Начинаем обновление списка раздач.' -f $folder.BaseName )
+        $exec_time = (Measure-Command {
+            $zip_list = Get-ChildItem $arch_path -Filter '*.7z' -File
+            if ( $zip_list.count ) {
+                $zip_list | % { $_.BaseName } | Out-File $folder.FullName
+            }
+        }).TotalSeconds
+
+        $text = '[updater][{0}] Обновление списка раздач заняло {1} секунд. Найдено архивов: {2} шт.'
+        Write-Host ( $text -f $folder.BaseName, ([math]::Round( $exec_time, 2 )), $zip_list.count )
+    }
+}
+
 # Добавляем раздачу в список обработанных и возможно под удаление.
 function Dismount-ClientTorrent ( [int]$torrent_id, [string]$torrent_hash ) {
     if ( $upload_params.cleaner ) {
@@ -199,7 +236,6 @@ function Dismount-ClientTorrent ( [int]$torrent_id, [string]$torrent_hash ) {
         ($torrent_id.ToString() + '_' + $torrent_hash.ToLower()) | Out-File $stash_folder.finished -Append
     }
 }
-
 
 # Вычисляем сжатие архива, в зависимости от раздела раздачи и параметров.
 function Get-Compression ( $torrent_id, $params ) {

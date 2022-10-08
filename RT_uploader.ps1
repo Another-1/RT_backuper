@@ -97,13 +97,6 @@ foreach ( $zip in $zip_list ) {
     $text = '[uploader] Раздача: id={0}, disk=[{1}] {2}, path={3},'
     Write-Host ( $text -f $torrent_id, $disk_id, $disk_name, $google_name )
     try {
-        $zip_test = Test-PathTimer $zip_google_path
-        Write-Host ( '[check][{0}] Проверка в гугле заняла {1} сек, результат: {2}' -f $disk_name, $zip_test.exec, $zip_test.result )
-        if ( $zip_test.result ) {
-            Dismount-ClientTorrent $torrent_id $torrent_hash
-            throw '[skip] Такой архив уже существует на гугл-диске, удаляем файл и пропускаем раздачу.'
-        }
-
         if ( $upload_params.validate ) {
             Write-Host '[uploader] Начинаем проверку архива перед отправкой в гугл.'
             $start_measure = Get-Date
@@ -148,6 +141,7 @@ foreach ( $zip in $zip_list ) {
 
         Write-Host ( '[limit] {0} {1} меньше чем лимит {2}, продолжаем!' -f $google_name, (Get-BaseSize $today_size), (Get-BaseSize $lv_750gb) )
         try {
+            Write-Host 'Проверяем наличие архива на гугл-диске...'
             $zip_test = Test-PathTimer $zip_google_path
             Write-Host ( '[check][{0}] Проверка в гугле заняла {1} сек, результат: {2}' -f $disk_name, $zip_test.exec, $zip_test.result )
             if ( $zip_test.result ) {

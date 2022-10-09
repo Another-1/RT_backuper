@@ -30,7 +30,7 @@ if ( !$hash_list ) {
     # Ищем раздачи, которые скачал клиент и добавил в буферный файл.
     $hash_file = Watch-FileExist $def_paths.downloaded
     if ( $hash_file.Size ) {
-        $downloaded = ( Get-FileFirstContent $def_paths.downloaded 20 )
+        $downloaded = ( Get-FileFirstContent $def_paths.downloaded $backuper.hashes_step )
         Write-Host ( '[backuper] Найдено раздач, докачанных клиентом : {0}.' -f $downloaded.count )
         if ( !$downloaded -And $backuper.hashes_only ) {
             Write-Host '[backuper] В конфиге обнаружена опция [hashes_only], прерываем.'

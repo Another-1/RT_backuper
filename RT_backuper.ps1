@@ -143,7 +143,7 @@ foreach ( $torrent in $torrents_list ) {
         $start_measure = Get-Date
 
         # Начинаем архивацию файла
-        Write-Host 'Архивация начата.'
+        Write-Host ( '[torrent] Архивация начата, сжатие:{0}.' -f $compression )
         if ( $backuper.h7z ) {
             & $backuper.p7z a $zip_path_progress $torrent.content_path "-p$pswd" "-mx$compression" ("-mmt" + $backuper.cores) -mhe=on -sccUTF-8 -bb0 > $null
         } else {
@@ -161,7 +161,7 @@ foreach ( $torrent in $torrents_list ) {
         $comp_perc = [math]::Round( $zip_size * 100 / $torrent.size )
         $speed_arch = (Get-BaseSize ($torrent.size / $time_arch) -SI speed_2)
 
-        $success_text = '[torrent] Успешно завершено за {0} сек [comp:{1}, cores:{2}, archSize:{3}, perc:{4}, speed:{5}]'
+        $success_text = '[torrent] Успешно завершено за {0} сек [archSize:{3}, cores:{2}, comp:{1}, perc:{4}, speed:{5}]'
         Write-Host ( $success_text -f $time_arch, $compression, $backuper.cores, (Get-BaseSize $zip_size), $comp_perc, $speed_arch )
 
         try {

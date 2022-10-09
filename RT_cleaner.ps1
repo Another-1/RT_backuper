@@ -45,7 +45,7 @@ For ( $i = 1; $i -le $runs; $i++ ) {
         $id = $hashes[$torrent.hash]
 
         Write-Host ( '[cleaner] Пробуем удалить раздачу {0}, {1}' -f $id, $torrent.name )
-        Delete-ClientTorrent $id $torrent.hash $torrent.category
+        Remove-ClientTorrent $id $torrent.hash $torrent.category
     }
 }
 # end foreach

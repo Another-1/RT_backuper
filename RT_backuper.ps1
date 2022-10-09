@@ -21,17 +21,22 @@ $dones, $hashes = Get-Archives
 try {
     $torrents_list = Import-Clixml $stash_folder.backup_list
     if ( $torrents_list ) {
-        Write-Host ( 'Найдены недообработанные раздачи: {0}' -f $torrents_list.count )
+        Write-Host ( '[backuper] Найдены недообработанные раздачи: {0}' -f $torrents_list.count )
     }
 } catch {}
 
 # Если список пуст, начинаем с начала.
 if ( !$torrents_list ) {
     # Ищем раздачи, которые скачал клиент и добавил в буферный файл.
-    $hash_file = Watch-FileExist $stash_folder.downloaded
+    $hash_file = Watch-FileExist $def_paths.downloaded
     if ( $hash_file.Size ) {
-        $downloaded = ( Get-FileFirstContent $stash_folder.downloaded 20 )
-        Write-Host ( 'Найдено раздач, которые клиент докачал: {0}.' -f $downloaded.count )
+        $downloaded = ( Get-FileFirstContent $def_paths.downloaded 20 )
+        Write-Host ( '[backuper] Найдено раздач, докачанных клиентом : {0}.' -f $downloaded.count )
+    }
+
+    if ( !$downloaded -And $backuper.hashes_only ) {
+        Write-Host '[backuper] В конфиге обнаружена опция [hashes_only], прерываем.'
+        Exit
     }
 
     # получаем список раздач из клиента
@@ -81,8 +86,8 @@ Write-Host ( '[backuper] Объём новых раздач ({0} шт) {1}.' -f 
 
 
 # Проверим наличие заданных каталогов. (вероятно лучше перенести в проверку конфига)
-New-Item -ItemType Directory -Path $arch_params.progress -Force > $null
-New-Item -ItemType Directory -Path $arch_params.finished -Force > $null
+New-Item -ItemType Directory -Path $def_paths.progress -Force > $null
+New-Item -ItemType Directory -Path $def_paths.finished -Force > $null
 
 # Записываем найденные раздачи в файлик.
 $torrents_left = $torrents_list
@@ -92,14 +97,16 @@ Write-Host ('[backuper] Начинаем перебирать раздачи.')
 # Перебираем найденные раздачи и бекапим их.
 foreach ( $torrent in $torrents_list ) {
     # Проверка на переполнение каталога с архивами.
-    while ( $true ) {
-        $folder_size = Get-FolderSize $arch_params.finished
-        if ( !(Compare-MaxFolderSize $folder_size $arch_params.finished_size) ) {
-            break
+    if ( $backuper.zip_folder_size ) {
+        while ( $true ) {
+            $folder_size = Get-FolderSize $def_paths.finished
+            if ( !(Compare-MaxFolderSize $folder_size $backuper.zip_folder_size) ) {
+                break
+            }
+            $limit_text = '[limit][{0}] Занятый объём каталога ({1}) {2} больше допустимого {3}. Подождём пока освободится.'
+            Write-Host ( $limit_text -f (Get-Date -Format t), $def_paths.finished, (Get-BaseSize $folder_size), (Get-BaseSize $backuper.zip_folder_size) )
+            Start-Sleep -Seconds 60
         }
-        $text = '[limit][{0}] Занятый объём каталога ({1}) {2} больше допустимого {3}. Подождём пока освободится.'
-        Write-Host ($text -f (Get-Date -Format t), $arch_params.finished, (Get-BaseSize $folder_size), (Get-BaseSize $arch_params.finished_size) )
-        Start-Sleep -Seconds 60
     }
 
     # Ид раздачи
@@ -112,8 +119,8 @@ foreach ( $torrent in $torrents_list ) {
     $full_name = $base_name + '.7z'
 
     # Полный путь хранения обрабатываемого архива и архива, который готов к заливке.
-    $zip_path_progress = $arch_params.progress + $folder_sep + $full_name
-    $zip_path_finished = $arch_params.finished + $folder_sep + $full_name
+    $zip_path_progress = $def_paths.progress + $folder_sep + $full_name
+    $zip_path_finished = $def_paths.finished + $folder_sep + $full_name
     $zip_google_path   = $google_params.folders[0] + $disk_path + $full_name
 
     Start-Pause
@@ -121,7 +128,7 @@ foreach ( $torrent in $torrents_list ) {
     Write-Host ( '[torrent] Архивируем {0} ({2}), {1} ' -f $torrent_id, $torrent.name, (Get-BaseSize $torrent.size) ) -ForegroundColor Green
 
     try {
-        Write-Host 'Проверяем гугл-диск ' + $zip_google_path
+        Write-Host ( 'Проверяем гугл-диск {0}' -f $zip_google_path )
         # Проверяем, что архив для такой раздачи ещё не создан.
         $zip_test = Test-PathTimer $zip_google_path
         Write-Host ( '[check][{0}] Проверка в гугле заняла {1} сек, результат: {2}' -f $disk_name, $zip_test.exec, $zip_test.result )
@@ -140,15 +147,15 @@ foreach ( $torrent in $torrents_list ) {
 
         # для Unix нужно экранировать кавычки и пробелы.
         if ( $os -eq 'linux' ) { $torrent.content_path = $torrent.content_path.replace('"','\"') }
-        $compression = Get-Compression $torrent_id $arch_params
+        $compression = Get-Compression $torrent_id $backuper
         $start_measure = Get-Date
 
         # Начинаем архивацию файла
         Write-Host 'Архивация начата.'
-        if ( $arch_params.h7z ) {
-            & $arch_params.p7z a $zip_path_progress $torrent.content_path "-p$pswd" "-mx$compression" ("-mmt" + $arch_params.cores) -mhe=on -sccUTF-8 -bb0 > $null
+        if ( $backuper.h7z ) {
+            & $backuper.p7z a $zip_path_progress $torrent.content_path "-p$pswd" "-mx$compression" ("-mmt" + $backuper.cores) -mhe=on -sccUTF-8 -bb0 > $null
         } else {
-            & $arch_params.p7z a $zip_path_progress $torrent.content_path "-p$pswd" "-mx$compression" ("-mmt" + $arch_params.cores) -mhe=on -sccUTF-8 -bb0
+            & $backuper.p7z a $zip_path_progress $torrent.content_path "-p$pswd" "-mx$compression" ("-mmt" + $backuper.cores) -mhe=on -sccUTF-8 -bb0
         }
 
         if ( $LastExitCode -ne 0 ) {
@@ -163,11 +170,11 @@ foreach ( $torrent in $torrents_list ) {
         $speed_arch = (Get-BaseSize ($torrent.size / $time_arch) -SI speed_2)
 
         $success_text = '[torrent] Успешно завершено за {0} сек [comp:{1}, cores:{2}, archSize:{3}, perc:{4}, speed:{5}]'
-        Write-Host ( $success_text -f $time_arch, $compression, $arch_params.cores, (Get-BaseSize $zip_size), $comp_perc, $speed_arch )
+        Write-Host ( $success_text -f $time_arch, $compression, $backuper.cores, (Get-BaseSize $zip_size), $comp_perc, $speed_arch )
 
         try {
             if ( Test-Path $zip_path_finished ) { Remove-Item $zip_path_finished }
-            Write-Host ( 'Перемещаем {0} в каталог {1}' -f  $base_name, $arch_params.finished )
+            Write-Host ( 'Перемещаем {0} в каталог {1}' -f  $base_name, $def_paths.finished )
             Move-Item -path $zip_path_progress -destination $zip_path_finished -Force -ErrorAction Stop
             Write-Host 'Готово!'
             Export-TorrentProperties $base_name $torrent

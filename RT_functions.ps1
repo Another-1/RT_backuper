@@ -8,16 +8,21 @@ $pswd = '20RuTracker.ORG22'
 
 # Файлы с данными, для общения между процессами
 $stash_folder = @{
-    default       = "$PSScriptRoot\stash"                   # Общий путь к папке
-    archived      = "$PSScriptRoot\stash\archived"          # Путь к спискам архивов по дискам
-    uploads_limit = "$PSScriptRoot\stash\uploads_limit.xml" # Файл записанных отдач (лимиты)
-    backup_list   = "$PSScriptRoot\stash\backup_list.xml"   # Файл уже обработанного списка раздач. Для случая когда был перезапуск
+    default       = "$PSScriptRoot/stash"                   # Общий путь к папке
+    archived      = "$PSScriptRoot/stash/archived"          # Путь к спискам архивов по дискам
+    uploads_limit = "$PSScriptRoot/stash/uploads_limit.xml" # Файл записанных отдач (лимиты)
+    backup_list   = "$PSScriptRoot/stash/backup_list.xml"   # Файл уже обработанного списка раздач. Для случая когда был перезапуск
 
-    finished      = "$PSScriptRoot\stash\finished.txt"      # Файл id_hash раздач, которые были найдены в гугле или были заархивированны
-    torrents      = "$PSScriptRoot\stash\torrents\"         # Каталог хранения данных раздачи
-    downloaded    = "$PSScriptRoot\config\hashes.txt"       # Файл со списком свежескачанных раздач. Добавляется из клиента
+    finished      = "$PSScriptRoot/stash/finished.txt"      # Файл id_hash раздач, которые были найдены в гугле или были заархивированны
+    torrents      = "$PSScriptRoot/stash/torrents/"         # Каталог хранения данных раздачи
 
-    pause         = "$PSScriptRoot\stash\pause.txt"         # Если в файле что-то есть, скрипт встанет на паузу.
+    pause         = "$PSScriptRoot/stash/pause.txt"         # Если в файле что-то есть, скрипт встанет на паузу.
+}
+
+$def_paths = @{
+    downloaded    = "$PSScriptRoot/config/hashes.txt"       # Файл со списком свежескачанных раздач. Добавляется из клиента
+    progress      = $backuper.zip_folder + '/progress'   # Каталог хранения архивируемых раздач
+    finished      = $backuper.zip_folder + '/finished'   # Каталог хранения, уже готовых к выгрузке в гугл, архивов
 }
 
 $measure_names = @{
@@ -86,8 +91,8 @@ function Get-ClientTorrents ( $Hashes ) {
 }
 
 # Удаляет раздачу из клиента, если она принадлежит заданной категории и включено удаление.
-function Delete-ClientTorrent ( [int]$torrent_id, [string]$torrent_hash, [string]$torrent_category ) {
-    if ( $upload_params.delete -eq 1 -And $upload_params.delete_category -eq $torrent_category ) {
+function Remove-ClientTorrent ( [int]$torrent_id, [string]$torrent_hash, [string]$torrent_category ) {
+    if ( $uploader.delete -eq 1 -And $uploader.delete_category -eq $torrent_category ) {
         try {
             Write-Host ( '[delete] Удаляем из клиента раздачу {0}' -f $torrent_id )
             $request = '?hashes=' + $torrent_hash + '&deleteFiles=true'
@@ -231,7 +236,7 @@ function Sync-ArchList ( $All = $false ) {
 
 # Добавляем раздачу в список обработанных и возможно под удаление.
 function Dismount-ClientTorrent ( [int]$torrent_id, [string]$torrent_hash ) {
-    if ( $upload_params.cleaner ) {
+    if ( $uploader.cleaner ) {
         Watch-FileExist $stash_folder.finished > $null
         ($torrent_id.ToString() + '_' + $torrent_hash.ToLower()) | Out-File $stash_folder.finished -Append
     }

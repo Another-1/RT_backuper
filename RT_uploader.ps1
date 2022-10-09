@@ -46,7 +46,7 @@ if ( $args.count -ne 0 -and $google_params.accounts_count -gt 1 ) {
 }
 
 # Ищем список архивов, которые нужно перенести
-$zip_list = Get-ChildItem $arch_params.finished -Filter '*.7z'
+$zip_list = Get-ChildItem $backuper.finished -Filter '*.7z'
 
 $proc_cnt = 0
 $proc_size = 0
@@ -91,7 +91,7 @@ foreach ( $zip in $zip_list ) {
     $google_path = $google_params.folders[$folder_pointer]
     $google_name = ( '{0}({1})' -f $google_path, $order.account )
 
-    $zip_current_path = $arch_params.finished + $folder_sep + $zip.Name
+    $zip_current_path = $backuper.finished + $folder_sep + $zip.Name
     $zip_google_path  = $google_path + $disk_path + $zip.Name
 
     $text = '[uploader] Раздача: id={0}, disk=[{1}] {2}, path={3},'
@@ -101,10 +101,10 @@ foreach ( $zip in $zip_list ) {
             Write-Host '[uploader] Начинаем проверку архива перед отправкой в гугл.'
             $start_measure = Get-Date
 
-            if ( $arch_params.h7z ) {
-                & $arch_params.p7z t $zip_current_path "-p$pswd" > $null
+            if ( $backuper.h7z ) {
+                & $backuper.p7z t $zip_current_path "-p$pswd" > $null
             } else {
-                & $arch_params.p7z t $zip_current_path "-p$pswd"
+                & $backuper.p7z t $zip_current_path "-p$pswd"
             }
 
             if ( $LastExitCode -ne 0 ) {
@@ -157,7 +157,7 @@ foreach ( $zip in $zip_list ) {
             }).TotalSeconds, 1 )
             if ( !$move_sec ) {$move_sec = 0.1}
 
-            $speed_move = (Get-BaseSize ($torrent.size / $move_sec) -SI speed_2)
+            $speed_move = (Get-BaseSize ($zip.Size / $move_sec) -SI speed_2)
             Write-Host ( '[uploader] Готово! Завершено за {0} минут, средняя скорость {1}' -f [math]::Round($move_sec/60, 1) , $speed_move )
 
             Dismount-ClientTorrent $torrent_id $torrent_hash
@@ -174,7 +174,7 @@ foreach ( $zip in $zip_list ) {
         Write-Host $Error[0] -ForegroundColor Red
     }
 
-    $proc_size += $torrent.size
+    $proc_size += $zip.Size
     Write-Output ( '[uploader] Обработано раздач {0} ({1}) из {2} ({3})' -f ++$proc_cnt, (Get-BaseSize $proc_size), $sum_cnt, (Get-BaseSize $sum_size) )
 
     Start-Pause

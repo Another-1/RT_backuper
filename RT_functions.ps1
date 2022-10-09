@@ -80,8 +80,8 @@ function Read-Client ( [string]$Metod, [string]$Params = '' ) {
 # Получить список завершённых раздач. Опционально, по списку хешей.
 function Get-ClientTorrents ( $Hashes ) {
     $filter = '?filter=completed'
-    if ( $Hashes.Count ) {
-        $filter+= '&hashes=' + ( $Hashes -Join '|' )
+    if ( $Hashes.count ) {
+        $filter += '&hashes=' + ( $Hashes -Join '|' )
     }
     $torrents_list = (Read-Client 'torrents/info' $filter )
         | ConvertFrom-Json
@@ -202,6 +202,7 @@ function Get-Required ( $torrents_list, $archives_list ) {
 function Sync-ArchList ( $All = $false ) {
     $arch_folders = Get-ChildItem $google_params.folders[0] -filter "$google_folder_prefix*" -Directory
 
+    New-Item -ItemType Directory -Path $stash_folder.archived -Force > $null
     # Собираем список гугл-дисков и проверяем наличие файла со списком архивов для каждого. Создаём если нет.
     # Проверяем даты обновления файлов и размер. Если прошло 6ч или файл пуст -> пора обновлять.
     $folders = $arch_folders | % { Watch-FileExist ($stash_folder.archived + '\' + $_.Name + '.txt') }

@@ -175,7 +175,7 @@ foreach ( $zip in $zip_list ) {
     }
 
     $proc_size += $zip.Size
-    Write-Output ( '[uploader] Обработано раздач {0} ({1}) из {2} ({3})' -f ++$proc_cnt, (Get-BaseSize $proc_size), $sum_cnt, (Get-BaseSize $sum_size) )
+    Write-Host ( '[uploader] Обработано раздач {0} ({1}) из {2} ({3})' -f ++$proc_cnt, (Get-BaseSize $proc_size), $sum_cnt, (Get-BaseSize $sum_size) )
 
     Start-Pause
     Start-Stopping

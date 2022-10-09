@@ -98,15 +98,7 @@ Write-Host ('[backuper] Начинаем перебирать раздачи.')
 foreach ( $torrent in $torrents_list ) {
     # Проверка на переполнение каталога с архивами.
     if ( $backuper.zip_folder_size ) {
-        while ( $true ) {
-            $folder_size = Get-FolderSize $def_paths.finished
-            if ( !(Compare-MaxFolderSize $folder_size $backuper.zip_folder_size) ) {
-                break
-            }
-            $limit_text = '[limit][{0}] Занятый объём каталога ({1}) {2} больше допустимого {3}. Подождём пока освободится.'
-            Write-Host ( $limit_text -f (Get-Date -Format t), $def_paths.finished, (Get-BaseSize $folder_size), (Get-BaseSize $backuper.zip_folder_size) )
-            Start-Sleep -Seconds 60
-        }
+        Compare-MaxSize $backuper.zip_folder $backuper.zip_folder_size
     }
 
     # Ид раздачи

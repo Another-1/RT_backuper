@@ -108,8 +108,10 @@ function Remove-ClientTorrent ( [int]$torrent_id, [string]$torrent_hash, [string
 
 # Получить список существующих архивов из списков по дискам.
 function Get-Archives {
+    # Если не используется updater, то список архивов надо обновлять принудительно.
+    if ( !$used_modules.updater ) { Sync-ArchList $true }
+
     Write-Host '[archived] Смотрим, что уже заархивировано..'
-    Sync-ArchList $true
     $time_collect = [math]::Round( (Measure-Command {
         $dones = Get-Content ( $stash_folder.archived + '\*.txt' )
     }).TotalSeconds, 1 )
@@ -207,7 +209,7 @@ function Sync-ArchList ( $All = $false ) {
     # Проверяем даты обновления файлов и размер. Если прошло 6ч или файл пуст -> пора обновлять.
     $folders = $arch_folders | % { Watch-FileExist ($stash_folder.archived + '\' + $_.Name + '.txt') }
         | ? { $_.Size -eq 0 -Or $_.LastWriteTime -lt ( Get-Date ).AddHours( -6 ) }
-        | Sort-Object -Property LastWriteTime, BaseName
+        | Sort-Object -Property LastWriteTime
 
     # Выбираем первый диск по условиям выше и обновляем его.
     if ( !$All ) {
@@ -225,9 +227,7 @@ function Sync-ArchList ( $All = $false ) {
         Write-Host ( '[updater][{0}] Начинаем обновление списка раздач.' -f $folder.BaseName )
         $exec_time = (Measure-Command {
             $zip_list = Get-ChildItem $arch_path -Filter '*.7z' -File
-            if ( $zip_list.count ) {
-                $zip_list | % { $_.BaseName } | Out-File $folder.FullName
-            }
+            $zip_list | % { $_.BaseName } | Out-File $folder.FullName
         }).TotalSeconds
 
         $text = '[updater][{0}] Обновление списка раздач заняло {1} секунд. Найдено архивов: {2} шт.'
@@ -237,14 +237,14 @@ function Sync-ArchList ( $All = $false ) {
 
 # Добавляем раздачу в список обработанных и возможно под удаление.
 function Dismount-ClientTorrent ( [int]$torrent_id, [string]$torrent_hash ) {
-    if ( $uploader.cleaner ) {
+    if ( $used_modules.cleaner ) {
         Watch-FileExist $stash_folder.finished > $null
         ($torrent_id.ToString() + '_' + $torrent_hash.ToLower()) | Out-File $stash_folder.finished -Append
     }
 }
 
 # Вычисляем сжатие архива, в зависимости от раздела раздачи и параметров.
-function Get-Compression ( $torrent_id, $params ) {
+function Get-Compression ( [int]$torrent_id, $params ) {
     try {
         $topic = ( Invoke-WebRequest( 'http://api.rutracker.org/v1/get_tor_topic_data?by=topic_id&val=' + $torrent_id )).content | ConvertFrom-Json
         $forum_id = [int]$topic.result.($torrent_id).forum_id
@@ -273,7 +273,7 @@ function Get-GoogleNum ( [int]$DiskId, [int]$Accounts = 1, [int]$Uploaders = 1 )
 }
 
 # Записать размер выгруженного архива в файл и удалить старые записи.
-function Get-TodayTraffic ( $uploads_all, $zip_size, $google_folder) {
+function Get-TodayTraffic ( $uploads_all, $zip_size, $google_folder ) {
     $uploads_all = Get-StoredUploads $uploads_all
     $now = Get-date
     $daybefore = $now.AddDays( -1 )
@@ -396,17 +396,25 @@ function Get-FolderSize ( $Path ) {
     return (Get-ChildItem $Path -Recurse | Measure-Object -Property Length -Sum).Sum
 }
 
-# Сравнить размеры каталогов.
-function Compare-MaxFolderSize ( [long]$folder_size, [long]$folder_size_max ) {
-    if ( $folder_size -gt $folder_size_max ) {
-        return $true
+# Сравнить размер каталогов с максимально допустимым.
+function Compare-MaxSize ( [string]$Path, [long]$MaxSize ) {
+    While ( $true ) {
+        $folder_size = Get-FolderSize $Path
+        if ( $folder_size -lt $MaxSize ) {
+            break
+        }
+
+        $limit_text = '[limit][{0}] Занятый объём каталога ({1}) {2} больше допустимого {3}. Подождём пока освободится.'
+        Write-Host ( $limit_text -f (Get-Date -Format t), $Path, (Get-BaseSize $folder_size), (Get-BaseSize $MaxSize) )
+        Start-Sleep -Seconds 60
     }
-    return $false
 }
 
 # Удаление пустых каталогов по заданному пути.
 function Clear-EmptyFolders ( $Path ) {
-    Get-ChildItem $Path -Recurse | Where {$_.PSIsContainer -and @(Get-ChildItem -Lit $_.Fullname -r | Where {!$_.PSIsContainer}).Length -eq 0} | Remove-Item -Force
+    if ( Test-Path $Path ) {
+        Get-ChildItem $Path -Recurse | Where {$_.PSIsContainer -and @(Get-ChildItem -Lit $_.Fullname -r | Where {!$_.PSIsContainer}).Length -eq 0} | Remove-Item -Force
+    }
 }
 
 # Test-Path с временем выполнения.
@@ -421,19 +429,22 @@ function Test-PathTimer ( $Path ) {
 # Обеспечение работы скрипта только в заданный промежуток времени (от старт до стоп).
 function Start-Stopping {
     if ( $start_time -eq $null -Or $stop_time -eq $null) { return }
-    if ( $start_time -gt $stop_time ) { return }
+    if ( $start_time -eq $stop_time ) { return }
 
     $now = Get-date -Format t
-    $paused = $false
-    # Старт < Сейчас < Стоп
-    while ( !($start_time -lt $now -and $now -lt $stop_time) ) {
-        $now = Get-date -Format t
-        Write-Host $now
-        if ( -not $paused ) {
-            Write-Host "Останавливаемся по расписанию, ждём до $start_time"
-            $paused = $true
+    while ( $true) {
+        # Если расписаниюе работы в пределах дня (Старт < Стоп), то пауза (-Не(Старт < Сейчас < Стоп))
+        # Если работа предполагает в ночь, т.е (Старт > Стоп), то пауза (Стоп < Сейчас < Старт)
+        if ( $start_time -lt $stop_time ) {
+            $paused = !( $start_time -lt $now -and $now -lt $stop_time )
+        } else {
+            $paused = ( $stop_time -lt $now -and $now -lt $start_time )
         }
+        if ( !$paused ) { Break }
+
+        Write-Host ( '[{0}] Пауза по расписанию, ждём начала периода {1} - {2}.' -f $now, $start_time, $stop_time )
         Start-Sleep -Seconds 60
+        $now = Get-date -Format t
     }
 }
 
@@ -456,7 +467,7 @@ function Start-Pause {
             }
         }
         if ( $needSleep ) {
-            Write-Host ( 'Обнаружен вызов паузы, тормозим на ' + $pausetime + ' минут.' )
+            Write-Host ( '[paused] Тормозим на ' + $pausetime + ' минут.' )
             Start-Sleep -Seconds ($pausetime * 60)
         } else {
             break

@@ -16,12 +16,12 @@ else {
 Write-Host 'Смотрим, что уже заархивировано'
 $dones = (( get-childitem( $google_folders[0] ) | Where-Object { $_.name -like 'ArchRuT*' } ) | ForEach-Object { Get-ChildItem $_ -Filter '*.7z' | Select-Object BaseName, FullName })
 
-Write-Host 'Скачиваем TAR со деревом трекера'
+Write-Host 'Скачиваем TAR с деревом трекера'
 $tmp_path = $PSScriptRoot + $separator + 'tmp3'
 New-Item -Path $tmp_path -ItemType Directory -ErrorAction SilentlyContinue
 Remove-Item ( $tmp_path + $separator + 'f-all.tar' ) -Force -ErrorAction SilentlyContinue
 Invoke-WebRequest https://api.t-ru.org/v1/static/pvc/f-all.tar -OutFile ( $tmp_path + $separator + 'f-all.tar' )
-Write-Progress -Completed
+Write-Progress -Completed -Activity 'TAR получен'
 Set-Location $tmp_path
 Write-Host 'Достаём из TAR архивы GZ'
 Remove-Item *.gz -Force -ErrorAction SilentlyContinue

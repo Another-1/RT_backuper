@@ -12,7 +12,7 @@ else {
     $separator = '/'
 }
 Write-Host 'Смотрим, что уже заархивировано'
-$dones = (( get-childitem( $google_folders[0] ) | Where-Object { $_.name -like 'ArchRuT*' } ) | ForEach-Object { Get-ChildItem $_ -Filter '*.7z' | Select-Object BaseName, FullName })
+$dones = (( get-childitem( $google_folders[0] ) | Where-Object { $_.name -like 'ArchRuT*' } ) | ForEach-Object { Get-ChildItem $_ -Filter '*.7z' | Select-Object BaseName, FullName, Length })
 
 Write-Host 'Скачиваем TAR с деревом трекера'
 $tmp_path = $PSScriptRoot + $separator + 'tmp3'
@@ -42,7 +42,7 @@ Set-Location $PSScriptRoot
 $i = 0
 ForEach ( $done in $dones ) {
     $i++
-    Write-Progress -Activity 'Проверяем' -Status $done.BaseName -PercentComplete ( ( $i * 100 / $dones.count ) + 1 )
+    Write-Progress -Activity 'Проверяем' -Status ( $done.BaseName + '.7z, ' + $done.Length ) -PercentComplete ( ( $i * 100 / $dones.count ) + 1 )
     $spl = $done.BaseName -split '_'
     try {
         if ( $all_torrents_list[$spl[0]][1] -ne $spl[1] ) {
@@ -56,10 +56,10 @@ ForEach ( $done in $dones ) {
     }
     $res = ( & $7z_path t $done.FullName "-p20RuTracker.ORG22" )
     if ( $nul -eq $res | select-string 'Everything is Ok' ) {
-        Write-Host ( 'Похоже, ' + $done.FullName + ' битый'; continue)
+        Write-Host ( 'Похоже, ' + $done.FullName + ' битый' ); continue
     }
     if ( ( ( ( $res | Select-String 'Physical Size' ).ToString() -replace 'Physical Size = ', '' ).Toint64($nul) * 1.1 ) -lt $all_torrents_list[$spl[0]][0] ) {
-        Write-Host ( $done.FullName + ' подозрительно мал'; continue)
+        Write-Host ( $done.FullName + ' подозрительно мал') ; continue
     }
 
 }

@@ -6,3 +6,6 @@ docker-compose.*
 LICENSE
 README.md
 example/
+config/
+stash/
+

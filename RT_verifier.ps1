@@ -19,7 +19,7 @@ $tmp_path = $PSScriptRoot + $separator + 'tmp3'
 New-Item -Path $tmp_path -ItemType Directory -ErrorAction SilentlyContinue
 Remove-Item ( $tmp_path + $separator + 'f-all.tar' ) -Force -ErrorAction SilentlyContinue
 Invoke-WebRequest https://api.t-ru.org/v1/static/pvc/f-all.tar -OutFile ( $tmp_path + $separator + 'f-all.tar' )
-Write-Progress -Completed -Activity 'TAR получен'
+Write-Progress -Completed -Activity 'Web request status' -Status 'Ready'
 Set-Location $tmp_path
 Write-Host 'Достаём из TAR архивы GZ'
 Remove-Item *.gz -Force -ErrorAction SilentlyContinue

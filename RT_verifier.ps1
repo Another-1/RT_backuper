@@ -39,7 +39,10 @@ Write-Host 'Удаляем JSON-ы'
 # Remove-Item *.json -Force
 Set-Location $PSScriptRoot
 
+$i = 0
 ForEach ( $done in $dones ) {
+    $i++
+    Write-Progress -Activity 'Проверяем' -Status $done.BaseName -PercentComplete ( ( $i * 100 / $dones.count ) + 1 )
     $spl = $done.BaseName -split '_'
     try {
         if ( $all_torrents_list[$spl[0]][1] -ne $spl[1] ) {

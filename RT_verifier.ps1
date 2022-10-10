@@ -56,7 +56,12 @@ ForEach ( $done in $dones ) {
     }
     $res = ( & $7z_path t $done.FullName "-p20RuTracker.ORG22" )
     if ( $nul -eq ( $res | select-string 'Everything is Ok' ) ) {
-        Write-Host ( 'Похоже, ' + $done.FullName + ' битый' ); continue
+        if ( $nul -ne ( $res | select-string 'Data Error' ) ) {
+            Write-Host ( 'Похоже, ' + $done.FullName + ' битый' ); continue 
+        }
+        else {
+            Write-Host ( 'C архивом' + $done.FullName + ' что-то непонятное' ); continue 
+        }
     }
     if ( ( ( ( $res | Select-String 'Physical Size' ).ToString() -replace 'Physical Size = ', '' ).Toint64($nul) * 1.1 ) -lt $all_torrents_list[$spl[0]][0] ) {
         Write-Host ( $done.FullName + ' подозрительно мал') ; continue

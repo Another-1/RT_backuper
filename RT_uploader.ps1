@@ -46,7 +46,7 @@ if ( $args.count -ne 0 -and $google_params.accounts_count -gt 1 ) {
 }
 
 # Ищем список архивов, которые нужно перенести
-$zip_list = Get-ChildItem $backuper.finished -Filter '*.7z'
+$zip_list = Get-ChildItem $def_paths.finished -Filter '*.7z'
 
 $proc_cnt = 0
 $proc_size = 0
@@ -91,11 +91,11 @@ foreach ( $zip in $zip_list ) {
     $google_path = $google_params.folders[$folder_pointer]
     $google_name = ( '{0}({1})' -f $google_path, $order.account )
 
-    $zip_current_path = $backuper.finished + $folder_sep + $zip.Name
+    $zip_current_path = $def_paths.finished + $folder_sep + $zip.Name
     $zip_google_path  = $google_path + $disk_path + $zip.Name
 
-    $text = '[uploader] Раздача: id={0}, disk=[{1}] {2}, path={3},'
-    Write-Host ( $text -f $torrent_id, $disk_id, $disk_name, $google_name )
+    $text = '[uploader] Раздача: id={0}, disk=[{1}], path={2} {3}'
+    Write-Host ( $text -f $torrent_id, $disk_id, $google_name, $disk_name )
     try {
         if ( $upload_params.validate ) {
             Write-Host '[uploader] Начинаем проверку архива перед отправкой в гугл.'
@@ -111,7 +111,6 @@ foreach ( $zip in $zip_list ) {
                 throw ( '[check] Архив не прошёл проверку целостности, код ошибки: {0}. Удаляем файл.' -f $LastExitCode )
             }
 
-            # Считаем результаты архивации
             $time_valid = [math]::Round( ((Get-Date) - $start_measure).TotalSeconds, 1 )
             Write-Host ( '[check] Проверка целостности завершена за {0} сек.' -f $time_valid )
         }
@@ -128,6 +127,7 @@ foreach ( $zip in $zip_list ) {
             Start-Pause
             $today_size, $uploads_all = Get-TodayTraffic $uploads_all 0 $google_name
         }
+        Write-Host ( '[limit] {0} {1} меньше чем лимит {2}, продолжаем!' -f $google_name, (Get-BaseSize $today_size), (Get-BaseSize $lv_750gb) )
 
         # ХЗ что это делает и зачем оно.
         if ( $PSVersionTable.OS.ToLower() -contains 'windows') {
@@ -139,16 +139,14 @@ foreach ( $zip in $zip_list ) {
             }
         }
 
-        Write-Host ( '[limit] {0} {1} меньше чем лимит {2}, продолжаем!' -f $google_name, (Get-BaseSize $today_size), (Get-BaseSize $lv_750gb) )
+        Write-Host 'Проверяем наличие архива на гугл-диске...'
+        $zip_test = Test-PathTimer $zip_google_path
+        Write-Host ( '[check][{0}] Проверка в гугле заняла {1} сек, результат: {2}' -f $disk_name, $zip_test.exec, $zip_test.result )
+        if ( $zip_test.result ) {
+            Dismount-ClientTorrent $torrent_id $torrent_hash
+            throw '[skip] Такой архив уже существует на гугл-диске, удаляем файл и пропускаем раздачу.'
+        }
         try {
-            Write-Host 'Проверяем наличие архива на гугл-диске...'
-            $zip_test = Test-PathTimer $zip_google_path
-            Write-Host ( '[check][{0}] Проверка в гугле заняла {1} сек, результат: {2}' -f $disk_name, $zip_test.exec, $zip_test.result )
-            if ( $zip_test.result ) {
-                Dismount-ClientTorrent $torrent_id $torrent_hash
-                throw '[skip] Такой архив уже существует на гугл-диске, удаляем файл и пропускаем раздачу.'
-            }
-
             Write-Host 'Перемещаем архив на гугл-диск...'
             New-Item -ItemType Directory -Path ($google_path + $disk_path) -Force > $null
 

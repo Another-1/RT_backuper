@@ -7,11 +7,9 @@ if ($client_url -eq '' -or $nul -eq $client_url ) {
 }
 if ( $PSVersionTable.OS.ToLower().contains('windows')) {
     $separator = '\'
-    # $drive_separator = ':\'
 }
 else {
     $separator = '/'
-    # $drive_separator = '/'
 }
 Write-Host 'Смотрим, что уже заархивировано'
 $dones = (( get-childitem( $google_folders[0] ) | Where-Object { $_.name -like 'ArchRuT*' } ) | ForEach-Object { Get-ChildItem $_ -Filter '*.7z' | Select-Object BaseName, FullName })

@@ -65,8 +65,9 @@ ForEach ( $done in $dones ) {
             Write-Host ( 'C архивом' + $done.FullName + ' что-то непонятное' ); continue 
         }
     }
-    if ( ( ( ( $res | Select-String 'Physical Size' ).ToString() -replace 'Physical Size = ', '' ).Toint64($nul) * 1.1 ) -lt $all_torrents_list[$spl[0]][0] ) {
-        Write-Host ( $done.FullName + ' подозрительно мал') ; continue
+    if (((( $res | Select-String '^Size' ).ToString()) -replace ('^\D*','')).ToInt64( $nul ) -lt $all_torrents_list[$spl[0]][0] ) {
+        Write-Host ( $done.FullName + ' слишком маленький')
+        continue
     }
 
 }

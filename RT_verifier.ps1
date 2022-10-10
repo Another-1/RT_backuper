@@ -55,7 +55,7 @@ ForEach ( $done in $dones ) {
         Continue
     }
     $res = ( & $7z_path t $done.FullName "-p20RuTracker.ORG22" )
-    if ( $nul -eq $res | select-string 'Everything is Ok' ) {
+    if ( $nul -eq ( $res | select-string 'Everything is Ok' ) ) {
         Write-Host ( 'Похоже, ' + $done.FullName + ' битый' ); continue
     }
     if ( ( ( ( $res | Select-String 'Physical Size' ).ToString() -replace 'Physical Size = ', '' ).Toint64($nul) * 1.1 ) -lt $all_torrents_list[$spl[0]][0] ) {

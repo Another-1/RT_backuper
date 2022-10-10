@@ -59,7 +59,7 @@ ForEach ( $done in $dones ) {
     $res = ( & $7z_path t $done.FullName "-p20RuTracker.ORG22" )
     if ( $nul -eq ( $res | select-string 'Everything is Ok' ) ) {
         if ( $nul -ne ( $res | select-string 'Data Error' ) ) {
-            Write-Host ( 'Похоже, ' + $done.FullName + ' битый' ); continue 
+            Write-Host ( $done.FullName + ' битый' ); continue 
         }
         else {
             Write-Host ( 'C архивом' + $done.FullName + ' что-то непонятное' ); continue 

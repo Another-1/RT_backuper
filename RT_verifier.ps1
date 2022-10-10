@@ -16,27 +16,28 @@ else {
 Write-Host 'Смотрим, что уже заархивировано'
 $dones = (( get-childitem( $google_folders[0] ) | Where-Object { $_.name -like 'ArchRuT*' } ) | ForEach-Object { Get-ChildItem $_ -Filter '*.7z' | Select-Object BaseName, FullName })
 
-Write-Host 'Getting TAR'
+Write-Host 'Скачиваем TAR со деревом трекера'
 $tmp_path = $PSScriptRoot + $separator + 'tmp3'
 New-Item -Path $tmp_path -ItemType Directory -ErrorAction SilentlyContinue
 Remove-Item ( $tmp_path + $separator + 'f-all.tar' ) -Force -ErrorAction SilentlyContinue
 Invoke-WebRequest https://api.t-ru.org/v1/static/pvc/f-all.tar -OutFile ( $tmp_path + $separator + 'f-all.tar' )
+Write-Progress -Completed
 Set-Location $tmp_path
-Write-Host 'Unpacking TAR'
+Write-Host 'Достаём из TAR архивы GZ'
 Remove-Item *.gz -Force -ErrorAction SilentlyContinue
 tar xvf ( $tmp_path + $separator + 'f-all.tar' ) | Out-Null
+Write-Host 'Удаляем TAR'
 Remove-Item ( $tmp_path + $separator + 'f-all.tar' ) -Force -ErrorAction SilentlyContinue
-Clear-Host
-Write-Host 'Unpacking GZips'
+Write-Host 'Распаковываем архивы GZ'
 Remove-Item *.json  -Force -ErrorAction SilentlyContinue
 Get-Item *.json.gz | ForEach-Object { & $7z_path x $_ } | Out-Null
-Write-Host 'Deleting GZips'
+Write-Host 'Удаляем архивы GZ'
 Remove-Item *.gz -Force
-Write-Host 'Processing JSONs'
+Write-Host 'Парсим JSON-ы'
 $all_torrents_list = @{}
 Get-Item *.json | foreach-object { ( Get-Content $_ | ConvertFrom-Json -AsHashtable ).result.getenumerator() | Where-Object { $null -ne $_.Name } | `
         ForEach-Object { $all_torrents_list[$_.Name] = @($_.Value[3], $_.Value[7]) } }
-Write-Host 'Deleting JSONs'
+Write-Host 'Удаляем JSON-ы'
 # Remove-Item *.json -Force
 Set-Location $PSScriptRoot
 

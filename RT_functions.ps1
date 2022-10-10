@@ -109,23 +109,25 @@ function Get-StoredUploads ( $uploads_old = @{} ) {
     }
     return $uploads_all
 }
-
-# Запуск бекапа только в заданный промежуток времени (от старт до стоп)
+# Обеспечение работы скрипта только в заданный промежуток времени (от старт до стоп).
 function Start-Stopping {
     if ( $start_time -eq $null -Or $stop_time -eq $null) { return }
-    if ( $start_time -gt $stop_time ) { return }
+    if ( $start_time -eq $stop_time ) { return }
 
     $now = Get-date -Format t
-    $paused = $false
-    # Старт < Сейчас < Стоп
-    while ( !($start_time -lt $now -and $now -lt $stop_time) ) {
-        $now = Get-date -Format t
-        Write-Host $now
-        if ( -not $paused ) {
-            Write-Host "Останавливаемся по расписанию, ждём до $start_time"
-            $paused = $true
+    while ( $true) {
+        # Если расписаниюе работы в пределах дня (Старт < Стоп), то пауза (-Не(Старт < Сейчас < Стоп))
+        # Если работа предполагает в ночь, т.е (Старт > Стоп), то пауза (Стоп < Сейчас < Старт)
+        if ( $start_time -lt $stop_time ) {
+            $paused = !( $start_time -lt $now -and $now -lt $stop_time )
+        } else {
+            $paused = ( $stop_time -lt $now -and $now -lt $start_time )
         }
+        if ( !$paused ) { Break }
+
+        Write-Host ( '[{0}] Пауза по расписанию, ждём начала периода {1} - {2}.' -f $now, $start_time, $stop_time )
         Start-Sleep -Seconds 60
+        $now = Get-date -Format t
     }
 }
 

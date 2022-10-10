@@ -10,6 +10,8 @@ $google_folders = @(
     'M:\Shared drives'
     'O:\Shared drives'
 )
+# Количество подключённых клиентов по одному пути
+$google_folders_count = 1
 
 # адрес, логин и пароль прокси-сервера
 $proxy_address = 'http://45.8.144.130:3128'

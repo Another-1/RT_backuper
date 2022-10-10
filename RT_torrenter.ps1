@@ -17,7 +17,7 @@ $proxyCreds = New-Object System.Management.Automation.PSCredential -ArgumentList
 Write-Output 'Авторизуемся на форуме'
 $headers = @{'User-Agent' = 'Mozilla/5.0' }
 $payload = @{'login_username' = $rutracker_login; 'login_password' = $rutracker_password; 'login' = '%E2%F5%EE%E4' }
-Invoke-WebRequest -uri 'https://rutracker.org/forum/login.php' -SessionVariable forum_login -Method Post -body $payload -Headers $headers -Proxy $proxy_address -ProxyCredential $proxyCreds | Out-Null
+Invoke-WebRequest -uri 'https://rutracker.org/forum/login.php' -SessionVariable forum_login -Method Post -body $payload -Headers $headers -Proxy $proxy_address -ProxyCredential $proxyCreds > $null
 
 Write-Output 'Качаем торренты'
 if ( $PSVersionTable.OS.ToLower().contains('windows')) {
@@ -29,5 +29,5 @@ else {
 
 foreach ($id in $ids) {
     $forum_torrent_path = 'https://rutracker.org/forum/dl.php?t=' + $id
-    Invoke-WebRequest -uri $forum_torrent_path -WebSession $forum_login -OutFile ( $temp_folder + $separator + "$id.torrent") | Out-Null
+    Invoke-WebRequest -uri $forum_torrent_path -WebSession $forum_login -OutFile ( $temp_folder + $separator + "$id.torrent") > $null
 }

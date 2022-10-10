@@ -64,7 +64,7 @@ Remove-Variable -name archives_required
 Write-Output 'Авторизуемся на форуме'
 $headers = @{'User-Agent' = 'Mozilla/5.0' }
 $payload = @{'login_username' = $rutracker_login; 'login_password' = $rutracker_password; 'login' = '%E2%F5%EE%E4' }
-Invoke-WebRequest -uri 'https://rutracker.org/forum/login.php' -SessionVariable forum_login -Method Post -body $payload -Headers $headers -Proxy $proxy_address -ProxyCredential $proxyCreds | Out-Null
+Invoke-WebRequest -uri 'https://rutracker.org/forum/login.php' -SessionVariable forum_login -Method Post -body $payload -Headers $headers -Proxy $proxy_address -ProxyCredential $proxyCreds > $null
 
 if ( $PSVersionTable.OS.ToLower().contains('windows')) {
     $separator = '\'
@@ -89,7 +89,7 @@ foreach ( $hash in $hashes.Keys ) {
 
         Write-Output "Скачиваем торрент с форума"
         $forum_torrent_path = 'https://rutracker.org/forum/dl.php?t=' + $id
-        Invoke-WebRequest -uri $forum_torrent_path -WebSession $forum_login -OutFile ( $tmp_drive + $drive_separator + 'temp.torrent') | Out-Null
+        Invoke-WebRequest -uri $forum_torrent_path -WebSession $forum_login -OutFile ( $tmp_drive + $drive_separator + 'temp.torrent') > $null
 
         Write-Output "Добавляем торрент в клиент"
         $dl_url = @{
@@ -99,6 +99,6 @@ foreach ( $hash in $hashes.Keys ) {
             category    = $category
             root_folder = 'false'
         }
-        Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/add' ) -form $dl_url -WebSession $sid -Method POST -ContentType 'application/x-bittorrent' | Out-Null
+        Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/add' ) -form $dl_url -WebSession $sid -Method POST -ContentType 'application/x-bittorrent' > $null
     }
 }

@@ -85,7 +85,7 @@ if ( $tracker_torrents_list.count -eq 0) {
 Write-Output 'Авторизуемся на форуме'
 $headers = @{'User-Agent' = 'Mozilla/5.0' }
 $payload = @{'login_username' = $rutracker_login; 'login_password' = $rutracker_password; 'login' = '%E2%F5%EE%E4' }
-Invoke-WebRequest -uri 'https://rutracker.org/forum/login.php' -SessionVariable forum_login -Method Post -body $payload -Headers $headers -Proxy $proxy_address -ProxyCredential $proxyCreds | Out-Null
+Invoke-WebRequest -uri 'https://rutracker.org/forum/login.php' -SessionVariable forum_login -Method Post -body $payload -Headers $headers -Proxy $proxy_address -ProxyCredential $proxyCreds > $null
 Write-Output 'Проверяем есть ли что добавить'
 $current = 1
 
@@ -125,7 +125,7 @@ ForEach ( $id in $sorted ) {
                 # Скачиваем торрент с форума
                 Write-Output ( "Скачиваем " + $id.Name + ' ' + $info.topic_title )
                 $forum_torrent_path = 'https://rutracker.org/forum/dl.php?t=' + $id.Name
-                Invoke-WebRequest -uri $forum_torrent_path -WebSession $forum_login -OutFile ( $tmp_drive + $drive_separator + $id.Name + '.torrent') | Out-Null
+                Invoke-WebRequest -uri $forum_torrent_path -WebSession $forum_login -OutFile ( $tmp_drive + $drive_separator + $id.Name + '.torrent') > $null
 
                 # и добавляем торрент в клиент
                 if ( $torrent_folders -eq 1 ) { $extract_path = $store_path + $separator + $id.Name }
@@ -137,7 +137,7 @@ ForEach ( $id in $sorted ) {
                     category    = $category
                     root_folder = 'false'
                 }
-                Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/add' ) -form $dl_url -WebSession $sid -Method POST -ContentType 'application/x-bittorrent' | Out-Null
+                Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/add' ) -form $dl_url -WebSession $sid -Method POST -ContentType 'application/x-bittorrent' > $null
                 $added++
                 Remove-Item -Path ( $tmp_drive + $drive_separator + $id.Name + '.torrent' ) 
             }

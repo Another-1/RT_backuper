@@ -7,6 +7,5 @@ Clear-Host
 Start-Pause
 Start-Stopping
 
-$os, $folder_sep = Get-OsParams
-
+# Запускаем обновление списка архивов.
 Sync-ArchList

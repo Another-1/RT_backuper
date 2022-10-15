@@ -81,8 +81,8 @@ foreach ( $hash in $hashes.Keys ) {
         $filename = $archives[$id]
         Write-Output "Распаковываем $filename"
 
-        if ( $torrent_folders -eq 1 ) { $extract_path = $store_path + $separator + $id }
-        else { $extract_path = $store_path }
+        if ( $torrent_folders -eq 1 ) { $extract_path = $collector.path + $separator + $id }
+        else { $extract_path = $collector.path }
 
         New-Item -path $extract_path -ErrorAction SilentlyContinue
         & $7z_path e "$filename" "-p20RuTracker.ORG22" "-o$extract_path"

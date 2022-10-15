@@ -1,31 +1,51 @@
 version: "3.7"
 
-services:
-  pwsh_backupper:
-    # тут либо билдим локально, либо берём готовй образ
-    # image: nebionik/rt_backuper
-    build: .
-    container_name: pwsh_backupper
-    volumes:
-      # - .:/pwd
-      - ./config-pwsh:/pwd/config
-      - /data/downloads:/downloads # указываем папку в которую записывает торрент-клиент (должно соответствовать пункту из настроек)
-      - /data/gdrive:/data           # указываем папку в которой есть гугл-диски (должно соответствовать пункту из настроек)
+# База для контейнеров.
+x-pwsh-base:
+  pwsh-base: &pwsh-base
+    image: nebionik/rt_backuper
+    container_name: pwsh-base
     restart: unless-stopped
-    # depends_on: [qbt]
+    command: ""
+    volumes:
+      - ./pwsh-config:/pwd/config          # Каталог с конфигом и настройками.
+      - ./pwsh-stash:/pwd/stash            # Каталог разных промежуточных данных.
+      - /data/GD:/data/shared              # Путь к гугл-дискам.
+      - /path/to/your/downloads:/downloads # Каталог с загрузками клиента.
+      - /some/temp/folder:/data/backuper   # Каталог в котором будут храниться архивы, перед выгрузкой.
+      - /path/to/cache:/rclone-cache       # Каталог с кешем rclone (опционально).
 
-  # qbt:
-  #   image: lscr.io/linuxserver/qbittorrent
-  #   container_name: qbt
-  #   environment:
-  #     - WEBUI_PORT=9111
-  #     - TZ=Europe/Moscow
-  #   ports:
-  #     - 9111:9111/tcp
-  #     - 23842:23842/tcp
-  #     - 23842:23842/udp
-  #   volumes:
-  #     - ./config-qbt:/config
-  #     - ./config-pwsh:/pwsh
-  #     - /data/downloads:/downloads # указываем папку в которую записывает торрент-клиент (должно соответствовать пункту из настроек)
-  #   restart: unless-stopped
+
+services:
+  # Бекапер, получает раздачи из клиента и архивирует.
+  pwsh-backuper:
+    <<: *pwsh-base
+    container_name: pwsh-backuper
+    command: "backuper 60"
+
+  # Два аплоадера, каждый из которых берёт архивы от бекапера и льёт их в гугл.
+  pwsh-uploader1:
+    <<: *pwsh-base
+    container_name: pwsh-uploader1
+    command: "uploader_1 15"
+
+  pwsh-uploader2:
+    <<: *pwsh-base
+    container_name: pwsh-uploader2
+    command: "uploader_2 15"
+
+  # Обновляет локальный список уже существующих архивов.
+  pwsh-updater:
+    <<: *pwsh-base
+    container_name: pwsh-updater
+    command: "updater 15"
+
+  # Удаляет раздачи из клиента, если это необходимо.
+  pwsh-cleaner:
+    <<: *pwsh-base
+    container_name: pwsh-cleaner
+    command: "cleaner"
+    depends_on: [pwsh-updater]
+
+
+

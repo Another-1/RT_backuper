@@ -7,12 +7,9 @@ Clear-Host
 Start-Pause
 Start-Stopping
 
-$os, $folder_sep = Get-OsParams
-
 $step = 20
 $file_path = $stash_folder.finished
 $file = Watch-FileExist $file_path
-
 
 $total = Get-Content $file_path | Sort-Object -Unique
 $total_count = $total.count
@@ -22,6 +19,7 @@ if ( $total_count -eq 0 ) {
     Exit
 }
 
+# Подключаемся к клиенту.
 Initialize-Client
 
 $runs = [math]::Ceiling( $total_count / $step )
@@ -49,4 +47,9 @@ For ( $i = 1; $i -le $runs; $i++ ) {
     }
 }
 # end foreach
+
+# Очистим папку загрузок, если закачка происходит с учётом ид раздачи.
+if ( $collector.sub_folder ) {
+    Clear-EmptyFolders $collector.collect
+}
 Write-Host ( 'Обработано {0} раздач.' -f $total_count )

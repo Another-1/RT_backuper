@@ -1,10 +1,20 @@
-. "$PSScriptRoot\config\RT_settings.ps1"
+New-Item -ItemType Directory -Path "$PSScriptRoot\config" -Force > $null
+
+$config_path = "$PSScriptRoot\config\RT_settings.ps1"
+if ( !(Test-Path $config_path) ) {
+    Write-Host 'Не обнаружен файл настроек RT_settings.ps1. Создайте его в папке /config' -ForegroundColor Red
+    Exit
+}
+. $config_path
 
 # лимит закачки на один диск в сутки
 $lv_750gb = 740 * 1024 * 1024 * 1024
 
 $google_folder_prefix = 'ArchRuT'
 $pswd = '20RuTracker.ORG22'
+
+# Параметры окружения (linux/windows).
+$OS = @{}
 
 # Файлы с данными, для общения между процессами
 $stash_folder = @{
@@ -142,7 +152,7 @@ function Get-TopicIDs( $torrents_list, $hashes ) {
             $torrent_id = $hashes[ $torrent.hash ]
             if ( $torrent_id ) {
                 $removed++
-                Dismount-ClientTorrent $torrent_id $torrent.hash
+                Dismount-ClientTorrent $torrent_id $torrent.hash $torrent.category
                 Continue
             }
         }
@@ -207,8 +217,8 @@ function Sync-ArchList ( $All = $false ) {
     New-Item -ItemType Directory -Path $stash_folder.archived -Force > $null
     # Собираем список гугл-дисков и проверяем наличие файла со списком архивов для каждого. Создаём если нет.
     # Проверяем даты обновления файлов и размер. Если прошло 6ч или файл пуст -> пора обновлять.
-    $folders = $arch_folders | % { Watch-FileExist ($stash_folder.archived + '\' + $_.Name + '.txt') }
-        | ? { $_.Size -eq 0 -Or $_.LastWriteTime -lt ( Get-Date ).AddHours( -6 ) }
+    $folders = $arch_folders | % { Watch-FileExist ($stash_folder.archived + $OS.fsep + $_.Name + '.txt') }
+        | ? { $_.($OS.sizeField) -eq 0 -Or ($_.LastWriteTime -lt ( Get-Date ).AddHours( -6 )) }
         | Sort-Object -Property LastWriteTime
 
     # Выбираем первый диск по условиям выше и обновляем его.
@@ -236,8 +246,13 @@ function Sync-ArchList ( $All = $false ) {
 }
 
 # Добавляем раздачу в список обработанных и возможно под удаление.
-function Dismount-ClientTorrent ( [int]$torrent_id, [string]$torrent_hash ) {
-    if ( $used_modules.cleaner ) {
+function Dismount-ClientTorrent ( [int]$torrent_id, [string]$torrent_hash, [string]$torrent_category = $null ) {
+    # Если отдельный модуль очистки не используется, то просто выпиливаем раздачу
+    if ( !$used_modules.cleaner ) {
+        Remove-ClientTorrent $torrent_id $torrent_hash $torrent_category
+    }
+    # Если модуль включён, то пишем в файлик.
+    else {
         Watch-FileExist $stash_folder.finished > $null
         ($torrent_id.ToString() + '_' + $torrent_hash.ToLower()) | Out-File $stash_folder.finished -Append
     }
@@ -256,10 +271,10 @@ function Get-Compression ( [int]$torrent_id, $params ) {
 }
 
 # По ид раздачи вычислить ид диска, название диска/папки, путь к диску
-function Get-DiskParams ( [int]$torrent_id, [string]$separator = '/' ) {
+function Get-DiskParams ( [int]$torrent_id ) {
     $disk_id = [math]::Truncate(( $torrent_id - 1 ) / 300000) # 1..24
     $disk_name = $google_folder_prefix + '_' + ( 300000 * $disk_id + 1 ) + '-' + 300000 * ( $disk_id + 1 )
-    $disk_path = $separator + $disk_name + $separator
+    $disk_path = $OS.fsep + $disk_name + $OS.fsep
 
     return $disk_id, $disk_name, $disk_path
 }
@@ -302,27 +317,6 @@ function Get-StoredUploads ( $uploads_old = @{} ) {
     return $uploads_all
 }
 
-# Записать данные раздачи в файл.
-function Export-TorrentProperties ( $Name, $Data ) {
-    $Path = $stash_folder.torrents + $Name + '.xml'
-    Watch-FileExist $Path > $null
-    $torrent | Export-Clixml $Path
-}
-
-# Получить данные раздачи из файла или клиента.
-function Import-TorrentProperties ( $Name, $Hash ) {
-    $Path = $stash_folder.torrents + $Name + '.xml'
-    if ( Test-Path $Path ) {
-        $torrent = Import-Clixml $Path
-        Remove-Item $Path
-    }
-    if ( !$torrent -And $Hash ) {
-        $torrent = Get-ClientTorrents @( $Hash )
-    }
-
-    return $torrent
-}
-
 # Проверка версии PowerShell.
 function Confirm-Version {
     If ( $PSVersionTable.PSVersion -lt [version]'7.1.0.0') {
@@ -333,21 +327,16 @@ function Confirm-Version {
     return $true
 }
 
-# Проверка/валидация настроек.
-function Sync-Settings {
-    if ( !$client -And !$client.url ) { return $false }
-    return $true
-}
-
 # Получение данных об используемой ОС.
 function Get-OsParams {
-    $os = 'linux'
-    $folder_separator = '/'
+    $OS.name = 'linux'
+    $OS.fsep = '/'
+    $OS.sizeField = 'Size'
     if ( $PSVersionTable.OS.ToLower().contains('windows')) {
-        $os = 'windows'
-        $folder_separator = ':\'
+        $OS.name = 'windows'
+        $OS.fsep = '\'
+        $OS.sizeField = 'Length'
     }
-    return $os, $folder_separator
 }
 
 
@@ -393,14 +382,16 @@ function Get-FileFirstContent ( [string]$Path, [int]$First = 10 ) {
 # Вычислить размер содержимого каталога.
 function Get-FolderSize ( $Path ) {
     New-Item -ItemType Directory $Path -Force > $null
-    return (Get-ChildItem $Path -Recurse | Measure-Object -Property Size -Sum).Sum
+    $Size = (Get-ChildItem $Path -File -Recurse | Measure-Object -Property $OS.sizeField -Sum).Sum
+    if ( !$Size ) { $Size = 0 }
+    return $Size
 }
 
 # Сравнить размер каталогов с максимально допустимым.
 function Compare-MaxSize ( [string]$Path, [long]$MaxSize ) {
     While ( $true ) {
         $folder_size = Get-FolderSize $Path
-        if ( $folder_size -lt $MaxSize ) {
+        if ( $folder_size -le $MaxSize ) {
             break
         }
 
@@ -431,20 +422,20 @@ function Start-Stopping {
     if ( $start_time -eq $null -Or $stop_time -eq $null) { return }
     if ( $start_time -eq $stop_time ) { return }
 
-    $now = Get-date -Format t
+    $now = [System.TimeOnly](Get-date -Format t)
     while ( $true) {
-        # Если расписаниюе работы в пределах дня (Старт < Стоп), то пауза (-Не(Старт < Сейчас < Стоп))
-        # Если работа предполагает в ночь, т.е (Старт > Стоп), то пауза (Стоп < Сейчас < Старт)
+        # Если работаем днём  (Старт < Стоп), то пауза (Не(Старт < Сейчас < Стоп))
+        # Если работаем ночью (Старт > Стоп), то пауза (Стоп < Сейчас < Старт)
         if ( $start_time -lt $stop_time ) {
-            $paused = !( $start_time -lt $now -and $now -lt $stop_time )
+            $paused = !( $start_time -le $now -and $now -le $stop_time )
         } else {
             $paused = ( $stop_time -lt $now -and $now -lt $start_time )
         }
         if ( !$paused ) { Break }
 
-        Write-Host ( '[{0}] Пауза по расписанию, ждём начала периода {1} - {2}.' -f $now, $start_time, $stop_time )
+        Write-Host ( '[{0}] Пауза по расписанию, ждём начала периода ({1} - {2}).' -f $now, $start_time, $stop_time )
         Start-Sleep -Seconds 60
-        $now = Get-date -Format t
+        $now = [System.TimeOnly](Get-date -Format t)
     }
 }
 
@@ -473,4 +464,14 @@ function Start-Pause {
             break
         }
     }
+}
+
+
+# Проверка/валидация настроек.
+function Sync-Settings {
+    # Определяем параметры окружения.
+    Get-OsParams
+    
+    if ( !$client -And !$client.url ) { return $false }
+    return $true
 }

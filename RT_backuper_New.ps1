@@ -3,9 +3,6 @@
 if ( !(Confirm-Version) ) { Exit }
 If ( !( Sync-Settings ) ) { Write-Host 'Проверьте наличие и заполненность файла настроек в каталоге скрипта'; Pause; Exit }
 
-$os, $folder_sep = Get-OsParams
-if ( $PSVersionTable.OS.ToLower().contains('windows')) { $folder_sep = ':\' } else { $drive_separator = '/' }
-
 Clear-Host
 Start-Pause
 Start-Stopping
@@ -17,8 +14,6 @@ $uploads_all.GetEnumerator() | Sort-Object -Property Key | % {
     Write-Host ( 'Для диска {0} выгружено: {1}' -f $_.key, ( Get-BaseSize $temp_size) )
 }
 
-
-$hash_list = @{}
 # Если переданы хеши как аргументы.
 if ( $args ) {
     $hash_list = $args | % { $_ }
@@ -29,15 +24,13 @@ if ( $args ) {
 if ( !$hash_list ) {
     # Ищем раздачи, которые скачал клиент и добавил в буферный файл.
     $hash_file = Watch-FileExist $def_paths.downloaded
-    if ( $hash_file.Size ) {
-        $downloaded = ( Get-FileFirstContent $def_paths.downloaded $backuper.hashes_step )
-        Write-Host ( '[backuper] Найдено раздач, докачанных клиентом : {0}.' -f $downloaded.count )
-        if ( !$downloaded -And $backuper.hashes_only ) {
-            Write-Host '[backuper] В конфиге обнаружена опция [hashes_only], прерываем.'
-            Exit
-        }
-
-        $hash_list = $downloaded
+    if ( $hash_file.($OS.sizeField) ) {
+        $hash_list = ( Get-FileFirstContent $def_paths.downloaded $backuper.hashes_step )
+        Write-Host ( '[backuper] Найдено раздач, докачанных клиентом : {0}.' -f $hash_list.count )
+    }
+    if ( !$hash_list -And $backuper.hashes_only ) {
+        Write-Host '[backuper] В конфиге обнаружена опция [hashes_only], прерываем.'
+        Exit
     }
 }
 
@@ -46,7 +39,9 @@ if ( !$hash_list ) {
     $dones, $hashes = Get-Archives
 }
 
+# Подключаемся к клиенту.
 Initialize-Client
+
 # получаем список раздач из клиента
 Write-Host 'Получаем список раздач из клиента..'
 $exec_time = [math]::Round( (Measure-Command {
@@ -111,9 +106,9 @@ New-Item -ItemType Directory -Path $def_paths.finished -Force > $null
 Write-Host ('[backuper] Начинаем перебирать раздачи.')
 foreach ( $torrent in $torrents_list ) {
     # Ид раздачи
-    $torrents_id = $torrent.state
+    $torrent_id = $torrent.state
     # Собираем имя и путь хранения архива раздачи.
-    $disk_id, $disk_name, $disk_path = Get-DiskParams $torrents_id $folder_sep
+    $disk_id, $disk_name, $disk_path = Get-DiskParams $torrent_id
 
     # Если подключено несколько гугл-акков, по одному пути, вычисляем номер акка
     $order = Get-GoogleNum $disk_id $google_params.accounts_count
@@ -127,12 +122,13 @@ foreach ( $torrent in $torrents_list ) {
     $google_path = $google_params.folders[$folder_pointer]
     $google_name = ( '{0}({1})' -f $google_path, $order.account )
 
-    $zip_name = $google_path + $disk_path + $torrents_id + '_' + $torrent.hash.ToLower() + '.7z'
+    $zip_name = $google_path + $disk_path + $torrent_id + '_' + $torrent.hash.ToLower() + '.7z'
 
     if ( -not ( Test-Path -Path $zip_name ) ) {
-        $tmp_zip_name = ( $def_paths.progress + $folder_sep + $torrents_id + '_' + $torrent.hash.ToLower() + '.7z' )
+        $tmp_zip_name = ( $def_paths.progress + $OS.fsep + $torrent_id + '_' + $torrent.hash.ToLower() + '.7z' )
 
-        Write-Host ( 'Архивируем ' + $torrents_id + ', ' + (Get-BaseSize $torrent.size) + ', ' + $torrent.name + ' на диск ' + $google_name ) -ForegroundColor Green
+        Write-Host ''
+        Write-Host ( 'Архивируем ' + $torrent_id + ', ' + (Get-BaseSize $torrent.size) + ', ' + $torrent.name + ' на диск ' + $google_name ) -ForegroundColor Green
         If ( Test-Path -path $tmp_zip_name ) {
             Write-Host 'Похоже, такой архив уже пишется в параллельной сессии. Пропускаем'
             continue
@@ -140,7 +136,7 @@ foreach ( $torrent in $torrents_list ) {
         else {
             Start-Pause
             # для Unix нужно экранировать кавычки и пробелы.
-            if ( $os -eq 'linux' ) { $torrent.content_path = $torrent.content_path.replace('"','\"') }
+            if ( $OS.name -eq 'linux' ) { $torrent.content_path = $torrent.content_path.replace('"','\"') }
 
             # Начинаем архивацию файла
             $compression = Get-Compression $torrent_id $backuper
@@ -149,6 +145,12 @@ foreach ( $torrent in $torrents_list ) {
                 & $backuper.p7z a $tmp_zip_name $torrent.content_path "-p$pswd" "-mx$compression" ("-mmt" + $backuper.cores) -mhe=on -sccUTF-8 -bb0 > $null
             } else {
                 & $backuper.p7z a $tmp_zip_name $torrent.content_path "-p$pswd" "-mx$compression" ("-mmt" + $backuper.cores) -mhe=on -sccUTF-8 -bb0
+            }
+            if ( $LastExitCode -ne 0 ) {
+                Remove-Item $tmp_zip_name
+                Write-Host ( 'Архивация завершилась ошибкой: {0}. Удаляем файл.' -f $LastExitCode )
+                Pause
+                continue
             }
 
             # Считаем результаты архивации
@@ -167,13 +169,9 @@ foreach ( $torrent in $torrents_list ) {
                 Start-Pause
             }
 
-            if ( $PSVersionTable.OS.ToLower() -contains 'windows') {
-                $fs = ( Get-PSDrive $drive_fs | Select-Object Free ).Free
-                while ( $zip_size -gt ( $fs - 10000000 ) ) {
-                    Write-Host ( "Мало места на диске кэша Google ($drive_fs$drive_separator), подождём пока станет больше чем " + ([int]($zip_size / 1024 / 1024)).ToString() + ' Мб')
-                    Start-Sleep -Seconds 600
-                    $fs = ( Get-PSDrive $drive_fs | Select-Object Free ).free
-                }
+            # Проверка переполнения каталога с кешем гугла.
+            if ( $google_params.cache_size ) {
+                Compare-MaxSize $google_params.cache $google_params.cache_size
             }
 
             Write-Host ( ( Get-BaseSize $today_size ) + ' пока ещё меньше чем лимит ' + ( Get-BaseSize $lv_750gb ) + ', продолжаем!' )

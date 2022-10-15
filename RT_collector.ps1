@@ -1,56 +1,56 @@
 . "$PSScriptRoot\RT_functions.ps1"
 
-if ($client_url -eq '' -or $nul -eq $client_url ) {
-    Write-Output 'Проверьте наличие и заполненность файла настроек в каталоге скрипта'
-    Pause
-    exit
-}
+if ( !(Confirm-Version) ) { Exit }
+If ( !( Sync-Settings ) ) { Write-Host 'Проверьте наличие и заполненность файла настроек в каталоге скрипта'; Pause; Exit }
 
+Clear-Host
+
+# Аргументов 0, всё вводим по подсказкам.
 If ($args.Count -eq 0 ) {
-
     $choice = ( Read-Host -Prompt 'Выберите раздел' ).ToString()
     $min_id = ( Read-Host -Prompt 'Минимальный ID ( 0 если не нужно проверять ID)' )
-    if ( $min_id -ne '0' ) {
-        $min_id = $min_id.ToInt32($null)
+    if ( $min_id ) {
         $max_id = ( Read-Host -Prompt 'Максимальный ID' )
-        $max_id = $max_id.ToInt32($null)
     }
     $min_sid = ( Read-Host -Prompt 'Минимальное количество сидов ( 0 если не нужно проверять сидов)' )
 }
+# Аргумент 1, т.е. задан раздел, все остальное - дефолт.
 elseif ($args.count -eq 1) {
     $choice = $args[0].ToString()
     $min_id = 0
 }
+# Аргументов три, раздел и промежуток ид.
 elseif ($args.count -eq 3) {
     $choice = $args[0].ToString()
-    $min_id = $args[1].ToInt32($nul)
-    $max_id = $args[2].ToInt32($nul)
+    $min_id = $args[1]
+    $max_id = $args[2]
 }
 else { Write-Output 'Параметров должно быть не столько. Либо 0, либо 1, либо 3'; pause ; Exit }
 
-if ( $PSVersionTable.OS.ToLower().contains('windows')) {
-    $separator = '\'
-    $drive_separator = ':\'
+try { $min_id  = $min_id.ToInt32($null)  } catch { $min_id = 0  }
+try { $max_id  = $max_id.ToInt32($null)  } catch { $max_id = 0  }
+try { $min_sid = $min_sid.ToInt32($null) } catch { $min_sid = 0 }
+
+if ( $min_id -and $min_id -gt $max_id ) {
+    Write-Host ( 'Неверные значения минимума ({0}) и максимума ({1}) ID.' -f $min_id, $max_id )
+    Pause
+    Exit
 }
-else {
-    $separator = '/'
-    $drive_separator = '/'
-}
+
 
 $secure_pass = ConvertTo-SecureString -String $proxy_password -AsPlainText -Force
 $proxyCreds = New-Object System.Management.Automation.PSCredential -ArgumentList $proxy_login, $secure_pass
 
-Write-Output 'Авторизуемся в клиенте'
-$logindata = "username=$webui_login&password=$webui_password"
-$loginheader = @{Referer = $client_url }
-$ProgressPreference = 'SilentlyContinue'
-Invoke-WebRequest -Headers $loginheader -Body $logindata ( $client_url + '/api/v2/auth/login' ) -Method POST -SessionVariable sid > $nul
+Initialize-Client
+
 Write-Output 'Получаем список раздач из клиента'
-$client_torrents_list = (( Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/info' )-WebSession $sid ).Content | ConvertFrom-Json | Select-Object hash ).hash
+$client_torrents_list = (Read-Client 'torrents/info') | ConvertFrom-Json | % { $_.hash }
 
 Write-Output 'Запрашиваем список раздач в разделе'
 $tracker_torrents_list = ( ( Invoke-WebRequest -Uri ( 'http://api.rutracker.org/v1/static/pvc/f/' + $choice ) ).content | ConvertFrom-Json -AsHashtable ).result
-if ($min_id -ne '0') {
+
+# Фильтруем раздачи трекера по ид раздачи
+if ($min_id -gt 0) {
     $tracker_torrents_list_required = @{}
     foreach ( $key in $tracker_torrents_list.keys ) {
         if ( $key.ToInt32($null) -ge $min_id -and $key.ToInt32($null) -le $max_id ) {
@@ -60,7 +60,8 @@ if ($min_id -ne '0') {
     $tracker_torrents_list = $tracker_torrents_list_required
 }
 
-if ($min_sid -ne '0' -and $nul -ne $min_sid ) {
+# Фильтруем раздачи трекера по колву сидов
+if ($min_sid -gt 0 ) {
     $tracker_torrents_list_required = @{}
     foreach ( $key in $tracker_torrents_list.keys ) {
         if ( $tracker_torrents_list[$key][1] -ge $min_sid ) {
@@ -70,76 +71,95 @@ if ($min_sid -ne '0' -and $nul -ne $min_sid ) {
     $tracker_torrents_list = $tracker_torrents_list_required
 }
 
-
-$category = $default_category
-if ( $default_category -eq '' ) {
-    $category = ( ( Invoke-WebRequest -Uri ( 'http://api.rutracker.org/v1/get_forum_name?by=forum_id&val=' + $choice ) ).content | ConvertFrom-Json -AsHashtable ).result[$choice]
-}
-
-if ( $tracker_torrents_list.count -eq 0) {
+if ( $tracker_torrents_list.count -eq 0 ) {
     Write-Output 'Не получено ни одной раздачи'
     Pause
     Exit
 }
 
+# Определить категорию новых раздач.
+$category = $collector.category
+if ( !$category ) {
+    $category = ( ( Invoke-WebRequest -Uri ( 'http://api.rutracker.org/v1/get_forum_name?by=forum_id&val=' + $choice ) ).content | ConvertFrom-Json -AsHashtable ).result[$choice]
+}
+
 Write-Output 'Авторизуемся на форуме'
 $headers = @{'User-Agent' = 'Mozilla/5.0' }
-$payload = @{'login_username' = $rutracker_login; 'login_password' = $rutracker_password; 'login' = '%E2%F5%EE%E4' }
+$payload = @{'login_username' = $rutracker.login; 'login_password' = $rutracker.password; 'login' = '%E2%F5%EE%E4' }
 Invoke-WebRequest -uri 'https://rutracker.org/forum/login.php' -SessionVariable forum_login -Method Post -body $payload -Headers $headers -Proxy $proxy_address -ProxyCredential $proxyCreds > $null
-Write-Output 'Проверяем есть ли что добавить'
-$current = 1
 
+# Сортируем раздачи.
 $sorted = @{}
 if ( $min_sid -gt 0 -and $nul -ne $min_sid ) {
     $tracker_torrents_list.keys | ForEach-Object { try { $sorted[$_] = $tracker_torrents_list[$_][1] } catch {} }
     $sorted = ( $sorted.GetEnumerator() | Sort-Object { $_.Value } -Descending ) | Where-Object { $_.Value -ne '' -and $nul -ne $_.Value }
 }
-else { 
+else {
     $tracker_torrents_list.keys | ForEach-Object { try { $sorted[$_] = $tracker_torrents_list[$_][3] } catch {} }
     $sorted = ( $sorted.GetEnumerator() | Sort-Object { $_.Value } ) | Where-Object { $_.Value -ne '' -and $nul -ne $_.Value }
 }
+
+
+Write-Output 'Проверяем есть ли что добавить'
+$current = 1
 $added = 0
 ForEach ( $id in $sorted ) {
     $ProgressPreference = 'Continue'
     Write-Progress -Activity 'Обрабатываем раздачи' -Status ( "$current всего, $added добавлено, " + ( [math]::Round( $current * 100 / $tracker_torrents_list.Keys.Count ) ) + '%' ) -PercentComplete ( $current * 100 / $tracker_torrents_list.Keys.Count )
     $ProgressPreference = 'SilentlyContinue'
     $current++
-    $reqdata = @{'by' = 'topic_id'; 'val' = $id.Name.ToString() }
+
+    $torrent_id = $id.Name
+    $reqdata = @{'by' = 'topic_id'; 'val' = $torrent_id.ToString() }
     # по каждой раздаче с трекера ищем её hash
     try {
-        $hash = (( Invoke-WebRequest -Uri ( 'http://api.rutracker.org/v1/get_tor_hash?by=topic_id&val=' + $id.Name ) ).content | ConvertFrom-Json -AsHashtable ).result[$id.Name].ToLower()
+        $hash = (( Invoke-WebRequest -Uri ( 'http://api.rutracker.org/v1/get_tor_hash?by=topic_id&val=' + $torrent_id ) ).content | ConvertFrom-Json -AsHashtable ).result[$torrent_id].ToLower()
     }
     catch {
-        Write-Output ( "Не получилось найти хэш раздачи " + $id.name + ". Вероятно, это и не раздача вовсе." )
+        Write-Output ( "Не получилось найти хэш раздачи " + $torrent_id + ". Вероятно, это и не раздача вовсе." )
         Continue
     }
     if ( $client_torrents_list -notcontains $hash ) {
         # если такого hash ещё нет в клиенте, то:
         # проверяем, что такая ещё не заархивирована
-        $folder_name = '\ArchRuT_' + ( 300000 * [math]::Truncate(( $id.Name - 1 ) / 300000) + 1 ) + '-' + 300000 * ( [math]::Truncate(( $id.Name - 1 ) / 300000) + 1 ) + '\'
-        $zip_name = $google_folders[0] + $folder_name + $id.Name + '_' + $hash.ToLower() + '.7z'
-        if ( -not ( test-path -Path $zip_name ) ) {
+        $disk_id, $disk_name, $disk_path = Get-DiskParams $torrent_id
+
+        $zip_google_path = $google_params.folders[0] + $disk_path + $torrent_id + '_' + $hash.ToLower() + '.7z'
+        if ( -not ( Test-Path $zip_google_path ) ) {
             # поглощённые раздачи пропускаем
-            $info = (( Invoke-WebRequest -uri 'http://api.rutracker.org/v1/get_tor_topic_data' -body $reqdata).content | ConvertFrom-Json -AsHashtable ).result[$id.Name]
+            $info = (( Invoke-WebRequest -uri 'http://api.rutracker.org/v1/get_tor_topic_data' -body $reqdata).content
+                | ConvertFrom-Json -AsHashtable ).result[$torrent_id]
+
             if ( -not ( $info.tor_status -eq 7 ) ) {
                 # Скачиваем торрент с форума
-                Write-Output ( "Скачиваем " + $id.Name + ' ' + $info.topic_title )
-                $forum_torrent_path = 'https://rutracker.org/forum/dl.php?t=' + $id.Name
-                Invoke-WebRequest -uri $forum_torrent_path -WebSession $forum_login -OutFile ( $tmp_drive + $drive_separator + $id.Name + '.torrent') > $null
+                Write-Output ( 'Скачиваем {0} ({1}), {2}.' -f $torrent_id, (Get-BaseSize $info.size), $info.topic_title )
+                $forum_torrent_path = 'https://rutracker.org/forum/dl.php?t=' + $torrent_id
+                $torrent_file_path = $collector.tmp_folder + $OS.fsep + $torrent_id + '.torrent'
+                Invoke-WebRequest -uri $forum_torrent_path -WebSession $forum_login -OutFile $torrent_file_path #> $null
 
                 # и добавляем торрент в клиент
-                if ( $torrent_folders -eq 1 ) { $extract_path = $store_path + $separator + $id.Name }
-                else { $extract_path = $store_path }
+                $extract_path = $collector.collect
+                if ( $collector.sub_folder ) {
+                    $extract_path = $collector.collect + $OS.fsep + $torrent_id
+                }
+
+                # Проверка на переполнение каталога с загрузками.
+                if ( $collector.collect_size ) {
+                    Compare-MaxSize $collector.collect $collector.collect_size
+                }
+
                 $dl_url = @{
-                    name        = 'torrents'
-                    torrents    = get-item ( $tmp_drive + $drive_separator + $id.Name + '.torrent' )
+                    torrents    = Get-Item $torrent_file_path
                     savepath    = $extract_path
                     category    = $category
+                    name        = 'torrents'
                     root_folder = 'false'
                 }
-                Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/add' ) -form $dl_url -WebSession $sid -Method POST -ContentType 'application/x-bittorrent' > $null
+                Invoke-WebRequest -uri ( $client.url + '/api/v2/torrents/add' ) -form $dl_url -WebSession $sid -Method POST -ContentType 'application/x-bittorrent' > $null
                 $added++
-                Remove-Item -Path ( $tmp_drive + $drive_separator + $id.Name + '.torrent' ) 
+                Remove-Item $torrent_file_path
+
+                Start-Sleep -Seconds 1
             }
         }
     }

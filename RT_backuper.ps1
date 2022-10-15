@@ -3,15 +3,11 @@
 if ( !(Confirm-Version) ) { Exit }
 If ( !( Sync-Settings ) ) { Write-Host 'Проверьте наличие и заполненность файла настроек в каталоге скрипта'; Pause; Exit }
 
-$os, $folder_sep = Get-OsParams
-
 Clear-Host
 Start-Pause
 Start-Stopping
 
-# Очищаем пустые папки в папке загрузок
-Clear-EmptyFolders $store_path
-
+# Подключаемся к клиенту.
 Initialize-Client
 
 # Загружаем списки заархивированных раздач.
@@ -29,7 +25,7 @@ try {
 if ( !$torrents_list ) {
     # Ищем раздачи, которые скачал клиент и добавил в буферный файл.
     $hash_file = Watch-FileExist $def_paths.downloaded
-    if ( $hash_file.Size ) {
+    if ( $hash_file.($OS.sizeField) ) {
         $downloaded = ( Get-FileFirstContent $def_paths.downloaded $backuper.hashes_step )
         Write-Host ( '[backuper] Найдено раздач, докачанных клиентом : {0}.' -f $downloaded.count )
     }
@@ -101,18 +97,18 @@ foreach ( $torrent in $torrents_list ) {
         Compare-MaxSize $backuper.zip_folder $backuper.zip_folder_size
     }
 
-    # Ид раздачи
+    # Ид и прочие параметры раздачи.
     $torrent_id = $torrent.state
     $torrent_hash = $torrent.hash.ToLower()
-    $disk_id, $disk_name, $disk_path = Get-DiskParams $torrent_id $folder_sep
+    $disk_id, $disk_name, $disk_path = Get-DiskParams $torrent_id
 
-    # Имя арихва.
+    # Имя архива.
     $base_name = $torrent_id.ToString() + '_' + $torrent.hash.ToLower()
     $full_name = $base_name + '.7z'
 
     # Полный путь хранения обрабатываемого архива и архива, который готов к заливке.
-    $zip_path_progress = $def_paths.progress + $folder_sep + $full_name
-    $zip_path_finished = $def_paths.finished + $folder_sep + $full_name
+    $zip_path_progress = $def_paths.progress + $OS.fsep + $full_name
+    $zip_path_finished = $def_paths.finished + $OS.fsep + $full_name
     $zip_google_path   = $google_params.folders[0] + $disk_path + $full_name
 
     Start-Pause
@@ -123,7 +119,7 @@ foreach ( $torrent in $torrents_list ) {
         Write-Host ( 'Проверяем гугл-диск {0}' -f $zip_google_path )
         # Проверяем, что архив для такой раздачи ещё не создан.
         $zip_test = Test-PathTimer $zip_google_path
-        Write-Host ( '[check][{0}] Проверка в гугле заняла {1} сек, результат: {2}' -f $disk_name, $zip_test.exec, $zip_test.result )
+        Write-Host ( '[check][{0}] Проверка выполнена за {1} сек, результат: {2}' -f $disk_name, $zip_test.exec, $zip_test.result )
         if ( $zip_test.result ) {
             # Если раздача уже есть в гугле, то надо её удалить из клиента и добавить в локальный список архивированных.
             Dismount-ClientTorrent $torrent_id $torrent_hash
@@ -169,7 +165,6 @@ foreach ( $torrent in $torrents_list ) {
             Write-Host ( 'Перемещаем {0} в каталог {1}' -f  $base_name, $def_paths.finished )
             Move-Item -path $zip_path_progress -destination $zip_path_finished -Force -ErrorAction Stop
             Write-Host 'Готово!'
-            Export-TorrentProperties $base_name $torrent
         }
         catch {
             Write-Host 'Не удалось переместить архив.' -ForegroundColor Red

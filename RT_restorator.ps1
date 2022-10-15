@@ -1,10 +1,8 @@
 . "$PSScriptRoot\RT_functions.ps1"
 
-if ($client_url -eq '' -or $nul -eq $client_url ) {
-    Write-Output 'Проверьте наличие и заполненность файла настроек в каталоге скрипта'
-    Pause
-    exit
-}
+if ( !(Confirm-Version) ) { Exit }
+If ( !( Sync-Settings ) ) { Write-Host 'Проверьте наличие и заполненность файла настроек в каталоге скрипта';  Pause; Exit }
+
 
 $secure_pass = ConvertTo-SecureString -String $proxy_password -AsPlainText -Force
 $proxyCreds = New-Object System.Management.Automation.PSCredential -ArgumentList $proxy_login, $secure_pass
@@ -13,7 +11,7 @@ Write-Output 'Смотрим, что уже заархивировано'
 $archives = @{}
 $hashes_tmp = @{}
 $hashes = @{}
-( get-childitem( $google_folder ) | Where-Object { $_.name -like 'ArchRuT*' } ) | ForEach-Object { Get-ChildItem( $_ ) } | `
+( get-childitem( $google_params.folders[0] ) | Where-Object { $_.name -like 'ArchRuT*' } ) | ForEach-Object { Get-ChildItem( $_ ) } | `
     Sort-Object -Property CreationTime -Descending | ForEach-Object { try {
         $archives[($_.Name.split('_')[0])] = $_.FullName
         $hashes_tmp[($_.Name.split('_')[0])] = $_.name.Split('_')[1].split('.')[0]
@@ -23,12 +21,18 @@ $hashes = @{}
 $hashes_tmp.keys | ForEach-Object { $hashes[$hashes_tmp[$_]] = $_ }
 $hashes_tmp = @{}
 
-$choice = ( Read-Host -Prompt 'Выберите раздел' ).ToString()
-
-$category = $default_category
-if ( $default_category -eq '' ) {
-    $category = ( ( Invoke-WebRequest -Uri ( 'http://api.rutracker.org/v1/get_forum_name?by=forum_id&val=' + $choice ) ).content | ConvertFrom-Json -AsHashtable ).result[$choice]
+if ( $args ) {
+    $choice = $args[0]
+    Write-Host "Выбранный раздел: $choice"
+} else {
+    $choice = ( Read-Host -Prompt 'Выберите раздел' ).ToString()
 }
+
+$category = $collector.category
+if ( !$category ) {
+    $category = ( ( Invoke-WebRequest -Uri ( 'http://api.rutracker.org/v1/get_forum_name?by=forum_id&val=' + $choice ) ).content | ConvertFrom-Json -AsHashtable ).result[[string]$choice]
+}
+if ( !$category ) { $category = 'restored' }
 
 Write-Output 'Запрашиваем c трекера список раздач в разделе'
 $tracker_torrents_list = ( ( Invoke-WebRequest -Uri ( 'http://api.rutracker.org/v1/static/pvc/f/' + $choice ) ).content | ConvertFrom-Json -AsHashtable ).result
@@ -45,60 +49,68 @@ $archives.keys | Where-Object { $nul -ne $tracker_torrents_list[$_] } | ForEach-
 $hashes_required = @{}
 $hashes.keys | Where-Object { $nul -ne $tracker_torrents_list[$hashes[$_]] } | ForEach-Object { $hashes_required[$_] = $hashes[$_] }
 
-Write-Output 'Авторизуемся в клиенте'
-$logindata = "username=$webui_login&password=$webui_password"
-$loginheader = @{Referer = $client_url }
-Invoke-WebRequest -Headers $loginheader -Body $logindata ( $client_url + '/api/v2/auth/login' ) -Method POST -SessionVariable sid > $nul
+# Подключаемся к клиенту.
+Initialize-Client
 
 Write-Output 'Получаем список раздач из клиента'
-$client_torrents_list = ( Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/info' ) -WebSession $sid ).Content | ConvertFrom-Json | Select-Object hash
+$client_torrents_list = [string[]]( Read-Client 'torrents/info' ) | ConvertFrom-Json | % { $_.hash }
 
 Write-Output 'Исключаем раздачи, которые уже есть в клиенте'
 $hashes = @{}
-$hashes_required.keys | Where-Object { $nul -eq $client_torrents_list[$_] } | ForEach-Object { $hashes[$_] = $hashes_required[$_] } 
+$hashes_required.keys | ? { $_ -notin $client_torrents_list } | ForEach-Object { $hashes[$_] = $hashes_required[$_] } 
 Remove-Variable -name hashes_required
+
+if ( !$hashes.count ) {
+    Write-Host 'Нет раздач для восстановления.'
+    Exit
+}
+
 $archives = @{}
 $hashes.Values | ForEach-Object { $archives[$_] = $archives_required[$_] }
 Remove-Variable -name archives_required
 
 Write-Output 'Авторизуемся на форуме'
 $headers = @{'User-Agent' = 'Mozilla/5.0' }
-$payload = @{'login_username' = $rutracker_login; 'login_password' = $rutracker_password; 'login' = '%E2%F5%EE%E4' }
+$payload = @{'login_username' = $rutracker.login; 'login_password' = $rutracker.password; 'login' = '%E2%F5%EE%E4' }
 Invoke-WebRequest -uri 'https://rutracker.org/forum/login.php' -SessionVariable forum_login -Method Post -body $payload -Headers $headers -Proxy $proxy_address -ProxyCredential $proxyCreds > $null
 
-if ( $PSVersionTable.OS.ToLower().contains('windows')) {
-    $separator = '\'
-    $drive_separator = ':\'
-}
-else {
-    $separator = '/'
-    $drive_separator = '/'
-}
-
+Write-Host 'Перебираем раздачи'
 foreach ( $hash in $hashes.Keys ) {
     if ( $nul -eq ( $client_torrents_list[$hash])) {
-        $id = $hashes[$hash]
-        $filename = $archives[$id]
+        $torrent_id = $hashes[$hash]
+        $filename = $archives[$torrent_id]
         Write-Output "Распаковываем $filename"
 
-        if ( $torrent_folders -eq 1 ) { $extract_path = $collector.path + $separator + $id }
-        else { $extract_path = $collector.path }
+        $extract_path = $collector.collect
+        if ( $collector.sub_folder ) {
+            $extract_path = $collector.collect + $OS.fsep + $torrent_id
+        }
 
-        New-Item -path $extract_path -ErrorAction SilentlyContinue
-        & $7z_path e "$filename" "-p20RuTracker.ORG22" "-o$extract_path"
+        New-Item -ItemType Directory -Path $extract_path -Force > $null
+        if ( $backuper.h7z ) {
+            & $backuper.p7z x "$filename" "-p$pswd" "-o$extract_path" > $null
+        } else {
+            & $backuper.p7z x "$filename" "-p$pswd" "-o$extract_path"
+        }
 
-        Write-Output "Скачиваем торрент с форума"
-        $forum_torrent_path = 'https://rutracker.org/forum/dl.php?t=' + $id
-        Invoke-WebRequest -uri $forum_torrent_path -WebSession $forum_login -OutFile ( $tmp_drive + $drive_separator + 'temp.torrent') > $null
+        Write-Output ( 'Скачиваем торрент для раздачи {0} с форума.' -f $torrent_id )
+        New-Item -ItemType Directory -Path $collector.tmp_folder -Force > $null
+        $forum_torrent_path = 'https://rutracker.org/forum/dl.php?t=' + $torrent_id
+        $torrent_file_path = $collector.tmp_folder + $OS.fsep + $torrent_id + '_restore.torrent'
+        Invoke-WebRequest -uri $forum_torrent_path -WebSession $forum_login -OutFile $torrent_file_path > $null
 
-        Write-Output "Добавляем торрент в клиент"
+        Write-Output ( 'Добавляем торрент для раздачи {0} в клиент.' -f $torrent_id )
         $dl_url = @{
-            name        = 'torrents'
-            torrents    = get-item ( $tmp_drive + $drive_separator + 'temp.torrent' )
+            torrents    = Get-Item $torrent_file_path
             savepath    = $extract_path
             category    = $category
+            name        = 'torrents'
             root_folder = 'false'
         }
-        Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/add' ) -form $dl_url -WebSession $sid -Method POST -ContentType 'application/x-bittorrent' > $null
+
+        Invoke-WebRequest -uri ( $client.url + '/api/v2/torrents/add' ) -form $dl_url -WebSession $sid -Method POST -ContentType 'application/x-bittorrent' > $null
+        Remove-Item $torrent_file_path
+
+        Start-Sleep -Seconds 1
     }
 }

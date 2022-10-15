@@ -135,7 +135,7 @@ ForEach ( $id in $sorted ) {
                 Write-Output ( 'Скачиваем {0} ({1}), {2}.' -f $torrent_id, (Get-BaseSize $info.size), $info.topic_title )
                 $forum_torrent_path = 'https://rutracker.org/forum/dl.php?t=' + $torrent_id
                 $torrent_file_path = $collector.tmp_folder + $OS.fsep + $torrent_id + '.torrent'
-                Invoke-WebRequest -uri $forum_torrent_path -WebSession $forum_login -OutFile $torrent_file_path #> $null
+                Invoke-WebRequest -uri $forum_torrent_path -WebSession $forum_login -OutFile $torrent_file_path > $null
 
                 # и добавляем торрент в клиент
                 $extract_path = $collector.collect

@@ -120,6 +120,11 @@ function Get-Archives {
     # Если не используется updater, то список архивов надо обновлять принудительно.
     if ( !$used_modules.updater ) { Sync-ArchList $true }
 
+    if ( !(Get-ChildItem $stash_folder.archived) ) {
+        Write-Host 'Не обнаружено списков заархивированного. Запустите updater' -ForegroundColor Yellow
+        Exit
+    }
+
     Write-Host '[archived] Смотрим, что уже заархивировано..'
     $time_collect = [math]::Round( (Measure-Command {
         $dones = Get-Content ( $stash_folder.archived + $OS.fsep + '*.txt' )
@@ -183,30 +188,6 @@ function Get-TopicIDs( $torrents_list, $hashes ) {
     }
     $torrents_list = $torrents_list | Where-Object { $nul -ne $_.state }
     return $torrents_list
-}
-
-# КМК, бесполезный функционал, если тоже самое выполняет Get-TopicIDs
-function Get-Required ( $torrents_list, $archives_list ) {
-    $torrents_list_required = [System.Collections.ArrayList]::new()
-    $torrents_list | ForEach-Object {
-        $torrent_id = $_.state
-        $torrent_hash = $_.hash.ToLower()
-        $zip_name = $torrent_id.ToString() + '_' + $torrent_hash
-
-        # Архива нет в списке заархивированных
-        if ( $zip_name -notin $archives_list ) {
-            if ( $torrent_id -ne '' ) {
-                $torrents_list_required += $_
-            }
-        }
-        # Есть в списке - пробуем удалить
-        else {
-            Dismount-ClientTorrent $torrent_id $torrent_hash
-        }
-
-    }
-
-    return $torrents_list_required
 }
 
 # Обновить список архивов в локальной "БД".
@@ -497,18 +478,20 @@ function Sync-Settings {
     Get-OsParams
 
     $terminate = $false
+    $errors = @()
     if ( !$client ) {
-        Write-Host '[settings] Отсутсвует блок параметров подключения к клиенту, $client'
+        # Write-Host '[settings] Отсутсвует блок параметров подключения к клиенту, $client'
+        $errors+= '[settings] Отсутсвует блок параметров подключения к клиенту, $client'
         $terminate = $true
     }
 
     if ( !$rutracker ) {
-        Write-Host '[settings] Отсутсвует блок параметров подключения к форуму, $rutracker'
+        $errors+= '[settings] Отсутсвует блок параметров подключения к форуму, $rutracker'
     }
 
     # Валидация настроек гугл-диска.
     if ( !$google_params ) {
-        Write-Host '[settings] Отсутсвует блок параметров гугл-дисков, $google_params'
+        $errors+= '[settings] Отсутсвует блок параметров гугл-дисков, $google_params'
         $terminate = $true
     } else {
         # Проверяем кол-во подключённых дисков.
@@ -524,27 +507,28 @@ function Sync-Settings {
         }
 
         if ( $google_params.uploaders_count -gt $google_params.accounts_count ) {
-            $text = 'Неверный набор параметров accounts_count:{0} >= uploaders_count:{1}.' -f $google_params.accounts_count, $google_params.uploaders_count
-            Write-Host $text -ForegroundColor Red
-            Write-Host 'Параметры скорректированы, но проверьте файл настроек.'
+            $errors+= 'Неверный набор параметров accounts_count:{0} >= uploaders_count:{1}.' -f $google_params.accounts_count, $google_params.uploaders_count
+            $errors+= 'Параметры скорректированы, но проверьте файл настроек.'
             $google_params.uploaders_count = $google_params.accounts_count
         }
     }
 
     if ( !$backuper ) {
-        Write-Host '[settings] Отсутсвует блок параметров архивирования, $backuper'
+        $errors+= '[settings] Отсутсвует блок параметров архивирования, $backuper'
         $terminate = $true
     }
 
     if ( !$uploader ) {
-        Write-Host '[settings] Отсутсвует блок параметров выгрузки на гугл-диск, $uploader'
+        $errors+= '[settings] Отсутсвует блок параметров выгрузки на гугл-диск, $uploader'
     }
 
     if ( !$collector ) {
-        Write-Host '[settings] Отсутсвует блок параметров загрузки торрент-файлов, $collector'
+        $errors+= '[settings] Отсутсвует блок параметров загрузки торрент-файлов, $collector'
     }
 
-
+    if ( $errors ) {
+        $errors | Write-Host -ForegroundColor Yellow
+    }
 
     # Проверим наличие заданных каталогов. (вероятно лучше перенести в проверку конфига)
     New-Item -ItemType Directory -Path $def_paths.progress -Force > $null

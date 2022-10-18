@@ -1,5 +1,6 @@
 #!/bin/bash
-# Поправить путь к вашему файлу, а точнее к папке stash
+# Поправить путь к вашему файлу, а точнее к папке config
+# /config/qBittorrent/config/hashes.txt
 echo $1 >> /pwsh/hashes.txt
 
 # Пример запуска:

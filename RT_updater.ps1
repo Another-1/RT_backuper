@@ -8,4 +8,4 @@ Start-Pause
 Start-Stopping
 
 # Запускаем обновление списка архивов.
-Sync-ArchList
+Sync-ArchList $args[0]

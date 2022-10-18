@@ -10,10 +10,7 @@ Start-Stopping
 Write-Host '[uploader] Начинаем процесс выгрузки архивов в гугл.'
 # Ищем данные о прошлых выгрузках в гугл.
 $uploads_all = Get-StoredUploads
-$uploads_all.GetEnumerator() | Sort-Object -Property Key | % {
-    $temp_size = ( $_.value.values | Measure-Object -sum ).Sum
-    Write-Host ( 'Для гугл-аккаунта [{0}] выгружено: {1}' -f $_.key, ( Get-BaseSize $temp_size) )
-}
+Show-StoredUploads $uploads_all
 
 # ПЕРЕНЕСТИ В ВАЛИДАЦИЮ
 # Проверяем наличие нового параметра в конфиге
@@ -84,7 +81,7 @@ foreach ( $zip in $zip_list ) {
     $zip_google_path  = $google_path + $disk_path + $zip.Name
 
     Write-Host ''
-    Write-Host ( '[torrent] Раздача: id={0}, disk=[{1}], path={2} {3}' -f $torrent_id, $disk_id, $google_name, $disk_name )
+    Write-Host ( '[torrent] Раздача: id={0} ({4}), disk=[{1}], path={2} {3}' -f $torrent_id, $disk_id, $google_name, $disk_name, (Get-BaseSize $zip_size) )
     try {
         if ( $uploader.validate ) {
             Write-Host '[check] Начинаем проверку целостности архива перед отправкой в гугл.'

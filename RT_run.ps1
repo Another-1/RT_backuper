@@ -12,7 +12,7 @@ $run = @{
 while( $true ) {
     $run.start = Get-Date
     if ( $args.count -gt 0 ) {
-        if ( $args[1] -ne $null ) {
+        if ( $args[1] ) {
             try { $run.timer = [int]$args[1] } catch {}
         }
 
@@ -29,7 +29,7 @@ while( $true ) {
     }
 
     $run.exec_time = [math]::Round( ((Get-Date) - $run.start).TotalMinutes )
-    $run.timer = if ( $run.exec_time -ge $run.timer ) { 1 } else { $run.timer - $run.exec_time }
+    $run.timer = if ( $run.exec_time -lt $run.timer ) { $run.timer - $run.exec_time } else { 5 }
     $run.num++
     Write-Output ( '[{0}] Подождём {1} минут и попробуем ещё раз. Счётчик цикла: {2}' -f (Get-Date -Format t), $run.timer, $run.num )
     Start-Sleep -Seconds ($run.timer * 60)

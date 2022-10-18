@@ -7,11 +7,7 @@ Clear-Host
 Start-Pause
 Start-Stopping
 
-# Подключаемся к клиенту.
-Initialize-Client
 
-# Загружаем списки заархивированных раздач.
-$dones, $hashes = Get-Archives
 
 # Пробуем найти список раздач, которые обрабатывались, но процесс прервался.
 try {
@@ -35,6 +31,9 @@ if ( !$torrents_list ) {
         Exit
     }
 
+    # Подключаемся к клиенту.
+    Initialize-Client
+
     # получаем список раздач из клиента
     Write-Host 'Получаем список раздач из клиента..'
     $exec_time = [math]::Round( (Measure-Command {
@@ -47,12 +46,15 @@ if ( !$torrents_list ) {
     }
     Write-Host ( '..от клиента получено раздач: {0} [{1} сек].' -f $torrents_list.count, $exec_time )
 
+    # Загружаем списки заархивированных раздач, чтобы отфильтровать.
+    $dones, $hashes = Get-Archives
+
     # по каждой раздаче получаем коммент, чтобы достать из него номер топика
     Write-Host ( 'Получаем номера топиков по раздачам и пропускаем уже заархивированное.' )
     $exec_time = [math]::Round( (Measure-Command {
         $torrents_list = Get-TopicIDs $torrents_list $hashes
     }).TotalSeconds, 1 )
-    Write-Host ( 'Топиков с номерами получено: {0} [{1} сек].' -f $torrents_list.count, $exec_time )
+    Write-Host ( '[backuper] Топиков с номерами получено: {0} [{1} сек].' -f $torrents_list.count, $exec_time )
 }
 
 

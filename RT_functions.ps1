@@ -1,5 +1,6 @@
 New-Item -ItemType Directory -Path "$PSScriptRoot\config" -Force > $null
 
+# Проверяем наличие файла настроек и подключаем его.
 $config_path = "$PSScriptRoot\config\RT_settings.ps1"
 if ( !(Test-Path $config_path) ) {
     Write-Host 'Не обнаружен файл настроек RT_settings.ps1. Создайте его в папке /config' -ForegroundColor Red
@@ -24,15 +25,13 @@ $stash_folder = @{
     backup_list   = "$PSScriptRoot/stash/backup_list.xml"   # Файл уже обработанного списка раздач. Для случая когда был перезапуск
 
     finished      = "$PSScriptRoot/stash/finished.txt"      # Файл id_hash раздач, которые были найдены в гугле или были заархивированны
-    torrents      = "$PSScriptRoot/stash/torrents/"         # Каталог хранения данных раздачи
-
     pause         = "$PSScriptRoot/stash/pause.txt"         # Если в файле что-то есть, скрипт встанет на паузу.
 }
 
 $def_paths = @{
     downloaded    = "$PSScriptRoot/config/hashes.txt"       # Файл со списком свежескачанных раздач. Добавляется из клиента
-    progress      = $backuper.zip_folder + '/progress'   # Каталог хранения архивируемых раздач
-    finished      = $backuper.zip_folder + '/finished'   # Каталог хранения, уже готовых к выгрузке в гугл, архивов
+    progress      = $backuper.zip_folder + '/progress'      # Каталог хранения архивируемых раздач
+    finished      = $backuper.zip_folder + '/finished'      # Каталог хранения, уже готовых к выгрузке в гугл, архивов
 }
 
 $measure_names = @{
@@ -52,7 +51,7 @@ function Initialize-Client ( $Retry = $false ) {
     $loginheader = @{ Referer = $client.url }
     try {
         Write-Host '[client] Авторизуемся в клиенте.'
-        $result = Invoke-WebRequest -Headers $loginheader -Body $logindata ( $client.url + '/api/v2/auth/login' ) -Method POST -SessionVariable sid
+        $result = Invoke-WebRequest -Headers $loginheader -Uri ( $client.url + '/api/v2/auth/login' ) -Body $logindata -Method POST -SessionVariable sid
         if ( $result.StatusCode -ne 200 ) {
             throw 'You are banned.'
         }
@@ -75,7 +74,7 @@ function Read-Client ( [string]$Metod, [string]$Params = '' ) {
         $url = $client.url + '/api/v2/' + $Metod + $Params
         try {
             # Metod='torrents/info', Params='?filter=completed'
-            $data = Invoke-WebRequest -uri $url -WebSession $client.sid
+            $data = Invoke-WebRequest -Uri $url -WebSession $client.sid
             Break
         }
         catch {
@@ -218,9 +217,10 @@ function Sync-ArchList ( $All = $false ) {
     # Собираем список гугл-дисков и проверяем наличие файла со списком архивов для каждого. Создаём если нет.
     # Проверяем даты обновления файлов и размер. Если прошло 6ч или файл пуст -> пора обновлять.
     $folders = $arch_folders | % { Watch-FileExist ($stash_folder.archived + $OS.fsep + $_.Name + '.txt') }
-        | ? { $_.($OS.sizeField) -eq 0 -Or ($_.LastWriteTime -lt ( Get-Date ).AddHours( -6 )) }
+        | ? { $_.LastWriteTime -lt ( Get-Date ).AddHours( -6 ) }
         | Sort-Object -Property LastWriteTime
 
+    Write-Host ( '[updater] Списков требущих обновления: {0}.' -f $folders.count )
     # Выбираем первый диск по условиям выше и обновляем его.
     if ( !$All ) {
         $folders = $folders | Select -First 1
@@ -261,7 +261,7 @@ function Dismount-ClientTorrent ( [int]$torrent_id, [string]$torrent_hash, [stri
 # Вычисляем сжатие архива, в зависимости от раздела раздачи и параметров.
 function Get-Compression ( [int]$torrent_id, $params ) {
     try {
-        $topic = ( Invoke-WebRequest( 'http://api.rutracker.org/v1/get_tor_topic_data?by=topic_id&val=' + $torrent_id )).content | ConvertFrom-Json
+        $topic = ( Invoke-WebRequest( 'http://api.rutracker.org/v1/get_tor_topic_data?by=topic_id&val=' + $torrent_id ) ).content | ConvertFrom-Json
         $forum_id = [int]$topic.result.($torrent_id).forum_id
         $compression = $params.sections_compression[ $forum_id ]
     } catch {}
@@ -304,7 +304,7 @@ function Get-TodayTraffic ( $uploads_all, $zip_size, $google_folder ) {
     return ( $uploads.values | Measure-Object -sum ).Sum, $uploads_all
 }
 
-# Ищем файлик с данными выгрузок на диск и подгружаем его
+# Ищем файлик с данными выгрузок на диск и подгружаем его.
 function Get-StoredUploads ( $uploads_old = @{} ) {
     $uploads_all = @{}
     If ( Test-Path $stash_folder.uploads_limit ) {
@@ -315,6 +315,31 @@ function Get-StoredUploads ( $uploads_old = @{} ) {
         }
     }
     return $uploads_all
+}
+
+# Отобразить затраченные лимиты в разрезе периодов времени.
+function Show-StoredUploads ( $uploads_all ) {
+    $time_diff = 1, 3, 6, 12
+    $yesterday = ( Get-date ).AddDays( -1 )
+    $uploads_all.GetEnumerator() | Sort-Object Key | % {
+        $disk_name = $_.key
+        $full_size = ( $_.value.values | Measure-Object -sum ).Sum
+
+        $period = [ordered]@{}
+        $time_diff | % { $period[ [string]$_ ] = 0 }
+
+        $upload = $_.value
+        $actual = $upload.keys | ? { $_ -ge $yesterday }
+        foreach ( $tmsp in $actual ) {
+            foreach ( $h in $time_diff ) {
+                if ( $tmsp -le $yesterday.addHours( $h ) ) {
+                    $period[ [string]$h ] += $upload[$tmsp]
+                    Break
+                }
+            }
+        }
+        Write-Host ( "[limit][{4}] Выгружено {5}. Освободится: {0}; {1}; {2}; {3}." -f @( ($period.values | % {Get-BaseSize $_}) + $disk_name + (Get-BaseSize $full_size) ) )
+    }
 }
 
 # Проверка версии PowerShell.

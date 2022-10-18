@@ -9,10 +9,7 @@ Start-Stopping
 
 # Ищем данные о прошлых выгрузках в гугл.
 $uploads_all = Get-StoredUploads
-$uploads_all.GetEnumerator() | Sort-Object -Property Key | % {
-    $temp_size = ( $_.value.values | Measure-Object -sum ).Sum
-    Write-Host ( 'Для диска {0} выгружено: {1}' -f $_.key, ( Get-BaseSize $temp_size) )
-}
+Show-StoredUploads $uploads_all
 
 # Если переданы хеши как аргументы.
 if ( $args ) {

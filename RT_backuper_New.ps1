@@ -61,7 +61,7 @@ Write-Host ( 'Топиков с номерами получено: {0} [{1} се
 
 $proc_size = 0
 $proc_cnt = 0
-$sum_size = ( $torrents_list | Measure-Object -sum size ).Sum
+$sum_size = ( $torrents_list | Measure-Object $OS.sizeField -Sum ).Sum
 $sum_cnt = $torrents_list.count
 $used_locs = [System.Collections.ArrayList]::new()
 $ok = $true
@@ -84,20 +84,6 @@ if ( $args.count -eq 0 ) {
         Exit
     }
 }
-
-
-# Проверяем наличие нового параметра в конфиге
-if ( $google_params.accounts_count -eq $null -Or $google_params.accounts_count -gt 5 ) {
-    $google_params.accounts_count = 1
-}
-# Если подключённых дисков больше одного, то кол-во акков = колву дисков
-if ( $google_params.folders.count -gt 1 ) {
-    $google_params.accounts_count = $google_params.folders.count
-}
-
-# Проверим наличие заданных каталогов. (вероятно лучше перенести в проверку конфига)
-New-Item -ItemType Directory -Path $def_paths.progress -Force > $null
-New-Item -ItemType Directory -Path $def_paths.finished -Force > $null
 
 # Перебираем найденные раздачи и бекапим их.
 Write-Host ('[backuper] Начинаем перебирать раздачи.')

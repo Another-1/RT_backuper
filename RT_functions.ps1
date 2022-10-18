@@ -4,9 +4,9 @@ New-Item -ItemType Directory -Path "$PSScriptRoot\config" -Force > $null
 $config_path = "$PSScriptRoot\config\RT_settings.ps1"
 if ( !(Test-Path $config_path) ) {
     Write-Host 'Не обнаружен файл настроек RT_settings.ps1. Создайте его в папке /config' -ForegroundColor Red
-    Exit
+} else {
+    . $config_path
 }
-. $config_path
 
 # лимит закачки на один диск в сутки
 $lv_750gb = 740 * 1024 * 1024 * 1024
@@ -122,7 +122,7 @@ function Get-Archives {
 
     Write-Host '[archived] Смотрим, что уже заархивировано..'
     $time_collect = [math]::Round( (Measure-Command {
-        $dones = Get-Content ( $stash_folder.archived + '\*.txt' )
+        $dones = Get-Content ( $stash_folder.archived + $OS.fsep + '*.txt' )
     }).TotalSeconds, 1 )
 
     $time_parse = [math]::Round( (Measure-Command {
@@ -213,11 +213,10 @@ function Get-Required ( $torrents_list, $archives_list ) {
 function Sync-ArchList ( $All = $false ) {
     $arch_folders = Get-ChildItem $google_params.folders[0] -filter "$google_folder_prefix*" -Directory
 
-    New-Item -ItemType Directory -Path $stash_folder.archived -Force > $null
     # Собираем список гугл-дисков и проверяем наличие файла со списком архивов для каждого. Создаём если нет.
     # Проверяем даты обновления файлов и размер. Если прошло 6ч или файл пуст -> пора обновлять.
     $folders = $arch_folders | % { Watch-FileExist ($stash_folder.archived + $OS.fsep + $_.Name + '.txt') }
-        | ? { $_.LastWriteTime -lt ( Get-Date ).AddHours( -6 ) }
+        | ? { $_.($OS.sizeField) -eq 0 -Or ($_.LastWriteTime -lt ( Get-Date ).AddHours( -6 )) } 
         | Sort-Object -Property LastWriteTime
 
     Write-Host ( '[updater] Списков требущих обновления: {0}.' -f $folders.count )
@@ -496,7 +495,61 @@ function Start-Pause {
 function Sync-Settings {
     # Определяем параметры окружения.
     Get-OsParams
+
+    $terminate = $false
+    if ( !$client ) {
+        Write-Host '[settings] Отсутсвует блок параметров подключения к клиенту, $client'
+        $terminate = $true
+    }
+
+    if ( !$rutracker ) {
+        Write-Host '[settings] Отсутсвует блок параметров подключения к форуму, $rutracker'
+    }
+
+    # Валидация настроек гугл-диска.
+    if ( !$google_params ) {
+        Write-Host '[settings] Отсутсвует блок параметров гугл-дисков, $google_params'
+        $terminate = $true
+    } else {
+        # Проверяем кол-во подключённых дисков.
+        if ( $google_params.accounts_count -eq $null -Or $google_params.accounts_count -gt 5 ) {
+            $google_params.accounts_count = 1
+        }
+        # Если подключённых дисков больше одного, то кол-во акков = колву дисков
+        if ( $google_params.folders.count -gt 1 ) {
+            $google_params.accounts_count = $google_params.folders.count
+        }
+        if ( !$google_params.uploaders_count ) {
+            $google_params.uploaders_count = 1
+        }
+
+        if ( $google_params.uploaders_count -gt $google_params.accounts_count ) {
+            $text = 'Неверный набор параметров accounts_count:{0} >= uploaders_count:{1}.' -f $google_params.accounts_count, $google_params.uploaders_count
+            Write-Host $text -ForegroundColor Red
+            Write-Host 'Параметры скорректированы, но проверьте файл настроек.'
+            $google_params.uploaders_count = $google_params.accounts_count
+        }
+    }
+
+    if ( !$backuper ) {
+        Write-Host '[settings] Отсутсвует блок параметров архивирования, $backuper'
+        $terminate = $true
+    }
+
+    if ( !$uploader ) {
+        Write-Host '[settings] Отсутсвует блок параметров выгрузки на гугл-диск, $uploader'
+    }
+
+    if ( !$collector ) {
+        Write-Host '[settings] Отсутсвует блок параметров загрузки торрент-файлов, $collector'
+    }
+
+
+
+    # Проверим наличие заданных каталогов. (вероятно лучше перенести в проверку конфига)
+    New-Item -ItemType Directory -Path $def_paths.progress -Force > $null
+    New-Item -ItemType Directory -Path $def_paths.finished -Force > $null
+    New-Item -ItemType Directory -Path $stash_folder.archived -Force > $null
     
-    if ( !$client -And !$client.url ) { return $false }
-    return $true
+    return !$terminate
 }

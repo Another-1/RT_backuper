@@ -12,26 +12,9 @@ Write-Host '[uploader] Начинаем процесс выгрузки архи
 $uploads_all = Get-StoredUploads
 Show-StoredUploads $uploads_all
 
-# ПЕРЕНЕСТИ В ВАЛИДАЦИЮ
-# Проверяем наличие нового параметра в конфиге
-if ( $google_params.accounts_count -eq $null -Or $google_params.accounts_count -gt 5 ) {
-    $google_params.accounts_count = 1
-}
-# Если подключённых дисков больше одного, то кол-во акков = колву дисков
-if ( $google_params.folders.count -gt 1 ) {
-    $google_params.accounts_count = $google_params.folders.count
-}
-
 # Если используемых акков >1 и передан параметр с номером, то используем балансировку.
 if ( $args.count -ne 0 -and $google_params.accounts_count -gt 1 ) {
     $uploader_num = $args[0]
-
-    if ( $google_params.uploaders_count -gt $google_params.accounts_count ) {
-        $text = '[balance] Неверный набор параметров accounts_count:{0} >= uploaders_count:{1}.' -f $google_params.accounts_count, $google_params.uploaders_count
-        Write-Host $text -ForegroundColor Red
-        Write-Host 'Параметры скорректированы, но проверьте файл настроек.'
-        $google_params.uploaders_count = $google_params.accounts_count
-    }
 
     if ( $uploader_num -gt $google_params.uploaders_count) {
         Write-Host ( '[balance] Неверный параметр балансировки "{0}". Акканутов подключено {1}. Прерываем.' -f $uploader_num, $google_params.uploaders_count ) -ForegroundColor Red
@@ -41,7 +24,7 @@ if ( $args.count -ne 0 -and $google_params.accounts_count -gt 1 ) {
 }
 
 # Ищем список архивов, которые нужно перенести
-$zip_list = Get-ChildItem $def_paths.finished -Filter '*.7z'
+$zip_list = Get-ChildItem $def_paths.finished -Filter '*.7z' | Sort-Object $OS.sizeField
 
 $proc_cnt = 0
 $proc_size = 0

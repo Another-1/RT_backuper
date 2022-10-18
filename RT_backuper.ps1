@@ -7,8 +7,6 @@ Clear-Host
 Start-Pause
 Start-Stopping
 
-
-
 # Пробуем найти список раздач, которые обрабатывались, но процесс прервался.
 try {
     $torrents_list = Import-Clixml $stash_folder.backup_list
@@ -78,14 +76,9 @@ If ( $ok -eq $false) {
 
 $proc_size = 0
 $proc_cnt = 0
-$sum_size = ( $torrents_list | Measure-Object -sum size ).Sum
+$sum_size = ( $torrents_list | Measure-Object $OS.sizeField -Sum ).Sum
 $sum_cnt = $torrents_list.count
 Write-Host ( '[backuper] Объём новых раздач ({0} шт) {1}.' -f $sum_cnt, (Get-BaseSize $sum_size) )
-
-
-# Проверим наличие заданных каталогов. (вероятно лучше перенести в проверку конфига)
-New-Item -ItemType Directory -Path $def_paths.progress -Force > $null
-New-Item -ItemType Directory -Path $def_paths.finished -Force > $null
 
 # Записываем найденные раздачи в файлик.
 $torrents_left = $torrents_list

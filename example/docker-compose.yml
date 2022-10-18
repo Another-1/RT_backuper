@@ -27,12 +27,12 @@ services:
   pwsh-uploader1:
     <<: *pwsh-base
     container_name: pwsh-uploader1
-    command: "uploader_1 15"
+    command: "uploader-1 15"
 
   pwsh-uploader2:
     <<: *pwsh-base
     container_name: pwsh-uploader2
-    command: "uploader_2 15"
+    command: "uploader-2 15"
 
   # Обновляет локальный список уже существующих архивов.
   pwsh-updater:

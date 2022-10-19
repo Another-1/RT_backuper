@@ -124,7 +124,6 @@ If ( $client_torrents_list.Count -gt 0 ) {
                 Invoke-WebRequest -uri ( $client_url + '/api/v2/torrents/delete?hashes=' + $torrent.hash + '&deleteFiles=true' ) -WebSession $sid -Method POST > $nul
             }
             catch { }
-
         }
     }
 }

@@ -108,6 +108,37 @@ function Get-ClientTopic ( $torrent) {
     }
 }
 
+# Добавить заданный торрент файл в клиент
+function Add-ClientTorrent ( $Hash, $File, $Path, $Category ) {
+    $base64 = [convert]::ToBase64String(( Get-Content $File -AsByteStream -Raw ))
+    $Params = @{
+        method = 'torrent-add'
+        arguments = @{
+            'download-dir' = $Path
+            'metainfo' = $base64
+            'paused' = $false
+        }
+    }
+
+    # Добавляем раздачу в клиент.
+    $added = Read-Client $Params
+
+    # Если есть категория, присваиваем её (в torrent-add оно не рботает, почему то).
+    if ( $Category ) {
+        $set_category = @{
+            method = 'torrent-set'
+            arguments = @{
+                'ids' = @( $Hash )
+                'labels' = @( $Category )
+            }
+        }
+        Read-Client $set_category > $null
+    }
+
+    return $added
+}
+
+
 # Удаляет раздачу из клиента, если она принадлежит заданной категории и включено удаление.
 function Remove-ClientTorrent ( [int]$torrent_id, [string]$torrent_hash, [string]$torrent_category ) {
     if ( $uploader.delete -eq 1 -And $uploader.delete_category -eq $torrent_category ) {

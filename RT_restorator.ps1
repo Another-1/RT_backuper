@@ -99,16 +99,9 @@ foreach ( $hash in $hashes.Keys ) {
         $torrent_file_path = $collector.tmp_folder + $OS.fsep + $torrent_id + '_restore.torrent'
         Invoke-WebRequest -uri $forum_torrent_path -WebSession $forum_login -OutFile $torrent_file_path > $null
 
+        # Добавляем раздачу в клиент.
         Write-Output ( 'Добавляем торрент для раздачи {0} в клиент.' -f $torrent_id )
-        $dl_url = @{
-            torrents    = Get-Item $torrent_file_path
-            savepath    = $extract_path
-            category    = $category
-            name        = 'torrents'
-            root_folder = 'false'
-        }
-
-        Invoke-WebRequest -uri ( $client.url + '/api/v2/torrents/add' ) -form $dl_url -WebSession $sid -Method POST -ContentType 'application/x-bittorrent' > $null
+        Add-ClientTorrent $hash $torrent_file_path $extract_path $category > $null
         Remove-Item $torrent_file_path
 
         Start-Sleep -Seconds 1

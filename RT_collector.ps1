@@ -134,8 +134,8 @@ ForEach ( $id in $sorted ) {
                 # Скачиваем торрент с форума
                 Write-Output ( 'Скачиваем {0} ({1}), {2}.' -f $torrent_id, (Get-BaseSize $info.size), $info.topic_title )
                 $forum_torrent_path = 'https://rutracker.org/forum/dl.php?t=' + $torrent_id
-                $torrent_file_path = $collector.tmp_folder + $OS.fsep + $torrent_id + '.torrent'
-                Invoke-WebRequest -uri $forum_torrent_path -WebSession $forum_login -OutFile $torrent_file_path > $null
+                $torrent_file_path = $collector.tmp_folder + $OS.fsep + $torrent_id + '_collect.torrent'
+                Invoke-WebRequest -Uri $forum_torrent_path -WebSession $forum_login -OutFile $torrent_file_path > $null
 
                 # и добавляем торрент в клиент
                 $extract_path = $collector.collect
@@ -148,16 +148,12 @@ ForEach ( $id in $sorted ) {
                     Compare-MaxSize $collector.collect $collector.collect_size
                 }
 
-                $dl_url = @{
-                    torrents    = Get-Item $torrent_file_path
-                    savepath    = $extract_path
-                    category    = $category
-                    name        = 'torrents'
-                    root_folder = 'false'
-                }
-                Invoke-WebRequest -uri ( $client.url + '/api/v2/torrents/add' ) -form $dl_url -WebSession $sid -Method POST -ContentType 'application/x-bittorrent' > $null
-                $added++
+                # Добавляем раздачу в клиент.
+                Write-Output ( 'Добавляем торрент для раздачи {0} в клиент.' -f $torrent_id )
+                Add-ClientTorrent $hash $torrent_file_path $extract_path $category > $null
+
                 Remove-Item $torrent_file_path
+                $added++
 
                 Start-Sleep -Seconds 1
             }

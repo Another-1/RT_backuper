@@ -76,6 +76,20 @@ function Get-ClientTopic ( $torrent ) {
     }
 }
 
+# Добавить заданный торрент файл в клиент
+function Add-ClientTorrent ( $Hash, $File, $Path, $Category ) {
+    $Params = @{
+        torrents    = Get-Item $File
+        savepath    = $Path
+        category    = $Category
+        name        = 'torrents'
+        root_folder = 'false'
+    }
+
+    $url = $client.url + '/api/v2/torrents/add'
+    Invoke-WebRequest -Method POST -Uri $url -WebSession $client.sid -Form $Params -ContentType 'application/x-bittorrent' > $null
+}
+
 # Удаляет раздачу из клиента, если она принадлежит заданной категории и включено удаление.
 function Remove-ClientTorrent ( [int]$torrent_id, [string]$torrent_hash, [string]$torrent_category ) {
     if ( $uploader.delete -eq 1 -And $uploader.delete_category -eq $torrent_category ) {

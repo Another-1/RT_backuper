@@ -144,8 +144,14 @@ function Remove-ClientTorrent ( [int]$torrent_id, [string]$torrent_hash, [string
     if ( $uploader.delete -eq 1 -And $uploader.delete_category -eq $torrent_category ) {
         try {
             Write-Host ( '[delete] Удаляем из клиента раздачу {0}' -f $torrent_id )
-            $request = '?hashes=' + $torrent_hash + '&deleteFiles=true'
-            Read-Client 'torrents/delete' $request > $null
+            $request_delete = @{
+                method = 'torrent-remove'
+                arguments = @{
+                    'ids' = @( $torrent_hash )
+                    'delete-local-data' = $true
+                }
+            }
+            Read-Client $request_delete > $null
         }
         catch {
             Write-Host ( '[delete] Почему-то не получилось удалить раздачу {0}.' -f $torrent_id )

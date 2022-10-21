@@ -8,7 +8,8 @@ function Initialize-Client ( $Retry = $false ) {
     $loginheader = @{ Referer = $client.url }
     try {
         Write-Host '[client] Авторизуемся в клиенте.'
-        $result = Invoke-WebRequest -Headers $loginheader -Uri ( $client.url + '/api/v2/auth/login' ) -Body $logindata -Method POST -SessionVariable sid
+        $url = $client.url + '/api/v2/auth/login'
+        $result = Invoke-WebRequest -Method POST -Uri $url -Headers $loginheader -Body $logindata -SessionVariable sid
         if ( $result.StatusCode -ne 200 ) {
             throw 'You are banned.'
         }
@@ -25,13 +26,12 @@ function Initialize-Client ( $Retry = $false ) {
     }
 }
 
-# Получить данные от клиента по заданному методу и параметрам. Параметры должны начинаться с ?
-function Read-Client ( [string]$Metod, [string]$Params = '' ) {
+# Получить данные от клиента по заданному методу и параметрам.
+function Read-Client ( [string]$Metod, $Params ) {
     for ( $i = 1; $i -lt 5; $i++ ) {
-        $url = $client.url + '/api/v2/' + $Metod + $Params
+        $url = $client.url + '/api/v2/' + $Metod
         try {
-            # Metod='torrents/info', Params='?filter=completed'
-            $data = Invoke-WebRequest -Uri $url -WebSession $client.sid
+            $data = Invoke-WebRequest -Method POST -Uri $url -WebSession $client.sid -Body $Params
             Break
         }
         catch {
@@ -43,17 +43,37 @@ function Read-Client ( [string]$Metod, [string]$Params = '' ) {
     return $data.Content
 }
 
-# Получить список завершённых раздач. Опционально, по списку хешей.
-function Get-ClientTorrents ( $Hashes ) {
-    $filter = '?filter=completed'
-    if ( $Hashes.count ) {
-        $filter += '&hashes=' + ( $Hashes -Join '|' )
+# Обязательный список полей:
+# name, hash, topic_id, comment, status, content_path, save_path, state, size, category
+# Получить список завершённых раздач.
+function Get-ClientTorrents ( $Hashes, $Completed = $true, $Sort = 'size' ) {
+    $Params = @{}
+    if ( $Completed ) {
+        $Params.filter = 'completed'
     }
-    $torrents_list = (Read-Client 'torrents/info' $filter )
+    if ( $Hashes.count ) {
+        $Params.hashes = $Hashes -Join '|'
+    }
+    $torrents_list = (Read-Client 'torrents/info' $Params )
         | ConvertFrom-Json
-        | Select-Object name, hash, content_path, save_path, state, size, category
-        | Sort-Object -Property size
+        | Select-Object name, hash, content_path, save_path, state, size, category,
+            @{N='topic_id'; E={$null}},
+            @{N='comment';  E={$null}},
+            @{N='status';   E={$_.state}}
+        | Sort-Object -Property $Sort
+
     return $torrents_list
+}
+
+# Получить ид раздачи из данных торрента.
+function Get-ClientTopic ( $torrent ) {
+    $filter = @{hash = $torrent.hash }
+    # $torrent
+    # Exit
+    $torprops = (Read-Client 'torrents/properties' $filter ) | ConvertFrom-Json
+    if ( $torprops.comment -match 'rutracker' ) {
+        $torrent.topic_id = ( Select-String "\d*$" -InputObject $torprops.comment ).Matches.Value
+    }
 }
 
 # Удаляет раздачу из клиента, если она принадлежит заданной категории и включено удаление.

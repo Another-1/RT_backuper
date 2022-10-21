@@ -93,8 +93,13 @@ foreach ( $torrent in $torrents_list ) {
     }
 
     # Ид и прочие параметры раздачи.
-    $torrent_id = $torrent.state
+    $torrent_id = $torrent.topic_id
     $torrent_hash = $torrent.hash.ToLower()
+    if ( !$torrent_id ) {
+        Write-Host '[skip] Отсутсвует ид раздачи. Пропускаем.'
+        Continue
+    }
+
     $disk_id, $disk_name, $disk_path = Get-DiskParams $torrent_id
 
     # Имя архива.

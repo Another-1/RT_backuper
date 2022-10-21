@@ -17,10 +17,10 @@ if ( $args.count -ne 0 -and $google_params.accounts_count -gt 1 ) {
     $uploader_num = $args[0]
 
     if ( $uploader_num -gt $google_params.uploaders_count) {
-        Write-Host ( '[balance] Неверный параметр балансировки "{0}". Акканутов подключено {1}. Прерываем.' -f $uploader_num, $google_params.uploaders_count ) -ForegroundColor Red
+        Write-Host ( '[balance] Неверный номер сервиса "{0}". Акканутов подключено {1}. Прерываем.' -f $uploader_num, $google_params.uploaders_count ) -ForegroundColor Red
         Exit
     }
-    Write-Host ( '[balance] Включена балансировка выгрузки. Выбранный аккаунт: {0}' -f $uploader_num ) -ForegroundColor Yellow
+    Write-Host ( '[balance] Включена многопоточная выгрузка. Номер сервиса: {0}' -f $uploader_num ) -ForegroundColor Yellow
 }
 
 # Ищем список архивов, которые нужно перенести

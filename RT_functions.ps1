@@ -76,36 +76,31 @@ function Get-Archives {
 
 # Найти ид раздач(топиков) в [списке архивов, комменте раздачи из клиента, api трекера].
 # Если раздача уже есть в списке архивов, то она исключается из итогового набора раздач.
-function Get-TopicIDs( $torrents_list, $hashes ) {
+function Get-TopicIDs ( $torrents_list, $hashes ) {
     $removed = 0
     foreach ( $torrent in $torrents_list ) {
-        $torrent.state = $nul
-
         # Если хеш есть в списке обработанных, скипаем его и отправляем в клинер.
         if ( $hashes ) {
-            $torrent_id = $hashes[ $torrent.hash ]
-            if ( $torrent_id ) {
+            $topic_id = $hashes[ $torrent.hash ]
+            if ( $topic_id ) {
                 $removed++
-                Dismount-ClientTorrent $torrent_id $torrent.hash $torrent.category
+                Dismount-ClientTorrent $topic_id $torrent.hash $torrent.category
                 Continue
             }
         }
         # ищем коммент в данных раздачи.
-        if ( $nul -eq $torrent.state ) {
-            $filter = '?hash=' + $torrent.hash
-            $torprops = (Read-Client 'torrents/properties' $filter ) | ConvertFrom-Json
-            if ( $torprops.comment -match 'rutracker' ) {
-                $torrent.state = ( Select-String "\d*$" -InputObject $torprops.comment ).Matches.Value
-            }
+        if ( !$torrent.topic_id ) {
+            Get-ClientTopic $torrent
         }
         # если не удалось получить информацию об ID из коммента, сходим в API и попробуем получить там.
-        if ( $nul -eq $torrent.state ) {
+        if ( !$torrent.topic_id ) {
             try {
-                $torrent.state = ( ( Invoke-WebRequest ( 'http://api.rutracker.org/v1/get_topic_id?by=hash&val=' + $torrent.hash ) ).content | ConvertFrom-Json ).result.($torrent.hash)
+                $torrent.topic_id = ( ( Invoke-WebRequest ( 'http://api.rutracker.org/v1/get_topic_id?by=hash&val=' + $torrent.hash ) ).content | ConvertFrom-Json ).result.($torrent.hash)
             } catch {
                 Write-Host ('[RT_API] Не удалось получить номер топика, hash={0}' -f $torrent.hash )
             }
         }
+
         # исправление путей для кривых раздач с одним файлом в папке
         if ( ( $torrent.content_path.Replace( $torrent.save_path.ToString(), '') -replace ('^[\\/]', '')) -match ('[\\/]') ) {
             $separator = $matches[0]
@@ -116,7 +111,8 @@ function Get-TopicIDs( $torrents_list, $hashes ) {
     if ( $removed ) {
         Write-Host( '[delete] Пропущено раздач: {0}.' -f $removed )
     }
-    $torrents_list = $torrents_list | Where-Object { $nul -ne $_.state }
+
+    $torrents_list = $torrents_list | Where-Object { $nul -ne $_.topic_id }
     return $torrents_list
 }
 
@@ -130,9 +126,9 @@ function Sync-ArchList ( $All = $false ) {
         | ? { $_.($OS.sizeField) -eq 0 -Or ($_.LastWriteTime -lt ( Get-Date ).AddHours( -6 )) } 
         | Sort-Object -Property LastWriteTime
 
-    Write-Host ( '[updater] Списков требущих обновления: {0}.' -f $folders.count )
     # Выбираем первый диск по условиям выше и обновляем его.
     if ( !$All ) {
+        Write-Host ( '[updater] Списков требущих обновления: {0}.' -f $folders.count )
         $folders = $folders | Select -First 1
     }
 

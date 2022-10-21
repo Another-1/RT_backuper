@@ -89,7 +89,12 @@ if ( $args.count -eq 0 ) {
 Write-Host ('[backuper] Начинаем перебирать раздачи.')
 foreach ( $torrent in $torrents_list ) {
     # Ид раздачи
-    $torrent_id = $torrent.state
+    $torrent_id = $torrent.topic_id
+    $torrent_hash = $torrent.hash.ToLower()
+    if ( !$torrent_id ) {
+        Write-Host '[skip] Отсутсвует ид раздачи. Пропускаем.'
+        Continue
+    }
     # Собираем имя и путь хранения архива раздачи.
     $disk_id, $disk_name, $disk_path = Get-DiskParams $torrent_id
 
@@ -105,13 +110,13 @@ foreach ( $torrent in $torrents_list ) {
     $google_path = $google_params.folders[$folder_pointer]
     $google_name = ( '{0}({1})' -f $google_path, $order.account )
 
-    $zip_name = $google_path + $disk_path + $torrent_id + '_' + $torrent.hash.ToLower() + '.7z'
+    $zip_name = $google_path + $disk_path + $torrent_id + '_' + $torrent_hash + '.7z'
 
     if ( -not ( Test-Path -Path $zip_name ) ) {
-        $tmp_zip_name = ( $def_paths.progress + $OS.fsep + $torrent_id + '_' + $torrent.hash.ToLower() + '.7z' )
+        $tmp_zip_name = ( $def_paths.progress + $OS.fsep + $torrent_id + '_' + $torrent_hash + '.7z' )
 
         Write-Host ''
-        Write-Host ( 'Архивируем ' + $torrent_id + ', ' + (Get-BaseSize $torrent.size) + ', ' + $torrent.name + ' на диск ' + $google_name ) -ForegroundColor Green
+        Write-Host ( '[torrent] Архивируем {0} ({2}), {1} ' -f $torrent_id, $torrent.name, (Get-BaseSize $torrent.size) ) -ForegroundColor Green
         If ( Test-Path -path $tmp_zip_name ) {
             Write-Host 'Похоже, такой архив уже пишется в параллельной сессии. Пропускаем'
             continue
@@ -178,7 +183,7 @@ foreach ( $torrent in $torrents_list ) {
             }
         }
     }
-    Remove-ClientTorrent $torrent_id $torrent.hash $torrent.category
+    Remove-ClientTorrent $torrent_id $torrent_hash $torrent.category
 
     $proc_size += $torrent.size
     $text = 'Обработано раздач {0} ({1}) из {2} ({3})'

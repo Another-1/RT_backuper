@@ -1,6 +1,6 @@
 # Параметры доступа к WebUI qBittorrent.
 $client = @{
-    type     = 'qbit'
+    type     = 'qbittorrent' #qbittorrent|transmission
     url      = 'http://192.168.0.232:8082'
     login    = 'admin'
     password = 'adminadmin'

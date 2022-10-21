@@ -53,7 +53,7 @@ $hashes.keys | Where-Object { $nul -ne $tracker_torrents_list[$hashes[$_]] } | F
 Initialize-Client
 
 Write-Output 'Получаем список раздач из клиента'
-$client_torrents_list = [string[]]( Read-Client 'torrents/info' ) | ConvertFrom-Json | % { $_.hash }
+$client_torrents_list = [string[]]( Get-ClientTorrents -Completed 0 | % { $_.hash } )
 
 Write-Output 'Исключаем раздачи, которые уже есть в клиенте'
 $hashes = @{}

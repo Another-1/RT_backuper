@@ -19,6 +19,7 @@ if ( $args.count -gt 0 ) {
     $run.file = "$PSScriptRoot/RT_{0}.ps1" -f $proc
 }
 
+Clear-Host
 while( $true ) {
     $run.start = Get-Date
 

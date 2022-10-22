@@ -3,7 +3,6 @@
 if ( !(Confirm-Version) ) { Exit }
 If ( !( Sync-Settings ) ) { Write-Host 'Проверьте наличие и заполненность файла настроек в каталоге скрипта';  Pause; Exit }
 
-Clear-Host
 Start-Pause
 Start-Stopping
 

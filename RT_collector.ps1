@@ -3,8 +3,6 @@
 if ( !(Confirm-Version) ) { Exit }
 If ( !( Sync-Settings ) ) { Write-Host 'Проверьте наличие и заполненность файла настроек в каталоге скрипта'; Pause; Exit }
 
-Clear-Host
-
 # Аргументов 0, всё вводим по подсказкам.
 If ($args.Count -eq 0 ) {
     $choice = ( Read-Host -Prompt 'Выберите раздел' ).ToString()

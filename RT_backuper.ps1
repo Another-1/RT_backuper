@@ -76,7 +76,7 @@ If ( $ok -eq $false) {
 
 $proc_size = 0
 $proc_cnt = 0
-$sum_size = ( $torrents_list | Measure-Object $OS.sizeField -Sum ).Sum
+$sum_size = ( $torrents_list | Measure-Object size -Sum ).Sum
 $sum_cnt = $torrents_list.count
 Write-Host ( '[backuper] Объём новых раздач ({0} шт) {1}.' -f $sum_cnt, (Get-BaseSize $sum_size) )
 

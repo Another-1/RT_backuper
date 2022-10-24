@@ -48,6 +48,8 @@ function Initialize-Client ( $Retry = $false ) {
 
 # Получить данные от клиента по заданному методу и параметрам.
 function Read-Client ( $Params ) {
+    if ( !$client.sid ) { Initialize-Client }
+
     for ( $i = 1; $i -lt 5; $i++ ) {
         $url = $client.url + '/transmission/rpc'
         try {
@@ -84,7 +86,7 @@ function Get-ClientVerion {
 }
 
 # Обязательный список полей:
-# name, hash, topic_id, comment, status, content_path, save_path, state, size, category
+# name, hash, topic_id, comment, status, content_path, save_path, size, category
 # Получить список завершённых раздач.
 function Get-ClientTorrents ( $Hashes, $Completed = $true, $Sort = 'size' ) {
     $Params = @{

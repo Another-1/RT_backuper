@@ -1,10 +1,10 @@
-# Параметры доступа к WebUI qBittorrent.
+# Параметры доступа к WebUI торрент-клиента.
 $client = @{
-    type     = 'qbittorrent' #qbittorrent|transmission
-    url      = 'http://192.168.0.232:8082'
-    login    = 'admin'
-    password = 'adminadmin'
-    sid = $null
+    name     = 'myuniqname'              # Имя клиента, используется для разделения временных файлов
+    type     = 'qbittorrent'             # Тип клиента [qbittorrent|transmission]
+    url      = 'http://192.168.0.1:8090' # URL доступа к WebUI
+    login    = 'admin'                   # Логин
+    password = 'admin'                   # Пароль
 }
 
 # учётные данные форума
@@ -32,18 +32,12 @@ $google_params = @{
     # [number] Используемое количество uploader-ов, т.е. потоков выгрузки.
     uploaders_count = 1
 
-    # Путь к кешу гугл диск и размер, превышение которого нежелательно.
-    # Для linux актуально, если при работе rclone был использовать "vfs-cache-mode writes|full" и задан путь "cache-dir /rclone-cache"
-    cache = '/rclone-cache'
-    cache_size = 60 * [math]::Pow(1024, 3) # Гб
-}
-
-# [0/1] Используемые модули, если используется.
-$used_modules = @{
-    backuper = 0  # Процесс архивирования раздач и переноса в каталог finished
-    uploader = 0  # Процесс сбора архивов из finished и перенос их в гугл ( 1+ потоков )
-    updater  = 0  # Процесс автоматического обновления списков уже архивированных раздач в фоне
-    cleaner  = 0  # Процесс удаления из клиента раздач, архивирование и залитие в гугл которых, прошло успешно
+    # Путь к кешу гугл диска и размер, превышение которого нежелательно.
+    # cache = '/rclone-cache'
+    # cache_size = 60 * [math]::Pow(1024, 3) # Гб
+    
+    ### Для linux актуально, ТОЛЬКО ЕСЛИ вы используете rclone с кешем !!! ["vfs-cache-mode writes|full"]
+    ### и задан путь ["cache-dir /rclone-cache"]
 }
 
 ## Параметры связанные с ахривацией [backuper]
@@ -62,7 +56,7 @@ $backuper = @{
 
     # Путь к каталогу хранения архивов и лимит занятого объёма
     zip_folder = '/data/backuper'
-    zip_folder_size = 100 * [math]::Pow(1024, 3) # Гб
+    zip_folder_size = 50 * [math]::Pow(1024, 3) # Гб
 
     # [number] Степень сжатия архива по умолчанию (0-без сжатия)
     compression = 0
@@ -88,7 +82,7 @@ $uploader = @{
 
 ## Параметры связанные с закачкой новых раздач [collector]
 $collector = @{
-    # каталог для куда скачивать раздачи
+    # каталог, в который скачивать раздачи
     collect      = '/data/downloads'
     collect_size = 50 * [math]::Pow(1024, 3)  # Гб
     # [0/1] cоздавать ли подкаталоги по ID для раздачи при восстановлении из архивов. 1 - создавать, 0 - не надо

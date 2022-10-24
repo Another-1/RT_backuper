@@ -47,8 +47,7 @@ $measure_names = @{
 
 # Получить список существующих архивов из списков по дискам.
 function Get-Archives {
-    # Если не используется updater, то список архивов надо обновлять принудительно.
-    if ( !$used_modules.updater ) { Sync-ArchList $true }
+    Sync-ArchList $true
 
     if ( !(Get-ChildItem $stash_folder.archived) ) {
         Write-Host 'Не обнаружено списков заархивированного. Запустите updater' -ForegroundColor Yellow
@@ -106,14 +105,57 @@ function Get-TopicIDs ( $torrents_list, $hashes ) {
             $separator = $matches[0]
             $torrent.content_path = $torrent.save_path + $separator + ( $torrent.content_path.Replace( $torrent.save_path.ToString(), '') -replace ('^[\\/]', '') -replace ('[\\/].*$', '') )
         }
+
+        # для Unix нужно экранировать кавычки и пробелы.
+        if ( $OS.name -eq 'linux' ) {
+            $torrent.content_path = $torrent.content_path.replace('"','\"')
+        }
     }
 
     if ( $removed ) {
-        Write-Host( '[delete] Пропущено раздач: {0}.' -f $removed )
+        Write-Host( '[skip] Пропущено раздач: {0}.' -f $removed )
     }
 
     $torrents_list = $torrents_list | Where-Object { $nul -ne $_.topic_id }
     return $torrents_list
+}
+
+function Compare-UsedLocations ( $Torrents ) {
+    $ok = $true
+    # проверяем, что никакие раздачи не пересекаются по именам файлов (если файл один) или каталогов (если файлов много), чтобы не заархивировать не то
+    Write-Host ( '[check] Проверяем уникальность путей сохранения раздач..' )
+
+    $used_locs = @()
+    foreach ( $torrent in $Torrents ) {
+        if ( $used_locs -contains $torrent.content_path ) {
+            Write-Host ( 'Несколько раздач хранятся по пути "' + $torrent.content_path + '" !')
+            Write-Host ( 'Нажмите любую клавищу, исправьте и начните заново !')
+            $ok = $false
+        }
+        else {
+            $used_locs += $torrent.content_path
+        }
+    }
+    If ( !$ok ) {
+        pause
+        Exit
+    }
+}
+
+function Compare-UsedLimits ( $google_name, $uploads_all ) {
+    # Перед переносом проверяем доступный трафик. 0 для получения актуальных данных.
+    $today_size, $uploads_all = Get-TodayTraffic $uploads_all 0 $google_name
+
+    # Если за последние 24ч, по выбранному аккаунту, было отправлено более квоты, то ждём.
+    while ( $today_size -gt $lv_750gb ) {
+        Write-Host ( '[limit][{0}] Трафик гугл-аккаунта {1} за прошедшие 24ч уже {2}' -f (Get-Date -Format t), $google_name, (Get-BaseSize $today_size ) )
+        Write-Host ( '[limit] Подождём часик чтобы не выйти за лимит {0} (сообщение будет повторяться пока не вернёмся в лимит).' -f (Get-BaseSize $lv_750gb ) )
+        Start-Sleep -Seconds ( 60 * 60 )
+
+        Start-Pause
+        $today_size, $uploads_all = Get-TodayTraffic $uploads_all 0 $google_name
+    }
+    Write-Host ( '[limit] {0} {1} меньше чем лимит {2}, продолжаем!' -f $google_name, (Get-BaseSize $today_size), (Get-BaseSize $lv_750gb) )
 }
 
 # Обновить список архивов в локальной "БД".
@@ -123,7 +165,7 @@ function Sync-ArchList ( $All = $false ) {
     # Собираем список гугл-дисков и проверяем наличие файла со списком архивов для каждого. Создаём если нет.
     # Проверяем даты обновления файлов и размер. Если прошло 6ч или файл пуст -> пора обновлять.
     $folders = $arch_folders | % { Watch-FileExist ($stash_folder.archived + $OS.fsep + $_.Name + '.txt') }
-        | ? { $_.($OS.sizeField) -eq 0 -Or ($_.LastWriteTime -lt ( Get-Date ).AddHours( -6 )) } 
+        | ? { $_.($OS.sizeField) -eq 0 -Or ($_.LastWriteTime -lt ( Get-Date ).AddHours( -6 )) }
         | Sort-Object -Property LastWriteTime
 
     # Выбираем первый диск по условиям выше и обновляем его.
@@ -133,16 +175,14 @@ function Sync-ArchList ( $All = $false ) {
     }
 
     if ( !$folders ) {
-        Write-Host '[updater] Нет списков для обновления. Выходим.'
         return
     }
 
     foreach ( $folder in $folders ) {
         $arch_path = ( $arch_folders | ? { $folder.BaseName -eq $_.BaseName } ).FullName
 
-        Write-Host ( '[updater][{0}] Начинаем обновление списка раздач.' -f $folder.BaseName )
         $exec_time = (Measure-Command {
-            $zip_list = Get-ChildItem $arch_path -Filter '*.7z' -File
+            $zip_list = Get-ChildItem $arch_path -File -Filter '*.7z'
             $zip_list | % { $_.BaseName } | Out-File $folder.FullName
         }).TotalSeconds
 
@@ -227,6 +267,8 @@ function Get-StoredUploads ( $uploads_old = @{} ) {
 function Show-StoredUploads ( $uploads_all ) {
     $time_diff = 1, 3, 6, 12
     $yesterday = ( Get-date ).AddDays( -1 )
+
+    Write-Host ''
     $uploads_all.GetEnumerator() | Sort-Object Key | % {
         $disk_name = $_.key
         $full_size = ( $_.value.values | Measure-Object -sum ).Sum
@@ -246,6 +288,7 @@ function Show-StoredUploads ( $uploads_all ) {
         }
         Write-Host ( "[limit][{4}] Выгружено {5}. Освободится: {0}; {1}; {2}; {3}." -f @( ($period.values | % {Get-BaseSize $_}) + $disk_name + (Get-BaseSize $full_size) ) )
     }
+    Write-Host ''
 }
 
 # Проверка версии PowerShell.
@@ -406,11 +449,11 @@ function Sync-Settings {
     $terminate = $false
     $errors = @()
     if ( !$client ) {
-        $errors+= '[settings] Отсутсвует блок параметров подключения к клиенту, $client'
+        $errors+= '[settings][client] Отсутсвует блок параметров подключения к клиенту'
         $terminate = $true
     } else {
         if ( !$client.type ) {
-            $errors+= '[settings] Отсутсвует тип клиента, $client.type'
+            $errors+= '[settings] Не указан тип клиента, $client.type'
             $terminate = $true
         } else {
             $client_file = "$PSScriptRoot\clients\client.{0}.ps1" -f $client.type.ToLower()
@@ -426,14 +469,27 @@ function Sync-Settings {
     }
 
     if ( !$rutracker ) {
-        $errors+= '[settings] Отсутсвует блок параметров подключения к форуму, $rutracker'
+        $errors+= '[settings][rutracker] Отсутсвует блок параметров подключения к форуму'
     }
 
     # Валидация настроек гугл-диска.
     if ( !$google_params ) {
-        $errors+= '[settings] Отсутсвует блок параметров гугл-дисков, $google_params'
+        $errors+= '[settings][google_params] Отсутсвует блок параметров гугл-дисков'
         $terminate = $true
     } else {
+        # Проверяем наличие нужного количества каталогов.
+        if ( $google_params.folders ) {
+            $disk_count = 24
+            $err = 'В каталоге гугл-диска "{0}" недостаточно подключенных дисков ({1} из {2}). Проверьте настройки подключения.'
+            $google_params.folders | % {
+                $dir_count = (Get-ChildItem $_ -Directory).count
+                if ( $dir_count -ne $disk_count ) {
+                    $errors += $err -f $_, $dir_count, $disk_count
+                    # $terminate = $true
+                }
+            }
+        }
+
         # Проверяем кол-во подключённых дисков.
         if ( $google_params.accounts_count -eq $null -Or $google_params.accounts_count -gt 5 ) {
             $google_params.accounts_count = 1
@@ -454,16 +510,16 @@ function Sync-Settings {
     }
 
     if ( !$backuper ) {
-        $errors+= '[settings] Отсутсвует блок параметров архивирования, $backuper'
+        $errors+= '[settings][backuper] Отсутсвует блок параметров архивирования'
         $terminate = $true
     }
 
     if ( !$uploader ) {
-        $errors+= '[settings] Отсутсвует блок параметров выгрузки на гугл-диск, $uploader'
+        $errors+= '[settings][uploader] Отсутсвует блок параметров выгрузки на гугл-диск'
     }
 
     if ( !$collector ) {
-        $errors+= '[settings] Отсутсвует блок параметров загрузки торрент-файлов, $collector'
+        $errors+= '[settings][collector] Отсутсвует блок параметров загрузки торрент-файлов'
     }
 
     if ( $errors ) {
@@ -474,7 +530,7 @@ function Sync-Settings {
     New-Item -ItemType Directory -Path $def_paths.progress -Force > $null
     New-Item -ItemType Directory -Path $def_paths.finished -Force > $null
     New-Item -ItemType Directory -Path $stash_folder.archived -Force > $null
-    
+
     return !$terminate
 }
 
@@ -483,7 +539,7 @@ function Sync-Settings {
 if ( $client.type ) {
     $client_file = "$PSScriptRoot\clients\client.{0}.ps1" -f $client.type.ToLower()
     if ( Test-Path $client_file ) {
-        Write-Host ( '[client] Выбранный торрент-клиент {0}, подключаем модуль.' -f $client.type ) -ForegroundColor Green
+        Write-Host ( '[client] Выбранный торрент-клиент [{0}], подключаем модуль.' -f $client.type ) -ForegroundColor Green
         . $client_file
     }
 }

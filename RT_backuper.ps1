@@ -10,7 +10,14 @@ $ScriptName = $PSCommandPath
 
 # Пробуем найти список раздач, которые обрабатывались, но процесс прервался.
 try {
-    $torrents_list = Import-Clixml $stash_folder.backup_list
+    $backup_list_name = $client.name
+    $current_backup_list = $stash_folder.backup_list -f $backup_list_name
+
+    # Миграция старого файла бекапа
+    $old_backup_list = $stash_folder.backup_list -f 'list'
+    if ( Test-Path $old_backup_list ) { Rename-Item $old_backup_list $current_backup_list }
+
+    $torrents_list = Import-Clixml $current_backup_list
     if ( $torrents_list ) {
         Write-Host ( '[backuper] Найдены недообработанные раздачи: {0}' -f $torrents_list.count )
     }
@@ -68,7 +75,7 @@ if ( !$sum_cnt ) { Exit }
 
 # Записываем найденные раздачи в файлик.
 $torrents_left = $torrents_list
-$torrents_left | Export-Clixml $stash_folder.backup_list
+$torrents_left | Export-Clixml $current_backup_list
 
 # Перебираем найденные раздачи и бекапим их.
 Write-Host ('[backuper] Начинаем перебирать раздачи.')
@@ -164,8 +171,8 @@ foreach ( $torrent in $torrents_list ) {
     Write-Host ( $text -f ++$proc_cnt, (Get-BaseSize $proc_size), $sum_cnt, (Get-BaseSize $sum_size) ) -ForegroundColor DarkCyan
 
     # Перезаписываем данные раздач, которые осталось обработать.
-    $torrents_left = $torrents_left | ? { $_.state -ne $torrent_id }
-    $torrents_left | Export-Clixml $stash_folder.backup_list
+    $torrents_left = $torrents_left | ? { $_.topic_id -ne $torrent_id }
+    $torrents_left | Export-Clixml $current_backup_list
 
     Start-Pause
     Start-Stopping

@@ -23,7 +23,7 @@ $stash_folder = @{
     default       = "$PSScriptRoot/stash"                   # Общий путь к папке
     archived      = "$PSScriptRoot/stash/archived"          # Путь к спискам архивов по дискам
     uploads_limit = "$PSScriptRoot/stash/uploads_limit.xml" # Файл записанных отдач (лимиты)
-    backup_list   = "$PSScriptRoot/stash/backup_list.xml"   # Файл уже обработанного списка раздач. Для случая когда был перезапуск
+    backup_list   = "$PSScriptRoot/stash/backup_{0}.xml"    # Файл уже обработанного списка раздач. Для случая когда был перезапуск
 
     finished      = "$PSScriptRoot/stash/finished.txt"      # Файл id_hash раздач, которые были найдены в гугле или были заархивированны
     pause         = "$PSScriptRoot/stash/pause.txt"         # Если в файле что-то есть, скрипт встанет на паузу.

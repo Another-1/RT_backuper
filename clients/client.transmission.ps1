@@ -1,7 +1,8 @@
-
 ###################################################################################################
 #################################  ФУНКЦИИ СВЯЗАННЫЕ С КЛИЕНТОМ  ##################################
 ###################################################################################################
+# https://github.com/transmission/transmission/blob/main/docs/rpc-spec.md
+
 # Авторизация в клиенте. В случае ошибок будет прерывание, если не передан параметр.
 function Initialize-Client ( $Retry = $false ) {
     # Кодируем логин:пароль
@@ -60,6 +61,26 @@ function Read-Client ( $Params ) {
         }
     }
     return $data.Content
+}
+
+# Получаем данные о клиенте.
+function Get-ClientVerion {
+    $Params = @{
+        method = 'session-get'
+        arguments = @{
+            fields = @(
+                'version'
+                'rpc-version'
+            )
+        }
+    }
+
+    $version_info = @()
+    (Read-Client $Params | ConvertFrom-Json -AsHashTable).arguments.GetEnumerator() | % {
+        $version_info += '- {0}: {1}' -f $_.key, $_.value
+    }
+
+    return $version_info
 }
 
 # Обязательный список полей:

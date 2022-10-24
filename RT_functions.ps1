@@ -483,7 +483,7 @@ function Sync-Settings {
 if ( $client.type ) {
     $client_file = "$PSScriptRoot\clients\client.{0}.ps1" -f $client.type.ToLower()
     if ( Test-Path $client_file ) {
-        Write-Host ( '[client] Выбранный торрент-клиент {0}, подключаем модуль.' -f $client.type )
+        Write-Host ( '[client] Выбранный торрент-клиент {0}, подключаем модуль.' -f $client.type ) -ForegroundColor Green
         . $client_file
     }
 }

@@ -1,7 +1,8 @@
-
 ###################################################################################################
 #################################  ФУНКЦИИ СВЯЗАННЫЕ С КЛИЕНТОМ  ##################################
 ###################################################################################################
+#https://github.com/qbittorrent/qBittorrent/wiki/WebUI-API-(qBittorrent-4.1)
+
 # Авторизация в клиенте. В случае ошибок будет прерывание, если не передан параметр.
 function Initialize-Client ( $Retry = $false ) {
     $logindata = "username={0}&password={1}" -f $client.login, $client.password
@@ -41,6 +42,16 @@ function Read-Client ( [string]$Metod, $Params ) {
         }
     }
     return $data.Content
+}
+
+# Получаем данные о клиенте.
+function Get-ClientVerion {
+    $version_info = @()
+    $version_info += "- verion: {0}" -f (Read-Client 'app/version')
+    $version_info += "- apiVersion: {0}" -f (Read-Client 'app/webapiVersion')
+    $version_info += "- build: {0}" -f (Read-Client 'app/buildInfo')
+
+    return $version_info
 }
 
 # Обязательный список полей:

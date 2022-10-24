@@ -1,7 +1,7 @@
 . "$PSScriptRoot\RT_functions.ps1"
 
 if ( !(Confirm-Version) ) { Exit }
-If ( !( Sync-Settings ) ) { Write-Host 'Проверьте наличие и заполненность файла настроек в каталоге скрипта';  Pause; Exit }
+if ( !( Sync-Settings ) ) { Pause; Exit }
 
 Start-Pause
 Start-Stopping

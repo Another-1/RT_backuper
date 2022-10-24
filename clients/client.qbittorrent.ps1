@@ -68,11 +68,11 @@ function Get-ClientTorrents ( $Hashes, $Completed = $true, $Sort = 'size' ) {
 # Получить ид раздачи из данных торрента.
 function Get-ClientTopic ( $torrent ) {
     $filter = @{hash = $torrent.hash }
-    # $torrent
-    # Exit
-    $torprops = (Read-Client 'torrents/properties' $filter ) | ConvertFrom-Json
-    if ( $torprops.comment -match 'rutracker' ) {
-        $torrent.topic_id = ( Select-String "\d*$" -InputObject $torprops.comment ).Matches.Value
+    if ( !$torrent.topic_id ) {
+        $torprops = (Read-Client 'torrents/properties' $filter ) | ConvertFrom-Json
+        if ( $torprops.comment -match 'rutracker' ) {
+            $torrent.topic_id = ( Select-String "\d*$" -InputObject $torprops.comment ).Matches.Value
+        }
     }
 }
 

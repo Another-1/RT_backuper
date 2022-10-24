@@ -406,7 +406,6 @@ function Sync-Settings {
     $terminate = $false
     $errors = @()
     if ( !$client ) {
-        # Write-Host '[settings] Отсутсвует блок параметров подключения к клиенту, $client'
         $errors+= '[settings] Отсутсвует блок параметров подключения к клиенту, $client'
         $terminate = $true
     } else {
@@ -419,6 +418,10 @@ function Sync-Settings {
                 $errors+= '[client] Выбранный торрент-клиент {0} не обнаружен или не поддерживается!' -f $client.type
                 $terminate = $true
             }
+        }
+
+        if ( !$client.name -And $client.type ) {
+            $client.name = $client.type
         }
     }
 

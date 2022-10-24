@@ -10,7 +10,6 @@ function Initialize-Client ( $Retry = $false ) {
         $client.cred = [System.Convert]::ToBase64String([System.Text.Encoding]::ASCII.GetBytes($pair))
     }
 
-    $url = $client.url + '/transmission/rpc'
     $client.headers = @{
         Authorization = ( "Basic {0}" -f $client.cred )
     }
@@ -21,6 +20,7 @@ function Initialize-Client ( $Retry = $false ) {
         }
     }
 
+    $url = $client.url + '/transmission/rpc'
     # Авторизуемся в клиенте, получаем сид, записываем в заголовок.
     try {
         $result = Invoke-WebRequest -Method POST -Uri $url -Headers $client.headers -Body ( $body | ConvertTo-Json )
@@ -103,8 +103,10 @@ function Get-ClientTorrents ( $Hashes, $Completed = $true, $Sort = 'size' ) {
 
 # Получить ид раздачи из данных торрента.
 function Get-ClientTopic ( $torrent) {
-    if ( $torrent.comment -match 'rutracker' ) {
-        $torrent.topic_id = ( Select-String "\d*$" -InputObject $torrent.comment ).Matches.Value
+    if ( !$torrent.topic_id ) {
+        if ( $torrent.comment -match 'rutracker' ) {
+            $torrent.topic_id = ( Select-String "\d*$" -InputObject $torrent.comment ).Matches.Value
+        }
     }
 }
 

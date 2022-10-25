@@ -1,3 +1,6 @@
+Param (
+    [string]$UsedClient = $null
+)
 . "$PSScriptRoot\RT_functions.ps1"
 
 if ( !(Confirm-Version) ) { Exit }
@@ -47,7 +50,7 @@ if ( !$torrents_list ) {
     }).TotalSeconds, 1 )
 
     if ( $torrents_list -eq $null ) {
-        Write-Host '[backuper] Не получено заверщенных раздач от клиента.'
+        Write-Host '[backuper] Раздачи не получены.'
         Exit
     }
     Write-Host ( '[backuper] Раздач получено: {0} [{1} сек].' -f $torrents_list.count, $exec_time )

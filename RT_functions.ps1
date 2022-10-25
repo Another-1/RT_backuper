@@ -8,6 +8,13 @@ if ( !(Test-Path $config_path) ) {
     . $config_path
 }
 
+# Если задано несколько клиентов, пробуем определить нужный.
+if ( $client_list.count ) {
+    if ( !$client -And $UsedClient ) {
+        $client = $client_list | ? { $_.name -eq $UsedClient }
+    }
+    if ( !$client ) { $client = $client_list[0] }
+}
 
 # лимит закачки на один диск в сутки
 $lv_750gb = 740 * 1024 * 1024 * 1024
@@ -550,7 +557,7 @@ function Sync-Settings {
 if ( $client.type ) {
     $client_file = "$PSScriptRoot\clients\client.{0}.ps1" -f $client.type.ToLower()
     if ( Test-Path $client_file ) {
-        Write-Host ( '[client] Выбранный торрент-клиент [{0}], подключаем модуль.' -f $client.type ) -ForegroundColor Green
+        Write-Host ( '[client] Выбранный торрент-клиент "{0}" [{1}], подключаем модуль.' -f $client.name, $client.type ) -ForegroundColor Green
         . $client_file
     }
 }

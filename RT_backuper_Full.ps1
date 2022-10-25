@@ -1,3 +1,8 @@
+Param (
+    [string]$Hashes = $null,
+    [string]$UsedClient = $null
+)
+
 . "$PSScriptRoot\RT_functions.ps1"
 
 if ( !(Confirm-Version) ) { Exit }
@@ -8,10 +13,9 @@ Start-Stopping
 
 $ScriptName = $PSCommandPath
 
-
 # Если переданы хеши как аргументы.
-if ( $args ) {
-    $hash_list = $args | % { $_ }
+if ( $Hashes ) {
+    $hash_list = $Hashes -Split ","
     Write-Host ( '[backuper] Переданы хешы: {0}, обработаем их.' -f ($hash_list -Join "|") )
 }
 
@@ -39,7 +43,7 @@ $exec_time = [math]::Round( (Measure-Command {
 }).TotalSeconds, 1 )
 
 if ( $torrents_list -eq $null ) {
-    Write-Host '[backuper] Не получено заверщенных раздач от клиента.'
+    Write-Host '[backuper] Раздачи не получены.'
     Exit
 }
 Write-Host ( '[backuper] Раздач получено: {0} [{1} сек].' -f $torrents_list.count, $exec_time )
@@ -57,7 +61,7 @@ $exec_time = [math]::Round( (Measure-Command {
 Write-Host ( '[backuper] Топиков с номерами получено: {0} [{1} сек].' -f $torrents_list.count, $exec_time )
 
 # проверяем, что никакие раздачи не пересекаются по именам файлов (если файл один) или каталогов (если файлов много), чтобы не заархивировать не то
-if ( $args.count -eq 0 ) {
+if ( !$Hashes ) {
     Compare-UsedLocations $torrents_list
 }
 

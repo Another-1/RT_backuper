@@ -41,13 +41,13 @@ if ( !$torrents_list ) {
     Initialize-Client
 
     # получаем список раздач из клиента
-    Write-Host 'Получаем список раздач из клиента..'
+    Write-Host '[backuper] Получаем список раздач из клиента..'
     $exec_time = [math]::Round( (Measure-Command {
         $torrents_list = Get-ClientTorrents $downloaded
     }).TotalSeconds, 1 )
 
     if ( $torrents_list -eq $null ) {
-        Write-Host 'Не удалось получить раздачи!'
+        Write-Host '[backuper] Не получено заверщенных раздач от клиента.'
         Exit
     }
     Write-Host ( '[backuper] Раздач получено: {0} [{1} сек].' -f $torrents_list.count, $exec_time )

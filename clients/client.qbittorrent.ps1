@@ -103,20 +103,18 @@ function Add-ClientTorrent ( $Hash, $File, $Path, $Category ) {
     Invoke-WebRequest -Method POST -Uri $url -WebSession $client.sid -Form $Params -ContentType 'application/x-bittorrent' > $null
 }
 
-# Удаляет раздачу из клиента, если она принадлежит заданной категории и включено удаление.
-function Remove-ClientTorrent ( [int]$torrent_id, [string]$torrent_hash, [string]$torrent_category ) {
-    if ( $uploader.delete -eq 1 -And $uploader.delete_category -eq $torrent_category ) {
-        try {
-            Write-Host ( '[delete] Удаляем из клиента раздачу {0}' -f $torrent_id )
-            $request_delete = @{
-                hashes = $torrent_hash
-                deleteFiles = $true
-            }
-            Read-Client 'torrents/delete' $request_delete > $null
+# Удаляет раздачу и содержимое из клиента
+function Remove-ClientTorrent ( [int]$torrent_id, [string]$torrent_hash ) {
+    try {
+        Write-Host ( '[delete] Удаляем из клиента раздачу {0}' -f $torrent_id )
+        $request_delete = @{
+            hashes = $torrent_hash
+            deleteFiles = $true
         }
-        catch {
-            Write-Host ( '[delete] Почему-то не получилось удалить раздачу {0}.' -f $torrent_id )
-        }
+        Read-Client 'torrents/delete' $request_delete > $null
+    }
+    catch {
+        Write-Host ( '[delete] Почему-то не получилось удалить раздачу {0}.' -f $torrent_id )
     }
 }
 ###################################################################################################

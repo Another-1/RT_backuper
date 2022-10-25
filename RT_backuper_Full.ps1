@@ -8,9 +8,6 @@ Start-Stopping
 
 $ScriptName = $PSCommandPath
 
-# Ищем данные о прошлых выгрузках в гугл.
-$uploads_all = Get-StoredUploads
-Show-StoredUploads $uploads_all
 
 # Если переданы хеши как аргументы.
 if ( $args ) {
@@ -32,11 +29,6 @@ if ( !$hash_list ) {
     }
 }
 
-# Если нужно будет перебирать много раздач, то загружаем списки заархивированных.
-if ( !$hash_list ) {
-    $dones, $hashes = Get-Archives
-}
-
 # Подключаемся к клиенту.
 Initialize-Client
 
@@ -47,13 +39,18 @@ $exec_time = [math]::Round( (Measure-Command {
 }).TotalSeconds, 1 )
 
 if ( $torrents_list -eq $null ) {
-    Write-Host '[backuper] Не удалось получить раздачи!'
+    Write-Host '[backuper] Не получено заверщенных раздач от клиента.'
     Exit
 }
 Write-Host ( '[backuper] Раздач получено: {0} [{1} сек].' -f $torrents_list.count, $exec_time )
 
+# Если нужно будет перебирать много раздач, то загружаем списки заархивированных.
+if ( !$hash_list ) {
+    $dones, $hashes = Get-Archives
+}
+
 # Фильтруем список раздач и получаем их ид.
-Write-Host ( 'Получаем номера топиков по раздачам и пропускаем уже заархивированное.' )
+Write-Host ( '[backuper] Получаем номера топиков по раздачам и пропускаем уже заархивированное.' )
 $exec_time = [math]::Round( (Measure-Command {
     $torrents_list = Get-TopicIDs $torrents_list $hashes
 }).TotalSeconds, 1 )
@@ -70,6 +67,11 @@ $sum_size = ( $torrents_list | Measure-Object size -Sum ).Sum
 $sum_cnt = $torrents_list.count
 Write-Host ( '[backuper] Найдено раздач: {0} ({1}).' -f $sum_cnt, (Get-BaseSize $sum_size) ) -ForegroundColor DarkCyan
 if ( !$sum_cnt ) { Exit }
+
+
+# Ищем данные о прошлых выгрузках в гугл.
+$uploads_all = Get-StoredUploads
+Show-StoredUploads $uploads_all
 
 # Перебираем найденные раздачи и бекапим их.
 Write-Host ('[backuper] Начинаем перебирать раздачи.')
@@ -194,7 +196,7 @@ foreach ( $torrent in $torrents_list ) {
         Write-Host $Error[0] -ForegroundColor Red
     }
 
-    Dismount-ClientTorrent $torrent_id $torrent_hash
+    Dismount-ClientTorrent $torrent_id $torrent_hash $torrent.category
 
     $proc_size += $torrent.size
     $text = 'Обработано раздач {0} ({1}) из {2} ({3})'

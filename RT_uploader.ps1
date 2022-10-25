@@ -7,9 +7,6 @@ Start-Pause
 Start-Stopping
 
 Write-Host '[uploader] Начинаем процесс выгрузки архивов в гугл.'
-# Ищем данные о прошлых выгрузках в гугл.
-$uploads_all = Get-StoredUploads
-Show-StoredUploads $uploads_all
 
 # Если используемых акков >1 и передан параметр с номером, то используем балансировку.
 if ( $args.count -ne 0 -and $google_params.accounts_count -gt 1 ) {
@@ -34,11 +31,17 @@ if ( !$sum_cnt ) { Exit }
 
 Start-Sleep -Seconds (Get-Random -Minimum 2 -Maximum 10)
 
+
+# Ищем данные о прошлых выгрузках в гугл.
+$uploads_all = Get-StoredUploads
+Show-StoredUploads $uploads_all
+
 # Перебираем архивы.
 Write-Host ('[uploader] Начинаем перебирать раздачи.')
 foreach ( $zip in $zip_list ) {
-    Start-Pause
+    Write-Host ''
 
+    # Ид и прочие параметры раздачи.
     $torrent_id, $torrent_hash = ( $zip.Name.Split('.')[0] ).Split('_')
     $zip_size = $zip.($OS.sizeField)
 

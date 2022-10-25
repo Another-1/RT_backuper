@@ -25,7 +25,7 @@ $stash_folder = @{
     uploads_limit = "$PSScriptRoot/stash/uploads_limit.xml" # Файл записанных отдач (лимиты)
     backup_list   = "$PSScriptRoot/stash/backup_{0}.xml"    # Файл уже обработанного списка раздач. Для случая когда был перезапуск
 
-    finished      = "$PSScriptRoot/stash/finished.txt"      # Файл id_hash раздач, которые были найдены в гугле или были заархивированны
+    finished_list = "$PSScriptRoot/stash/finished_{0}.txt"      # Файл id_hash раздач, которые были найдены в гугле или были заархивированны
     pause         = "$PSScriptRoot/stash/pause.txt"         # Если в файле что-то есть, скрипт встанет на паузу.
 }
 
@@ -41,8 +41,6 @@ $measure_names = @{
     speed_2  = 'B/s','KiB/s','MiB/s','GiB/s','TiB/s','PiB/s'
     speed_10 = 'B/s','KB/s' ,'MB/s' ,'GB/s' ,'TB/s' ,'PB/s'
 }
-
-
 
 
 # Получить список существующих архивов из списков по дискам.
@@ -170,6 +168,7 @@ function Sync-ArchList ( $All = $false ) {
 
     # Выбираем первый диск по условиям выше и обновляем его.
     if ( !$All ) {
+        Write-Host ''
         Write-Host ( '[updater] Списков требущих обновления: {0}.' -f $folders.count )
         $folders = $folders | Select -First 1
     }
@@ -191,16 +190,28 @@ function Sync-ArchList ( $All = $false ) {
     }
 }
 
-# Добавляем раздачу в список обработанных и возможно под удаление.
+# Пробуем удалить раздачу из клиента, если подходит под параметры.
 function Dismount-ClientTorrent ( [int]$torrent_id, [string]$torrent_hash, [string]$torrent_category = $null ) {
-    # Если отдельный модуль очистки не используется, то просто выпиливаем раздачу
-    if ( !$used_modules.cleaner ) {
-        Remove-ClientTorrent $torrent_id $torrent_hash $torrent_category
+    if ( !$uploader.delete ) { return }
+
+    # Если используется модуль пакетной очистки, то пишем в файлик.
+    if ( $used_modules.cleaner ) {
+        $finished_list = $stash_folder.finished_list -f $client.name
+        Watch-FileExist $finished_list > $null
+
+        ($torrent_id.ToString() + '_' + $torrent_hash.ToLower()) | Out-File $finished_list -Append
+        return
     }
-    # Если модуль включён, то пишем в файлик.
-    else {
-        Watch-FileExist $stash_folder.finished > $null
-        ($torrent_id.ToString() + '_' + $torrent_hash.ToLower()) | Out-File $stash_folder.finished -Append
+
+    # Удаляем раздачу из клиента.
+    if ( !$torrent_category ) {
+        $torrent = Get-ClientTorrents @( $torrent_hash )
+        if ( !$torrent ) { return }
+        $torrent_category = $torrent.category
+    }
+
+    if ( $uploader.delete -And $uploader.delete_category -eq $torrent_category ) {
+        Remove-ClientTorrent $torrent_id $torrent_hash
     }
 }
 
@@ -378,7 +389,7 @@ function Compare-MaxSize ( [string]$Path, [long]$MaxSize ) {
 # Удаление пустых каталогов по заданному пути.
 function Clear-EmptyFolders ( $Path ) {
     if ( Test-Path $Path ) {
-        Get-ChildItem $Path -Recurse | Where {$_.PSIsContainer -and @(Get-ChildItem -Lit $_.Fullname -r | Where {!$_.PSIsContainer}).Length -eq 0} | Remove-Item -Force
+        Get-ChildItem $Path -Directory | ? { (gci -lit $_.Fullname).count -eq 0 } | % { Remove-Item $_.Fullname }
     }
 }
 
@@ -485,7 +496,7 @@ function Sync-Settings {
                 $dir_count = (Get-ChildItem $_ -Directory).count
                 if ( $dir_count -ne $disk_count ) {
                     $errors += $err -f $_, $dir_count, $disk_count
-                    # $terminate = $true
+                    $terminate = $true
                 }
             }
         }

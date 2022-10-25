@@ -164,23 +164,21 @@ function Add-ClientTorrent ( $Hash, $File, $Path, $Category ) {
 }
 
 
-# Удаляет раздачу из клиента, если она принадлежит заданной категории и включено удаление.
-function Remove-ClientTorrent ( [int]$torrent_id, [string]$torrent_hash, [string]$torrent_category ) {
-    if ( $uploader.delete -eq 1 -And $uploader.delete_category -eq $torrent_category ) {
-        try {
-            Write-Host ( '[delete] Удаляем из клиента раздачу {0}' -f $torrent_id )
-            $request_delete = @{
-                method = 'torrent-remove'
-                arguments = @{
-                    'ids' = @( $torrent_hash )
-                    'delete-local-data' = $true
-                }
+# Удаляет раздачу и содержимое из клиента
+function Remove-ClientTorrent ( [int]$torrent_id, [string]$torrent_hash ) {
+    try {
+        Write-Host ( '[delete] Удаляем из клиента раздачу {0}' -f $torrent_id )
+        $request_delete = @{
+            method = 'torrent-remove'
+            arguments = @{
+                'ids' = @( $torrent_hash )
+                'delete-local-data' = $true
             }
-            Read-Client $request_delete > $null
         }
-        catch {
-            Write-Host ( '[delete] Почему-то не получилось удалить раздачу {0}.' -f $torrent_id )
-        }
+        Read-Client $request_delete > $null
+    }
+    catch {
+        Write-Host ( '[delete] Почему-то не получилось удалить раздачу {0}.' -f $torrent_id )
     }
 }
 ###################################################################################################

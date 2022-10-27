@@ -1,3 +1,8 @@
+Param (
+    [string]$UsedClient = $null,
+    [switch]$Full
+)
+
 . "$PSScriptRoot\RT_functions.ps1"
 
 if ( !(Confirm-Version) ) { Exit }
@@ -9,14 +14,6 @@ Write-Host ( 'Система: {0}' -f $OS.name ) -ForegroundColor Yellow
 if ( $start_time -and $stop_time ) {
     Write-Host ( '[start_time,stop_time] Расписание работы, период ({0} - {1})' -f $start_time, $stop_time )
 }
-
-
-Write-Host ''
-Write-Host ( 'Настройки для клиента "{0}" [{1}].' -f $client.name, $client.type ) -ForegroundColor Yellow
-Write-Host ( '- url: {0}; login: "{1}".' -f $client.url, $client.login )
-
-Initialize-Client
-Get-ClientVerion
 
 Write-Host ''
 Write-Host ( '[rutracker] Логин для форума: {0}' -f $rutracker.login ) -ForegroundColor Yellow
@@ -46,6 +43,12 @@ if ( $google_params.cache ) {
 }
 
 Write-Host ''
+Write-Host ( 'Текущие потраченные лимиты выгрузки (освободится через [1,3,6,12] часов):' ) -ForegroundColor Yellow
+# Ищем данные о прошлых выгрузках в гугл.
+$uploads_all = Get-StoredUploads
+Show-StoredUploads $uploads_all
+
+
 Write-Host ( 'Настройки бекапера [backuper]:' ) -ForegroundColor Yellow
 Write-Host ( '- {0,-18} каталог хранения архивов в процессе работы: "{1}"' -f '[zip_folder]', $backuper.zip_folder )
 if ( $backuper.zip_folder_size ) {
@@ -81,3 +84,33 @@ if ( $collector.collect_size ) {
     Write-Host ( '- {0,-18} лимит размера каталога не задан' -f '[collect_size]' )
 }
 Write-Host ( '- {0,-18} каталог временного хранения торрент-файлов "{1}"' -f '[tmp_folder]', $collector.tmp_folder )
+
+Write-Host ''
+Write-Host ( 'Настройки для клиента "{0}" [{1}]' -f $client.name, $client.type ) -ForegroundColor Yellow
+Write-Host ( '- url: {0}; login: "{1}"' -f $client.url, $client.login )
+
+Initialize-Client
+Get-ClientVerion
+
+
+Write-Host ''
+if ( !$Full ) {
+    Write-Host 'Посчитать раздачи в клиенте? [y/n]: ' -ForegroundColor Green -NoNewLine
+    $ch_client = ( Read-Host ).ToString().ToLower()
+}
+if ( $Full -or $ch_client -in 'y','д' ) {
+    if ( !$Full ) {
+        Write-Host 'Вычислить сколько раздач нужно залить в облако? [y/n]: ' -ForegroundColor Green -NoNewLine
+        $ch_calc = ( Read-Host ).ToString().ToLower()
+    }
+
+    $torrents_list = Get-ClientTorrents
+    Write-Host ( '[client] Завершённых раздач в клиенте: {0}' -f $torrents_list.count ) -ForegroundColor DarkCyan
+
+    if ( $Full -or $ch_calc -in 'y','д' ) {
+        $dones, $hashes = Get-Archives
+        $torrents_left = $torrents_list | ? { $_.hash -notin $hashes.keys }
+        $torrents_size = ( $torrents_list | Measure-Object size -Sum ).Sum
+        Write-Host ( '[client] Раздач, которые нужно залить: {0} ({1})' -f $torrents_left.count, (Get-BaseSize $torrents_size) ) -ForegroundColor DarkCyan
+    }
+}

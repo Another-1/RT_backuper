@@ -3,6 +3,23 @@
 if ( !(Confirm-Version) ) { Exit }
 if ( !( Sync-Settings ) ) { Pause; Exit }
 
+$ScriptName = (Get-Item $PSCommandPath).BaseName
+$errors = @()
+if ( !$used_modules.uploader ) {
+    $errors += 'Вы запустили {0}, хотя он не включён в настройках. Проверьте настройки $used_modules.' -f $ScriptName
+}
+if ( !$used_modules.backuper ) {
+    $errors += 'Вы запустили {0}, хотя backuper не включён в настройках. Проверьте настройки $used_modules.' -f $ScriptName
+}
+if ( $uploader.delete -and !$used_modules.cleaner ) {
+    $errors += 'Включено удаление раздач после архивирования, то не включён cleaner. Или включите его или используйте Backuper_Full.'
+}
+if ( $errors ) {
+    Write-Host ''
+    $errors | Write-Host -ForegroundColor Yellow
+    Exit
+}
+
 Start-Pause
 Start-Stopping
 

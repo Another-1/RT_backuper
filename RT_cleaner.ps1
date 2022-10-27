@@ -24,7 +24,7 @@ if ( $errors ) {
 }
 
 $step = 20
-$finished_list = $stash_folder.finished_list -f $client.name
+$finished_list = $stash_folder.finished_list
 Watch-FileExist $finished_list > $null
 
 $total = Get-Content $finished_list | Sort-Object -Unique

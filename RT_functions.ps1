@@ -25,22 +25,28 @@ $pswd = '20RuTracker.ORG22'
 # Параметры окружения (linux/windows).
 $OS = @{}
 
-# Файлы с данными, для общения между процессами
-$stash_folder = @{
+
+$def_paths = [ordered]@{
+    progress      = $backuper.zip_folder + '/progress'           # Каталог хранения архивируемых раздач
+    finished      = $backuper.zip_folder + '/finished'           # Каталог хранения, уже готовых к выгрузке в гугл, архивов
+
+    downloaded    = "$PSScriptRoot/stash/{0}/hashes.txt"         # Файл со списком свежескачанных раздач. Добавляется из клиента
+    backup_list   = "$PSScriptRoot/stash/{0}/backup_list.xml"    # Файл уже обработанного списка раздач. Для случая когда был перезапуск
+    finished_list = "$PSScriptRoot/stash/{0}/finished_list.txt"  # Файл id_hash обработанных раздач, которые надо уделать, если это необходимо
+}
+
+# Временные файлы для хранения прогресса и прочего.
+$stash_folder = [ordered]@{
     default       = "$PSScriptRoot/stash"                   # Общий путь к папке
     archived      = "$PSScriptRoot/stash/archived"          # Путь к спискам архивов по дискам
     uploads_limit = "$PSScriptRoot/stash/uploads_limit.xml" # Файл записанных отдач (лимиты)
     pause         = "$PSScriptRoot/stash/pause.txt"         # Если в файле что-то есть, скрипт встанет на паузу.
 
-    backup_list   = "$PSScriptRoot/stash/{0}/backup_list.xml"    # Файл уже обработанного списка раздач. Для случая когда был перезапуск
-    finished_list = "$PSScriptRoot/stash/{0}/finished_list.txt"  # Файл id_hash обработанных раздач, которые надо уделать, если это необходимо
+    downloaded    = $null
+    backup_list   = $null
+    finished_list = $null
 }
 
-$def_paths = @{
-    downloaded    = "$PSScriptRoot/config/hashes.txt"       # Файл со списком свежескачанных раздач. Добавляется из клиента
-    progress      = $backuper.zip_folder + '/progress'      # Каталог хранения архивируемых раздач
-    finished      = $backuper.zip_folder + '/finished'      # Каталог хранения, уже готовых к выгрузке в гугл, архивов
-}
 
 $measure_names = @{
     byte_2   = 'B','KiB','MiB','GiB','TiB','PiB'
@@ -54,10 +60,7 @@ $measure_names = @{
 function Get-Archives {
     Sync-ArchList $true
 
-    if ( !(Get-ChildItem $stash_folder.archived) ) {
-        Write-Host 'Не обнаружено списков заархивированного. Запустите updater' -ForegroundColor Yellow
-        Exit
-    }
+    if ( !(Get-ChildItem $stash_folder.archived) ) { Exit }
 
     Write-Host '[archived] Смотрим, что уже заархивировано..'
     $time_collect = [math]::Round( (Measure-Command {
@@ -203,7 +206,7 @@ function Dismount-ClientTorrent ( [int]$torrent_id, [string]$torrent_hash, [stri
 
     # Если используется модуль пакетной очистки, то пишем в файлик.
     if ( $used_modules.cleaner ) {
-        $finished_list = $stash_folder.finished_list -f $client.name
+        $finished_list = $stash_folder.finished_list
         Watch-FileExist $finished_list > $null
 
         ($torrent_id.ToString() + '_' + $torrent_hash.ToLower()) | Out-File $finished_list -Append
@@ -286,7 +289,6 @@ function Show-StoredUploads ( $uploads_all ) {
     $time_diff = 1, 3, 6, 12
     $yesterday = ( Get-date ).AddDays( -1 )
 
-    Write-Host ''
     $uploads_all.GetEnumerator() | Sort-Object Key | % {
         $disk_name = $_.key
         $full_size = ( $_.value.values | Measure-Object -sum ).Sum
@@ -480,10 +482,6 @@ function Sync-Settings {
                 $terminate = $true
             }
         }
-
-        if ( !$client.name -And $client.type ) {
-            $client.name = $client.type
-        }
     }
 
     if ( !$rutracker ) {
@@ -503,7 +501,7 @@ function Sync-Settings {
                 $dir_count = (Get-ChildItem $_ -Directory).count
                 if ( $dir_count -ne $disk_count ) {
                     $errors += $err -f $_, $dir_count, $disk_count
-                    $terminate = $true
+                    # $terminate = $true
                 }
             }
         }
@@ -552,12 +550,50 @@ function Sync-Settings {
     return !$terminate
 }
 
+function Select-Client ( [Parameter (Mandatory = $true)][string]$ClientName ) {
+    if ( $client_list.count ) {
+        if ( $ClientName ) {
+            $client = $client_list | ? { $_.name -eq $ClientName }
+        }
+        if ( !$client ) { $client = $client_list[0] }
+    }
 
-# Подключаем файл с функциями выбранного клиента, если он есть.
-if ( $client.type ) {
+    if ( $client.type ) {
+        return $client
+    }
+}
+
+function Connect-Client {
+    if ( !$client.name -And $client.type ) {
+        $client.name = $client.type
+    }
+
+    $stash_folder.downloaded    = $def_paths.downloaded    -f $client.name
+    $stash_folder.backup_list   = $def_paths.backup_list   -f $client.name
+    $stash_folder.finished_list = $def_paths.finished_list -f $client.name
+
     $client_file = "$PSScriptRoot\clients\client.{0}.ps1" -f $client.type.ToLower()
     if ( Test-Path $client_file ) {
         Write-Host ( '[client] Выбранный торрент-клиент "{0}" [{1}], подключаем модуль.' -f $client.name, $client.type ) -ForegroundColor Green
-        . $client_file
+        return $client_file
     }
+}
+
+
+# Подключаем файл с функциями выбранного клиента, если он есть.
+if ( $client.type ) {
+    # if ( !$client.name -And $client.type ) {
+    #     $client.name = $client.type
+    # }
+
+    # $client_file = "$PSScriptRoot\clients\client.{0}.ps1" -f $client.type.ToLower()
+    # if ( Test-Path $client_file ) {
+    #     Write-Host ( '[client] Выбранный торрент-клиент "{0}" [{1}], подключаем модуль.' -f $client.name, $client.type ) -ForegroundColor Green
+    #     . $client_file
+    # }
+
+    # $stash_folder.downloaded    = $def_paths.downloaded    -f $client.name
+    # $stash_folder.backup_list   = $def_paths.backup_list   -f $client.name
+    # $stash_folder.finished_list = $def_paths.finished_list -f $client.name
+    . (Connect-Client)
 }

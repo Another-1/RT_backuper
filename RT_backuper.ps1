@@ -6,19 +6,29 @@ Param (
 if ( !(Confirm-Version) ) { Exit }
 if ( !( Sync-Settings ) ) { Pause; Exit }
 
+$ScriptName = (Get-Item $PSCommandPath).BaseName
+$errors = @()
+if ( !$used_modules.backuper ) {
+    $errors += 'Вы запустили {0}, хотя он не включён в настройках. Проверьте настройки $used_modules.' -f $ScriptName
+}
+if ( !$used_modules.uploader ) {
+    $errors += 'Вы запустили {0}, хотя uploader не включён в настройках. Проверьте настройки $used_modules.' -f $ScriptName
+}
+if ( $uploader.delete -and !$used_modules.cleaner ) {
+    $errors += 'Включено удаление раздач после архивирования, то не включён cleaner. Или включите его или используйте Backuper_Full.'
+}
+if ( $errors ) {
+    Write-Host ''
+    $errors | Write-Host -ForegroundColor Yellow
+    Exit
+}
+
 Start-Pause
 Start-Stopping
 
-$ScriptName = $PSCommandPath
-
 # Пробуем найти список раздач, которые обрабатывались, но процесс прервался.
 try {
-    $backup_list_name = $client.name
-    $current_backup_list = $stash_folder.backup_list -f $backup_list_name
-
-    # Миграция старого файла бекапа
-    $old_backup_list = $stash_folder.backup_list -f 'list'
-    if ( Test-Path $old_backup_list ) { Rename-Item $old_backup_list $current_backup_list }
+    $current_backup_list = $stash_folder.backup_list
 
     $torrents_list = Import-Clixml $current_backup_list
     if ( $torrents_list ) {
@@ -29,9 +39,9 @@ try {
 # Если список пуст, начинаем с начала.
 if ( !$torrents_list ) {
     # Ищем раздачи, которые скачал клиент и добавил в буферный файл.
-    $hash_file = Watch-FileExist $def_paths.downloaded
+    $hash_file = Watch-FileExist $stash_folder.downloaded
     if ( $hash_file.($OS.sizeField) ) {
-        $downloaded = ( Get-FileFirstContent $def_paths.downloaded $backuper.hashes_step )
+        $downloaded = ( Get-FileFirstContent $stash_folder.downloaded $backuper.hashes_step )
         Write-Host ( '[backuper] Найдено раздач, докачанных клиентом : {0}.' -f $downloaded.count )
     }
 

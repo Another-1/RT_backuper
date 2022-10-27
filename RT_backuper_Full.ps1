@@ -22,9 +22,9 @@ if ( $Hashes ) {
 # Если список пуст, начинаем с начала.
 if ( !$hash_list ) {
     # Ищем раздачи, которые скачал клиент и добавил в буферный файл.
-    $hash_file = Watch-FileExist $def_paths.downloaded
+    $hash_file = Watch-FileExist $stash_folder.downloaded
     if ( $hash_file.($OS.sizeField) ) {
-        $hash_list = ( Get-FileFirstContent $def_paths.downloaded $backuper.hashes_step )
+        $hash_list = ( Get-FileFirstContent $stash_folder.downloaded $backuper.hashes_step )
         Write-Host ( '[backuper] Найдено раздач, докачанных клиентом : {0}.' -f $hash_list.count )
     }
     if ( !$hash_list -And $backuper.hashes_only ) {
@@ -169,7 +169,6 @@ foreach ( $torrent in $torrents_list ) {
         $zip_test = Test-PathTimer $zip_google_path
         Write-Host ( '[check][{0}] Проверка выполнена за {1} сек, результат: {2}' -f $disk_name, $zip_test.exec, $zip_test.result )
         if ( $zip_test.result ) {
-            Dismount-ClientTorrent $torrent_id $torrent_hash
             throw '[skip] Такой архив уже существует на гугл-диске, удаляем файл и пропускаем раздачу.'
         }
 
@@ -184,8 +183,6 @@ foreach ( $torrent in $torrents_list ) {
 
             $speed_move = (Get-BaseSize ($zip_size / $move_sec) -SI speed_2)
             Write-Host ( '[uploader] Готово! Завершено за {0} минут, средняя скорость {1}' -f [math]::Round($move_sec/60, 1) , $speed_move )
-
-            Dismount-ClientTorrent $torrent_id $torrent_hash
 
             # После успешного переноса архива записываем затраченный трафик
             Get-TodayTraffic $uploads_all $zip_size $google_name > $null

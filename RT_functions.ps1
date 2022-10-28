@@ -37,9 +37,9 @@ $def_paths = [ordered]@{
 
 # Временные файлы для хранения прогресса и прочего.
 $stash_folder = [ordered]@{
-    default       = "$PSScriptRoot/stash"                   # Общий путь к папке
-    archived      = "$PSScriptRoot/stash/archived"          # Путь к спискам архивов по дискам
-    uploads_limit = "$PSScriptRoot/stash/uploads_limit.xml" # Файл записанных отдач (лимиты)
+    default       = "$PSScriptRoot/stash"                   # Общий путь к папке.
+    archived      = "$PSScriptRoot/stash/archived"          # Путь к спискам архивов по дискам.
+    uploads_limit = "$PSScriptRoot/stash/uploads_limit.xml" # Файл записанных отдач (лимиты).
     pause         = "$PSScriptRoot/stash/pause.txt"         # Если в файле что-то есть, скрипт встанет на паузу.
 
     downloaded    = $null
@@ -168,7 +168,7 @@ function Compare-UsedLimits ( $google_name, $uploads_all ) {
 
 # Обновить список архивов в локальной "БД".
 function Sync-ArchList ( $All = $false ) {
-    $arch_folders = Get-ChildItem $google_params.folders[0] -filter "$google_folder_prefix*" -Directory
+    $arch_folders = Get-ChildItem $google_params.folders[0] -Directory -Filter "$google_folder_prefix*"
 
     # Собираем список гугл-дисков и проверяем наличие файла со списком архивов для каждого. Создаём если нет.
     # Проверяем даты обновления файлов и размер. Если прошло 6ч или файл пуст -> пора обновлять.
@@ -289,6 +289,7 @@ function Show-StoredUploads ( $uploads_all ) {
     $time_diff = 1, 3, 6, 12
     $yesterday = ( Get-date ).AddDays( -1 )
 
+    $row_text = "[limit][{4}] Выгружено {5,8}. Освободится: {0,9}; {1,9}; {2,9}; {3,9}."
     $uploads_all.GetEnumerator() | Sort-Object Key | % {
         $disk_name = $_.key
         $full_size = ( $_.value.values | Measure-Object -sum ).Sum
@@ -306,7 +307,7 @@ function Show-StoredUploads ( $uploads_all ) {
                 }
             }
         }
-        Write-Host ( "[limit][{4}] Выгружено {5}. Освободится: {0}; {1}; {2}; {3}." -f @( ($period.values | % {Get-BaseSize $_}) + $disk_name + (Get-BaseSize $full_size) ) )
+        Write-Host ( $row_text -f @( ($period.values | % {Get-BaseSize $_}) + $disk_name + (Get-BaseSize $full_size) ) )
     }
     Write-Host ''
 }
@@ -376,7 +377,7 @@ function Get-FileFirstContent ( [string]$Path, [int]$First = 10 ) {
 # Вычислить размер содержимого каталога.
 function Get-FolderSize ( $Path ) {
     New-Item -ItemType Directory $Path -Force > $null
-    $Size = (Get-ChildItem $Path -File -Recurse | Measure-Object -Property $OS.sizeField -Sum).Sum
+    $Size = (Get-ChildItem -LiteralPath $Path -File -Recurse | Measure-Object -Property $OS.sizeField -Sum).Sum
     if ( !$Size ) { $Size = 0 }
     return $Size
 }
@@ -398,7 +399,7 @@ function Compare-MaxSize ( [string]$Path, [long]$MaxSize ) {
 # Удаление пустых каталогов по заданному пути.
 function Clear-EmptyFolders ( $Path ) {
     if ( Test-Path $Path ) {
-        Get-ChildItem $Path -Directory | ? { (gci -lit $_.Fullname).count -eq 0 } | % { Remove-Item $_.Fullname }
+        Get-ChildItem $Path -Directory | ? { (Get-ChildItem -LiteralPath $_.Fullname).count -eq 0 } | % { Remove-Item $_.Fullname }
     }
 }
 
@@ -498,10 +499,10 @@ function Sync-Settings {
             $disk_count = 24
             $err = 'В каталоге гугл-диска "{0}" недостаточно подключенных дисков ({1} из {2}). Проверьте настройки подключения.'
             $google_params.folders | % {
-                $dir_count = (Get-ChildItem $_ -Directory).count
+                $dir_count = (Get-ChildItem $_ -Directory -Filter "$google_folder_prefix*").count
                 if ( $dir_count -ne $disk_count ) {
                     $errors += $err -f $_, $dir_count, $disk_count
-                    # $terminate = $true
+                    $terminate = $true
                 }
             }
         }
@@ -581,19 +582,6 @@ function Connect-Client {
 
 
 # Подключаем файл с функциями выбранного клиента, если он есть.
-if ( $client.type ) {
-    # if ( !$client.name -And $client.type ) {
-    #     $client.name = $client.type
-    # }
-
-    # $client_file = "$PSScriptRoot\clients\client.{0}.ps1" -f $client.type.ToLower()
-    # if ( Test-Path $client_file ) {
-    #     Write-Host ( '[client] Выбранный торрент-клиент "{0}" [{1}], подключаем модуль.' -f $client.name, $client.type ) -ForegroundColor Green
-    #     . $client_file
-    # }
-
-    # $stash_folder.downloaded    = $def_paths.downloaded    -f $client.name
-    # $stash_folder.backup_list   = $def_paths.backup_list   -f $client.name
-    # $stash_folder.finished_list = $def_paths.finished_list -f $client.name
+if ( $client.type -and !$NoClient ) {
     . (Connect-Client)
 }

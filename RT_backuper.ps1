@@ -17,11 +17,7 @@ if ( !$used_modules.uploader ) {
 if ( $uploader.delete -and !$used_modules.cleaner ) {
     $errors += 'Включено удаление раздач после архивирования, то не включён cleaner. Или включите его или используйте Backuper_Full.'
 }
-if ( $errors ) {
-    Write-Host ''
-    $errors | Write-Host -ForegroundColor Yellow
-    Exit
-}
+if ( $errors ) { Write-Host ''; $errors | Write-Host -ForegroundColor Yellow; Pause; Exit }
 
 Start-Pause
 Start-Stopping
@@ -144,7 +140,7 @@ foreach ( $torrent in $torrents_list ) {
         $start_measure = Get-Date
 
         # Начинаем архивацию файла
-        Write-Host ( '[torrent] Архивация начата, сжатие:{0}.' -f $compression )
+        Write-Host ( '[torrent] Архивация начата, сжатие:{0}, ядра процессора:{1}.' -f $compression, $backuper.cores )
         if ( $backuper.h7z ) {
             & $backuper.p7z a $zip_path_progress $torrent.content_path "-p$pswd" "-mx$compression" ("-mmt" + $backuper.cores) -mhe=on -sccUTF-8 -bb0 > $null
         } else {

@@ -14,11 +14,7 @@ if ( !$used_modules.backuper ) {
 if ( $uploader.delete -and !$used_modules.cleaner ) {
     $errors += 'Включено удаление раздач после архивирования, то не включён cleaner. Или включите его или используйте Backuper_Full.'
 }
-if ( $errors ) {
-    Write-Host ''
-    $errors | Write-Host -ForegroundColor Yellow
-    Exit
-}
+if ( $errors ) { Write-Host ''; $errors | Write-Host -ForegroundColor Yellow; Pause; Exit }
 
 Start-Pause
 Start-Stopping

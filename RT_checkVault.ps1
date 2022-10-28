@@ -1,6 +1,6 @@
 Param (
-    [string]$UsedClient = $null,
-    [switch]$Full
+    [switch]$Full,
+    [switch]$NoClient = $true
 )
 
 . "$PSScriptRoot\RT_functions.ps1"
@@ -23,7 +23,7 @@ Write-Host ( 'Используется прокси: {0} {1}:***' -f $proxy_addr
 
 Write-Host ''
 Write-Host ( 'Настройки подключённых гугл-дисков:' ) -ForegroundColor Yellow
-Write-Host ( '- {0,-18} каталогов [{1}]' -f '[folders]', $google_params.folders.count )
+Write-Host ( '- {0,-18} каталогов: [{1}]' -f '[folders]', $google_params.folders.count )
 Write-Host ( '- {0,-18} фактических аккаунтов: [{1}]' -f '[accounts_count]', $google_params.accounts_count )
 
 $google_params.folders | % {
@@ -31,7 +31,7 @@ $google_params.folders | % {
 }
 
 if ( $google_params.cache ) {
-    Write-Host ( '- {0,-18} указана каталог кеша "{1}"' -f '[cache]', $google_params.cache )
+    Write-Host ( '- {0,-18} каталог кеша "{1}"' -f '[cache]', $google_params.cache )
 
     if ( $google_params.cache_size ) {
         $size = Get-BaseSize $google_params.cache_size
@@ -43,7 +43,7 @@ if ( $google_params.cache ) {
 }
 
 Write-Host ''
-Write-Host ( 'Текущие потраченные лимиты выгрузки (освободится через [1,3,6,12] часов):' ) -ForegroundColor Yellow
+Write-Host ( 'Текущие использованные лимиты выгрузки (освободится через [1,3,6,12] часов):' ) -ForegroundColor Yellow
 # Ищем данные о прошлых выгрузках в гугл.
 $uploads_all = Get-StoredUploads
 Show-StoredUploads $uploads_all
@@ -85,32 +85,43 @@ if ( $collector.collect_size ) {
 }
 Write-Host ( '- {0,-18} каталог временного хранения торрент-файлов "{1}"' -f '[tmp_folder]', $collector.tmp_folder )
 
-Write-Host ''
-Write-Host ( 'Настройки для клиента "{0}" [{1}]' -f $client.name, $client.type ) -ForegroundColor Yellow
-Write-Host ( '- url: {0}; login: "{1}"' -f $client.url, $client.login )
-
-Initialize-Client
-Get-ClientVerion
 
 
 Write-Host ''
-if ( !$Full ) {
-    Write-Host 'Посчитать раздачи в клиенте? [y/n]: ' -ForegroundColor Green -NoNewLine
-    $ch_client = ( Read-Host ).ToString().ToLower()
+Write-Host ( '[archived] Обновим список архивов в облаке.' ) -ForegroundColor Yellow
+$dones, $hashes = Get-Archives
+
+if ( !$client_list ) {
+    $client_list = @( $client )
 }
-if ( $Full -or $ch_client -in 'y','д' ) {
+
+
+foreach ( $cl in $client_list ) {
+    Write-Host ''
+    # Подключаемся к выбранному клиенту.
+    $client = Select-Client $cl.name
+    . (Connect-Client)
+
+    Write-Host ( 'Настройки для клиента "{0}" [{1}]' -f $client.name, $client.type ) -ForegroundColor Yellow
+    Write-Host ( '- url: {0}; login: "{1}"' -f $client.url, $client.login )
+
+    Initialize-Client
+    Get-ClientVerion
+
+
     if ( !$Full ) {
-        Write-Host 'Вычислить сколько раздач нужно залить в облако? [y/n]: ' -ForegroundColor Green -NoNewLine
-        $ch_calc = ( Read-Host ).ToString().ToLower()
+        Write-Host 'Посчитать раздачи в клиенте? [y/n]: ' -ForegroundColor Green -NoNewLine
+        $ch_client = ( Read-Host ).ToString().ToLower()
     }
+    if ( $Full -or $ch_client -in 'y','д' ) {
+        $torrents_list = Get-ClientTorrents
+        Write-Host ( '[client] Завершённых раздач в клиенте: {0}' -f $torrents_list.count ) -ForegroundColor DarkCyan
 
-    $torrents_list = Get-ClientTorrents
-    Write-Host ( '[client] Завершённых раздач в клиенте: {0}' -f $torrents_list.count ) -ForegroundColor DarkCyan
-
-    if ( $Full -or $ch_calc -in 'y','д' ) {
-        $dones, $hashes = Get-Archives
         $torrents_left = $torrents_list | ? { $_.hash -notin $hashes.keys }
         $torrents_size = ( $torrents_list | Measure-Object size -Sum ).Sum
         Write-Host ( '[client] Раздач, которые нужно залить: {0} ({1})' -f $torrents_left.count, (Get-BaseSize $torrents_size) ) -ForegroundColor DarkCyan
     }
 }
+
+
+

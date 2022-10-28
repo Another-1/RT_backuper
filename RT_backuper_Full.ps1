@@ -135,7 +135,7 @@ foreach ( $torrent in $torrents_list ) {
         $start_measure = Get-Date
 
         # Начинаем архивацию файла
-        Write-Host ( '[torrent] Архивация начата, сжатие:{0}.' -f $compression )
+        Write-Host ( '[torrent] Архивация начата, сжатие:{0}, ядра процессора:{1}.' -f $compression, $backuper.cores )
         if ( $backuper.h7z ) {
             & $backuper.p7z a $zip_path_progress $torrent.content_path "-p$pswd" "-mx$compression" ("-mmt" + $backuper.cores) -mhe=on -sccUTF-8 -bb0 > $null
         } else {

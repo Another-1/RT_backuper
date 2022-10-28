@@ -1,14 +1,15 @@
 Param (
     [int]$Forum,
-    [int]$MinTopic   = -1,
-    [int]$MaxTopic   = -1,
-    [int]$MinSeed = -1,
+    [ValidateRange('NonNegative')][int]$MinTopic = -1,
+    [ValidateRange('NonNegative')][int]$MaxTopic = -1,
+    [ValidateRange('NonNegative')][int]$MinSeed  = -1,
+    [ValidateRange('Positive')][int]$MinSize, #Мб
     [ValidateSet(0, 1, 2)][string]$Priority = -1,
     [ValidateSet('topic_id', 'seeders', 'size', 'priority')][string]$Sort = 'size',
-    [ValidateRange('Positive')][int]$Top = 10000,
+    [ValidateRange('Positive')][int]$First,
     [switch]$Descending,
     [ValidateRange('Positive')][int[]]$Topics,
-    [int]$SizeLimit = 1024,
+    [ValidateRange('Positive')][int]$SizeLimit = 1024, #Гб
     [string]$Category,
     [string]$UsedClient
 )
@@ -106,6 +107,11 @@ else {
     if ( $MaxTopic -gt 0 ) {
         $tracker_list = $tracker_list | ? { $_.topic_id -le $MaxTopic }
     }
+    # Если задан минимальный размер раздачи, фильтруем.
+    if ( $MinSize -gt 0 ) {
+        [long]$MinSize = $MinSize * [math]::Pow(1024, 2) # Мб
+        $tracker_list = $tracker_list | ? { $_.size -ge $MinSize }
+    }
 
 }
 
@@ -122,8 +128,8 @@ $client_list = Get-ClientTorrents -Completed $false | % { $_.hash }
 
 $tracker_list = $tracker_list | ? { $_.hash -notin $client_list }
 Write-Host ( '- от клиента получено раздач: {0}, после их исключения, раздач осталось: {1}.' -f $client_list.count, $tracker_list.count )
-if ( $Top -lt 10000 ) {
-    Write-Host ( '- будет добавлено первых {0} раздач.' -f $Top )
+if ( $First -or $SizeLimit ) {
+    Write-Host ( '- будет добавлено первых {0} раздач или первые {1} GiB.' -f $First, $SizeLimit )
 }
 
 # Определить категорию новых раздач.
@@ -133,8 +139,9 @@ if ( !$Category ) {
 }
 
 # Сортируем по заданному полю (size по-умолчанию).
-$tracker_list = $tracker_list | Sort-Object -Top $Top -Property @{Expression = $Sort; Descending = $Descending}
+$tracker_list = $tracker_list | Sort-Object -Property @{Expression = $Sort; Descending = $Descending}
 
+Write-Host ''
 Write-Host 'Авторизуемся на форуме'
 $secure_pass = ConvertTo-SecureString -String $proxy_password -AsPlainText -Force
 $proxyCreds = New-Object System.Management.Automation.PSCredential -ArgumentList $proxy_login, $secure_pass
@@ -186,16 +193,18 @@ foreach ( $torrent in $tracker_list ) {
     # Добавляем раздачу в клиент.
     Write-Host ( 'Добавляем торрент-файл раздачи {0} в клиент.' -f $torrent_id )
     Add-ClientTorrent $torrent_hash $torrent_file_path $extract_path $Category > $null
-
     Remove-Item $torrent_file_path
-    $added++
 
+    $added++
     $SizeUsed += $torrent.size
-    if ( $SizeUsed -ge $SizeLimit ) {
-        Write-Host ( 'Размер добавленных раздач ({0}) превышает заданный лимит ({1}). Завершаем работу.' -f (Get-BaseSize $SizeUsed), (Get-BaseSize $SizeLimit) )
-        Pause
-        Exit
+    $errors = @()
+    if ( $First -and $added -ge $First ) {
+        $errors += 'Количество добавленных раздач ({0}) равно лимиту ({1}). Завершаем работу.' -f $added, $First
     }
+    if ( $SizeLimit -and $SizeUsed -ge $SizeLimit ) {
+        $errors += 'Размер добавленных раздач ({0}) равно лимиту ({1}). Завершаем работу.' -f (Get-BaseSize $SizeUsed), (Get-BaseSize $SizeLimit)
+    }
+    if ( $errors ) { Write-Host ''; $errors | Write-Host -ForegroundColor Yellow; Pause; Exit }
 
     Start-Sleep -Seconds 1
 } # end foreach

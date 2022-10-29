@@ -31,7 +31,7 @@ function Clear-ClientDownloads {
         # Выбираем только раздачи подходящей категории.
         $torrents = $torrents | ? { $_.category -eq $uploader.delete_category }
         if ( !$torrents ) {
-            Write-Host ( 'Не найдены раздачи в клиенте. Пропускаем.' )
+            Write-Host ( 'Нет раздач, которые требуется удалить. Пропускаем.' )
             Continue
         }
 

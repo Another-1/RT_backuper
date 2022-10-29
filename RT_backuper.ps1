@@ -1,6 +1,7 @@
 Param (
-    [string]$UsedClient = $null
+    [string]$UsedClient
 )
+
 . "$PSScriptRoot\RT_functions.ps1"
 
 if ( !(Confirm-Version) ) { Exit }
@@ -13,6 +14,9 @@ if ( !$used_modules.backuper ) {
 }
 if ( !$used_modules.uploader ) {
     $errors += 'Вы запустили {0}, хотя uploader не включён в настройках. Проверьте настройки $used_modules.' -f $ScriptName
+}
+if ( !$used_modules.cleaner ) {
+    $errors += 'Вы запустили {0}, хотя cleaner не включён в настройках. Проверьте настройки $used_modules.' -f $ScriptName
 }
 if ( $uploader.delete -and !$used_modules.cleaner ) {
     $errors += 'Включено удаление раздач после архивирования, то не включён cleaner. Или включите его или используйте Backuper_Full.'
@@ -89,7 +93,6 @@ $torrents_left | Export-Clixml $current_backup_list
 # Перебираем найденные раздачи и бекапим их.
 Write-Host ('[backuper] Начинаем перебирать раздачи.')
 foreach ( $torrent in $torrents_list ) {
-    Write-Host ''
     # Проверка на переполнение каталога с архивами.
     if ( $backuper.zip_folder_size ) {
         Compare-MaxSize $backuper.zip_folder $backuper.zip_folder_size
@@ -116,7 +119,8 @@ foreach ( $torrent in $torrents_list ) {
     $zip_google_path   = $google_params.folders[0] + $disk_path + $full_name
 
     Start-Pause
-    Write-Host ( '[torrent] Архивируем {0} ({2}), {1} ' -f $torrent_id, $torrent.name, (Get-BaseSize $torrent.size) ) -ForegroundColor Green
+    Write-Host ''
+    Write-Host ( '[torrent] Обрабатываем {0} ({2}), {1} ' -f $torrent_id, $torrent.name, (Get-BaseSize $torrent.size) ) -ForegroundColor Green
 
     try {
         Write-Host ( 'Проверяем гугл-диск {0}' -f $zip_google_path )
@@ -124,12 +128,13 @@ foreach ( $torrent in $torrents_list ) {
         $zip_test = Test-PathTimer $zip_google_path
         Write-Host ( '[check][{0}] Проверка выполнена за {1} сек, результат: {2}' -f $disk_name, $zip_test.exec, $zip_test.result )
         if ( $zip_test.result ) {
-            # Если раздача уже есть в гугле, то надо её удалить из клиента и добавить в локальный список архивированных.
+            # Если раздача уже есть в гугле, то надо её удалить из клиента.
             Dismount-ClientTorrent $torrent_id $torrent_hash
             throw '[skip] Раздача уже имеет архив в гугле, пропускаем.'
         }
 
         if ( Test-Path $zip_path_finished ) {
+            Dismount-ClientTorrent $torrent_id $torrent_hash
             throw '[skip] Раздача уже имеет архив ожидающий переноса в гугл, пропускаем.'
         }
 
@@ -165,6 +170,8 @@ foreach ( $torrent in $torrents_list ) {
             if ( Test-Path $zip_path_finished ) { Remove-Item $zip_path_finished }
             Write-Host ( 'Перемещаем {0} в каталог {1}' -f  $base_name, $def_paths.finished )
             Move-Item -path $zip_path_progress -destination $zip_path_finished -Force -ErrorAction Stop
+
+            Dismount-ClientTorrent $torrent_id $torrent_hash
             Write-Host 'Готово!'
         }
         catch {

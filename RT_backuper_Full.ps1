@@ -1,6 +1,6 @@
 Param (
     [string]$Hashes = $null,
-    [string]$UsedClient = $null
+    [string]$UsedClient
 )
 
 . "$PSScriptRoot\RT_functions.ps1"
@@ -115,7 +115,7 @@ foreach ( $torrent in $torrents_list ) {
     $zip_google_path   = $google_path + $disk_path + $full_name
 
     Start-Pause
-    Write-Host ( '[torrent] Архивируем {0} ({2}), {1} ' -f $torrent_id, $torrent.name, (Get-BaseSize $torrent.size) ) -ForegroundColor Green
+    Write-Host ( '[torrent] Обрабатываем {0} ({2}), {1} ' -f $torrent_id, $torrent.name, (Get-BaseSize $torrent.size) ) -ForegroundColor Green
 
     try {
         Write-Host ( 'Проверяем гугл-диск {0}' -f $zip_google_path )
@@ -156,7 +156,6 @@ foreach ( $torrent in $torrents_list ) {
         $success_text = '[torrent] Успешно завершено за {0} сек [archSize:{3}, cores:{2}, comp:{1}, perc:{4}, speed:{5}]'
         Write-Host ( $success_text -f $time_arch, $compression, $backuper.cores, (Get-BaseSize $zip_size), $comp_perc, $speed_arch )
 
-
         # Перед переносом проверяем доступный трафик.
         Compare-UsedLimits $google_name $uploads_all
 
@@ -169,6 +168,7 @@ foreach ( $torrent in $torrents_list ) {
         $zip_test = Test-PathTimer $zip_google_path
         Write-Host ( '[check][{0}] Проверка выполнена за {1} сек, результат: {2}' -f $disk_name, $zip_test.exec, $zip_test.result )
         if ( $zip_test.result ) {
+            Dismount-ClientTorrent $torrent_id $torrent_hash
             throw '[skip] Такой архив уже существует на гугл-диске, удаляем файл и пропускаем раздачу.'
         }
 
@@ -184,6 +184,7 @@ foreach ( $torrent in $torrents_list ) {
             $speed_move = (Get-BaseSize ($zip_size / $move_sec) -SI speed_2)
             Write-Host ( '[uploader] Готово! Завершено за {0} минут, средняя скорость {1}' -f [math]::Round($move_sec/60, 1) , $speed_move )
 
+            Dismount-ClientTorrent $torrent_id $torrent_hash
             # После успешного переноса архива записываем затраченный трафик
             Get-TodayTraffic $uploads_all $zip_size $google_name > $null
         }

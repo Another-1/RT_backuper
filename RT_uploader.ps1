@@ -1,3 +1,8 @@
+Param (
+    [ValidateRange('Positive')][int]$Balance,
+    [switch]$NoClient = $true
+)
+
 . "$PSScriptRoot\RT_functions.ps1"
 
 if ( !(Confirm-Version) ) { Exit }
@@ -11,6 +16,9 @@ if ( !$used_modules.uploader ) {
 if ( !$used_modules.backuper ) {
     $errors += 'Вы запустили {0}, хотя backuper не включён в настройках. Проверьте настройки $used_modules.' -f $ScriptName
 }
+if ( !$used_modules.cleaner ) {
+    $errors += 'Вы запустили {0}, хотя cleaner не включён в настройках. Проверьте настройки $used_modules.' -f $ScriptName
+}
 if ( $uploader.delete -and !$used_modules.cleaner ) {
     $errors += 'Включено удаление раздач после архивирования, то не включён cleaner. Или включите его или используйте Backuper_Full.'
 }
@@ -22,14 +30,12 @@ Start-Stopping
 Write-Host '[uploader] Начинаем процесс выгрузки архивов в гугл.'
 
 # Если используемых акков >1 и передан параметр с номером, то используем балансировку.
-if ( $args.count -ne 0 -and $google_params.accounts_count -gt 1 ) {
-    $uploader_num = $args[0]
-
-    if ( $uploader_num -gt $google_params.uploaders_count) {
-        Write-Host ( '[balance] Неверный номер сервиса "{0}". Акканутов подключено {1}. Прерываем.' -f $uploader_num, $google_params.uploaders_count ) -ForegroundColor Red
+if ( $Balance -and $google_params.accounts_count -gt 1 ) {
+    if ( $Balance -gt $google_params.uploaders_count ) {
+        Write-Host ( '[balance] Неверный номер сервиса "{0}". Акканутов подключено {1}. Прерываем.' -f $Balance, $google_params.uploaders_count ) -ForegroundColor Red
         Exit
     }
-    Write-Host ( '[balance] Включена многопоточная выгрузка. Номер сервиса: {0}' -f $uploader_num ) -ForegroundColor Yellow
+    Write-Host ( '[balance] Включена многопоточная выгрузка. Номер сервиса: {0}' -f $Balance ) -ForegroundColor Yellow
 }
 
 # Ищем список архивов, которые нужно перенести
@@ -52,8 +58,6 @@ Show-StoredUploads $uploads_all
 # Перебираем архивы.
 Write-Host ('[uploader] Начинаем перебирать раздачи.')
 foreach ( $zip in $zip_list ) {
-    Write-Host ''
-
     # Ид и прочие параметры раздачи.
     $torrent_id, $torrent_hash = ( $zip.Name.Split('.')[0] ).Split('_')
     $zip_size = $zip.($OS.sizeField)
@@ -63,7 +67,7 @@ foreach ( $zip in $zip_list ) {
 
     # Вычисляем выгружаемый аккаунт и номер процесса выгрузки.
     $order = Get-GoogleNum $disk_id -Accounts $google_params.accounts_count -Uploaders $google_params.uploaders_count
-    if ( $uploader_num -And $uploader_num -ne $order.upload ) {
+    if ( $Balance -And $Balance -ne $order.upload ) {
         Write-Host ( '[skip] {0} для другого процесса [{1}].' -f $torrent_id, $order.upload ) -ForegroundColor Yellow
         Continue
     }
@@ -80,7 +84,8 @@ foreach ( $zip in $zip_list ) {
     $zip_google_path   = $google_path + $disk_path + $zip.Name
 
     Write-Host ''
-    Write-Host ( '[torrent] Раздача: id={0} ({4}), disk=[{1}], path={2} {3}' -f $torrent_id, $disk_id, $google_name, $disk_name, (Get-BaseSize $zip_size) )
+    Write-Host ( '[torrent] Обрабатываем: id={0} ({4}), disk=[{1}], path={2} {3}' -f $torrent_id, $disk_id, $google_name, $disk_name, (Get-BaseSize $zip_size) ) -ForegroundColor Green
+
     try {
         if ( $uploader.validate ) {
             Write-Host '[check] Начинаем проверку целостности архива перед отправкой в гугл.'
@@ -112,7 +117,6 @@ foreach ( $zip in $zip_list ) {
         $zip_test = Test-PathTimer $zip_google_path
         Write-Host ( '[check][{0}] Проверка выполнена за {1} сек, результат: {2}' -f $disk_name, $zip_test.exec, $zip_test.result )
         if ( $zip_test.result ) {
-            Dismount-ClientTorrent $torrent_id $torrent_hash
             throw '[skip] Такой архив уже существует на гугл-диске, удаляем файл и пропускаем раздачу.'
         }
         try {
@@ -126,8 +130,6 @@ foreach ( $zip in $zip_list ) {
 
             $speed_move = (Get-BaseSize ($zip_size / $move_sec) -SI speed_2)
             Write-Host ( '[uploader] Готово! Завершено за {0} минут, средняя скорость {1}' -f [math]::Round($move_sec/60, 1) , $speed_move )
-
-            Dismount-ClientTorrent $torrent_id $torrent_hash
 
             # После успешного переноса архива записываем затраченный трафик
             Get-TodayTraffic $uploads_all $zip_size $google_name > $null
@@ -143,7 +145,8 @@ foreach ( $zip in $zip_list ) {
     }
 
     $proc_size += $zip_size
-    Write-Host ( '[uploader] Обработано раздач {0} ({1}) из {2} ({3})' -f ++$proc_cnt, (Get-BaseSize $proc_size), $sum_cnt, (Get-BaseSize $sum_size) )
+    $text = '[uploader] Обработано раздач {0} ({1}) из {2} ({3})'
+    Write-Host ( $text -f ++$proc_cnt, (Get-BaseSize $proc_size), $sum_cnt, (Get-BaseSize $sum_size) ) -ForegroundColor DarkCyan
 
     Start-Pause
     Start-Stopping

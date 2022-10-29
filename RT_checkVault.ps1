@@ -1,10 +1,12 @@
 Param (
     [switch]$Full,
+    [string]$UsedClient,
     [switch]$NoClient = $true
 )
 
 . "$PSScriptRoot\RT_functions.ps1"
 
+Clear-Host
 if ( !(Confirm-Version) ) { Exit }
 if ( !( Sync-Settings ) ) { Pause; Exit }
 
@@ -18,8 +20,8 @@ if ( $start_time -and $stop_time ) {
 Write-Host ''
 Write-Host ( '[rutracker] Логин для форума: {0}' -f $rutracker.login ) -ForegroundColor Yellow
 # Добавить вывод авторизации на форуме или типа того.
-
-Write-Host ( 'Используется прокси: {0} {1}:***' -f $proxy_address, $proxy_login )
+Write-Host ( '- {0, -18} {1}' -f '[proxy_url]', $proxy_address )
+Write-Host ( '- {0, -18} {1}:***' -f '[proxy_auth]', $proxy_login )
 
 Write-Host ''
 Write-Host ( 'Настройки подключённых гугл-дисков:' ) -ForegroundColor Yellow
@@ -27,11 +29,12 @@ Write-Host ( '- {0,-18} каталогов: [{1}]' -f '[folders]', $google_param
 Write-Host ( '- {0,-18} фактических аккаунтов: [{1}]' -f '[accounts_count]', $google_params.accounts_count )
 
 $google_params.folders | % {
-    Write-Host ( '- - "{0}" - внутри каталогов: {1} из 24х' -f $_, (Get-ChildItem $_ -Directory).count )
+    $subfolder_count = (Get-ChildItem $_ -Directory -Filter "$google_folder_prefix*").count
+    Write-Host ( '- - "{0}" - внутри каталогов: {1} из 24х' -f $_, $subfolder_count )
 }
 
 if ( $google_params.cache ) {
-    Write-Host ( '- {0,-18} каталог кеша "{1}"' -f '[cache]', $google_params.cache )
+    Write-Host ( '- {0,-18} каталог кеша [{1}]' -f '[cache]', $google_params.cache )
 
     if ( $google_params.cache_size ) {
         $size = Get-BaseSize $google_params.cache_size
@@ -43,14 +46,13 @@ if ( $google_params.cache ) {
 }
 
 Write-Host ''
-Write-Host ( 'Текущие использованные лимиты выгрузки (освободится через [1,3,6,12] часов):' ) -ForegroundColor Yellow
 # Ищем данные о прошлых выгрузках в гугл.
 $uploads_all = Get-StoredUploads
 Show-StoredUploads $uploads_all
 
 
 Write-Host ( 'Настройки бекапера [backuper]:' ) -ForegroundColor Yellow
-Write-Host ( '- {0,-18} каталог хранения архивов в процессе работы: "{1}"' -f '[zip_folder]', $backuper.zip_folder )
+Write-Host ( '- {0,-18} каталог хранения архивов в процессе работы: [{1}]' -f '[zip_folder]', $backuper.zip_folder )
 if ( $backuper.zip_folder_size ) {
     $size = Get-BaseSize $backuper.zip_folder_size
     $current_size = Get-BaseSize ( Get-FolderSize $backuper.zip_folder )
@@ -68,14 +70,14 @@ Write-Host ( 'Настройки аплоадера [uploader]:' ) -ForegroundCo
 Write-Host ( '- {0,-18} валидация архива перед выгрузкой 7z: {1}' -f '[validate]', ( $temp = if ($uploader.validate) {'включена'} else {'выключена'} ) )
 Write-Host ( '- {0,-18} удаление раздачи из клиента после выгрузки: {1}' -f '[delete]', ( $temp = if ($uploader.delete) {'включено'} else {'выключено'} ) )
 if ( $uploader.delete ) {
-    Write-Host ( '- {0,-18} удаляемая категория "{1}"' -f '[delete_category]', $uploader.delete_category )
+    Write-Host ( '- {0,-18} удаляемая категория [{1}]' -f '[delete_category]', $uploader.delete_category )
 }
 
 Write-Host ''
 Write-Host ( 'Настройки коллектора [collector]:' ) -ForegroundColor Yellow
-Write-Host ( '- {0,-18} категория присваемая новым раздачам "{1}"' -f '[category]', $collector.category )
-Write-Host ( '- {0,-18} опция добавления раздачи в подкаталог по ИД {1}' -f '[sub_folder]', ( $temp = if ($collector.sub_folder) {'включена'} else {'выключена'} ) )
-Write-Host ( '- {0,-18} каталог, в который будут добавлено содержимое раздач "{1}"' -f '[collect]', $collector.collect )
+Write-Host ( '- {0,-18} категория присваемая новым раздачам [{1}]' -f '[category]', $collector.category )
+Write-Host ( '- {0,-18} опция добавления раздачи в подкаталог по ИД: {1}' -f '[sub_folder]', ( $temp = if ($collector.sub_folder) {'включена'} else {'выключена'} ) )
+Write-Host ( '- {0,-18} каталог, в который будут добавлено содержимое раздач [{1}]' -f '[collect]', $collector.collect )
 if ( $collector.collect_size ) {
     $size = Get-BaseSize $collector.collect_size
     $current_size = Get-BaseSize ( Get-FolderSize $collector.collect )
@@ -83,18 +85,22 @@ if ( $collector.collect_size ) {
 } else {
     Write-Host ( '- {0,-18} лимит размера каталога не задан' -f '[collect_size]' )
 }
-Write-Host ( '- {0,-18} каталог временного хранения торрент-файлов "{1}"' -f '[tmp_folder]', $collector.tmp_folder )
+Write-Host ( '- {0,-18} каталог временного хранения торрент-файлов [{1}]' -f '[tmp_folder]', $collector.tmp_folder )
 
 
 
 Write-Host ''
-Write-Host ( '[archived] Обновим список архивов в облаке.' ) -ForegroundColor Yellow
-$dones, $hashes = Get-Archives
+if ( !$Full ) {
+    Write-Host 'Обновить списки архивов в облаке? [y/n]: ' -ForegroundColor Green -NoNewLine
+    $ch_refresh = ( Read-Host ).ToString().ToLower()
+}
+if ( $Full -or $ch_refresh -in 'y','д' ) {
+    $dones, $hashes = Get-Archives
+}
 
 if ( !$client_list ) {
     $client_list = @( $client )
 }
-
 
 foreach ( $cl in $client_list ) {
     Write-Host ''
@@ -108,20 +114,19 @@ foreach ( $cl in $client_list ) {
     Initialize-Client
     Get-ClientVerion
 
-
     if ( !$Full ) {
         Write-Host 'Посчитать раздачи в клиенте? [y/n]: ' -ForegroundColor Green -NoNewLine
         $ch_client = ( Read-Host ).ToString().ToLower()
     }
     if ( $Full -or $ch_client -in 'y','д' ) {
         $torrents_list = Get-ClientTorrents
-        Write-Host ( '[client] Завершённых раздач в клиенте: {0}' -f $torrents_list.count ) -ForegroundColor DarkCyan
-
-        $torrents_left = $torrents_list | ? { $_.hash -notin $hashes.keys }
         $torrents_size = ( $torrents_list | Measure-Object size -Sum ).Sum
-        Write-Host ( '[client] Раздач, которые нужно залить: {0} ({1})' -f $torrents_left.count, (Get-BaseSize $torrents_size) ) -ForegroundColor DarkCyan
+        Write-Host ( '[client] Завершённых раздач в клиенте: {0} ({1})' -f $torrents_list.count, (Get-BaseSize $torrents_size) ) -ForegroundColor DarkCyan
+
+        if ( $hashes ) {
+            $torrents_left = $torrents_list | ? { !($hashes[ $_.hash ]) }
+            $torrents_size = ( $torrents_left | Measure-Object size -Sum ).Sum
+            Write-Host ( '[client] Раздач, которые нужно залить: {0} ({1})' -f $torrents_left.count, (Get-BaseSize $torrents_size) ) -ForegroundColor DarkCyan
+        }
     }
 }
-
-
-

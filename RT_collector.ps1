@@ -1,5 +1,5 @@
 Param (
-    [int]$Forum,
+    [ValidateRange('Positive')][int[]]$Forum,
     [ValidateRange('NonNegative')][int]$MinTopic = -1,
     [ValidateRange('NonNegative')][int]$MaxTopic = -1,
     [ValidateRange('NonNegative')][int]$MinSeed  = -1,
@@ -28,7 +28,7 @@ function Read-IntValue ( $Prompt ) {
 if ( !(Confirm-Version) ) { Exit }
 if ( !( Sync-Settings ) ) { Pause; Exit }
 
-# Если передан список раздач. получаем их и с ними работаем.
+# Если передан список раздач. работаем с ними.
 if ( $Topics.count ) {
     $request = @{ 'by' = 'topic_id'; 'val' = $Topics -Join ","}
     $tracker_result = ( Invoke-WebRequest -Uri 'https://api.t-ru.org/v1/get_tor_topic_data' -Body $request ).content | ConvertFrom-Json -AsHashtable
@@ -47,27 +47,10 @@ if ( $Topics.count ) {
 # Идем по обычной цепочке получения всех раздач раздела.
 else {
     if ( !$Forum ) {
-        $Forum = [int]( Read-Host -Prompt 'Выберите раздел' )
+        $forum_id = Read-IntValue 'Введите раздел'
+        if ( $forum_id ) { $Forum = @( $forum_id ) }
     }
     if ( !$Forum ) { Exit }
-
-    Write-Host ( 'Запрашиваем список раздач в разделе {0}' -f $Forum )
-    $tracker_result = ( Invoke-WebRequest -Uri ( 'http://api.rutracker.org/v1/static/pvc/f/' + $Forum ) ).content | ConvertFrom-Json -AsHashtable
-    $topic_header = [ordered]@{}; $tracker_result.format.topic_id | % -Begin { $i = 0 } { $topic_header[$_] = $i++ }
-
-    $tracker_list = $tracker_result.result.GetEnumerator() | % {
-       @{
-            topic_id = $_.key
-            hash     = $_.value[ $topic_header['info_hash'] ]
-            seeders  = $_.value[ $topic_header['seeders'] ]
-            size     = $_.value[ $topic_header['tor_size_bytes'] ]
-            priority = $_.value[ $topic_header['keeping_priority'] ]
-            status   = $_.value[ $topic_header['tor_status'] ]
-            reg_time = $_.value[ $topic_header['reg_time'] ]
-        }
-    } | ? { $_.status -ne 7 }
-
-    Write-Host ( '- в разделе {0} имеется {1} раздач' -f $Forum, $tracker_list.count )
 
     if ( $MinTopic -lt 0 ) {
         $MinTopic = Read-IntValue 'Минимальный ID (опционально)'
@@ -83,6 +66,35 @@ else {
         Write-Host ( 'Неверные значения минимума ({0}) и максимума ({1}) ID.' -f $MinTopic, $MaxTopic )
         Pause
         Exit
+    }
+
+    $Forum = $Forum | Sort-Object -Unique
+    Write-Host ( 'Запрашиваем список раздач в разделах {0}' -f ($Forum -Join ",") )
+    $tracker_list = @()
+    foreach ( $forum_id in $Forum ) {
+        try {
+            $tracker_result = ( Invoke-WebRequest -Uri ( 'http://api.rutracker.org/v1/static/pvc/f/' + $forum_id ) ).content | ConvertFrom-Json -AsHashtable
+        } catch {
+            Write-Host ( 'Не найдены раздачи в разделе {0}' -f $forum_id )
+            Continue
+        }
+        $topic_header = [ordered]@{}; $tracker_result.format.topic_id | % -Begin { $i = 0 } { $topic_header[$_] = $i++ }
+
+        $temp_list = $tracker_result.result.GetEnumerator() | % {
+           @{
+                topic_id = $_.key
+                hash     = $_.value[ $topic_header['info_hash'] ]
+                seeders  = $_.value[ $topic_header['seeders'] ]
+                size     = $_.value[ $topic_header['tor_size_bytes'] ]
+                priority = $_.value[ $topic_header['keeping_priority'] ]
+                status   = $_.value[ $topic_header['tor_status'] ]
+                reg_time = $_.value[ $topic_header['reg_time'] ]
+            }
+        } | ? { $_.status -ne 7 }
+
+        Write-Host ( '- в разделе {0} имеется {1} раздач' -f $forum_id, $temp_list.count )
+
+        $tracker_list += $temp_list
     }
 
     $Priorities = @{ '-1' = 'не задан'; '0' = 'низкий'; '1' = 'обычный'; '2' = 'высокий' }
@@ -122,12 +134,15 @@ if ( $tracker_list.count -eq 0 ) {
 }
 Write-Host ( 'После фильтрации осталось раздач: {0}.' -f $tracker_list.count )
 
+# Подключаемся к клиенту.
 Initialize-Client
 Write-Host 'Получаем список раздач из клиента..'
-$client_list = Get-ClientTorrents -Completed $false | % { $_.hash }
-
-$tracker_list = $tracker_list | ? { $_.hash -notin $client_list }
-Write-Host ( '- от клиента получено раздач: {0}, после их исключения, раздач осталось: {1}.' -f $client_list.count, $tracker_list.count )
+$torrents_list = Get-ClientTorrents -Completed $false | % { @{ $_.hash = 1} }
+if ( $torrents_list ) {
+    # Исключаем раздачи, которые уже есть в клиенте.
+    $tracker_list = $tracker_list | ? { !($torrents_list[ $_.hash ]) }
+    Write-Host ( '- от клиента получено раздач: {0}, после их исключения, раздач осталось: {1}.' -f $torrents_list.count, $tracker_list.count )
+}
 if ( $First -or $SizeLimit ) {
     Write-Host ( '- будет добавлено первых {0} раздач или первые {1} GiB.' -f $First, $SizeLimit )
 }
@@ -137,6 +152,7 @@ if ( !$Category ) { $Category = $collector.category }
 if ( !$Category ) {
     $Category = ( ( Invoke-WebRequest -Uri ( 'http://api.rutracker.org/v1/get_forum_name?by=forum_id&val=' + $Forum ) ).content | ConvertFrom-Json -AsHashtable ).result[$Forum]
 }
+if ( !$Category ) { $Category = 'temp' }
 
 # Сортируем по заданному полю (size по-умолчанию).
 $tracker_list = $tracker_list | Sort-Object -Property @{Expression = $Sort; Descending = $Descending}
@@ -149,12 +165,24 @@ $proxyCreds = New-Object System.Management.Automation.PSCredential -ArgumentList
 $forum_url = 'https://rutracker.org/forum/login.php'
 $forum_headers = @{'User-Agent' = 'Mozilla/5.0' }
 $forum_payload = @{ 'login_username' = $rutracker.login; 'login_password' = $rutracker.password; 'login' = '%E2%F5%EE%E4' }
-Invoke-WebRequest -Uri $forum_url -Method Post -Headers $forum_headers -Body $forum_payload -SessionVariable forum_login -Proxy $proxy_address -ProxyCredential $proxyCreds > $null
+$forum_auth = Invoke-WebRequest -Uri $forum_url -Method Post -Headers $forum_headers -Body $forum_payload -SessionVariable forum_login -Proxy $proxy_address -ProxyCredential $proxyCreds
+
+try {
+    $match = Select-String "form_token: '(.*)'" -InputObject $forum_auth.Content
+    $forum_sid = $match.Matches.Groups[1].Value
+} catch {
+    Write-Host ( 'Ошибка авторизации: {0}' -f $Error[0] )
+}
+if ( !$forum_sid ) {
+    Write-Host 'Не удалось авторизоваться на форуме.'
+    Exit
+}
 
 $current = 1
 $added = 0
 [long]$SizeLimit = ($SizeLimit * [math]::Pow(1024, 3)) # Гб
 [long]$SizeUsed = 0
+Write-Host 'Перебираем раздачи'
 foreach ( $torrent in $tracker_list ) {
     $ProgressPreference = 'Continue'
     $perc = [math]::Round( $current * 100 / $tracker_list.count )
@@ -162,8 +190,13 @@ foreach ( $torrent in $tracker_list ) {
     $ProgressPreference = 'SilentlyContinue'
     $current++
 
+    # Ид и прочие параметры раздачи.
     $torrent_id   = $torrent.topic_id
-    $torrent_hash = $torrent.hash
+    $torrent_hash = $torrent.hash.ToLower()
+    if ( !$torrent_id ) {
+        Write-Host '[skip] Отсутсвует ид раздачи. Пропускаем.'
+        Continue
+    }
 
     # Проверяем, наличие раздачи в облаке.
     $disk_id, $disk_name, $disk_path = Get-DiskParams $torrent_id
@@ -177,6 +210,8 @@ foreach ( $torrent in $tracker_list ) {
     Write-Host ( 'Скачиваем торрент-файл раздачи {0} ({1}).' -f $torrent_id, (Get-BaseSize $torrent.size) )
     $forum_torrent_path = 'https://rutracker.org/forum/dl.php?t=' + $torrent_id
     $torrent_file_path = $collector.tmp_folder + $OS.fsep + $torrent_id + '_collect.torrent'
+    
+    New-Item -ItemType Directory -Path $collector.tmp_folder -Force > $null
     Invoke-WebRequest -Uri $forum_torrent_path -WebSession $forum_login -OutFile $torrent_file_path > $null
 
     # и добавляем торрент в клиент
@@ -192,6 +227,7 @@ foreach ( $torrent in $tracker_list ) {
 
     # Добавляем раздачу в клиент.
     Write-Host ( 'Добавляем торрент-файл раздачи {0} в клиент.' -f $torrent_id )
+    New-Item -ItemType Directory -Path $extract_path -Force > $null
     Add-ClientTorrent $torrent_hash $torrent_file_path $extract_path $Category > $null
     Remove-Item $torrent_file_path
 

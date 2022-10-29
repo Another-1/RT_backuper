@@ -179,7 +179,7 @@ function Sync-ArchList ( $All = $false ) {
     # Выбираем первый диск по условиям выше и обновляем его.
     if ( !$All ) {
         Write-Host ''
-        Write-Host ( '[updater] Списков требущих обновления: {0}.' -f $folders.count )
+        Write-Host ( '[archived] Списков требущих обновления: {0}.' -f $folders.count )
         $folders = $folders | Select -First 1
     }
 
@@ -195,7 +195,7 @@ function Sync-ArchList ( $All = $false ) {
             $zip_list | % { $_.BaseName } | Out-File $folder.FullName
         }).TotalSeconds
 
-        $text = '[updater][{0}] Обновление списка раздач заняло {1} секунд. Найдено архивов: {2} шт.'
+        $text = '[archived][{0}] Обновление списка раздач заняло {1} секунд. Найдено архивов: {2} шт.'
         Write-Host ( $text -f $folder.BaseName, ([math]::Round( $exec_time, 2 )), $zip_list.count )
     }
 }
@@ -237,6 +237,19 @@ function Get-Compression ( [int]$torrent_id, $params ) {
     return $compression
 }
 
+
+# По ид раздачи вычислить путь к файлу в облаке.
+function Get-TorrentPath ( [int]$id, [string]$hash, [string]$google_folder = $null ) {
+    $full_name = $id.ToString() + '_' + $hash.ToLower() + '.7z'
+    if ( !$google_folder ) {
+        $google_folder = $google_params.folders[0]
+    }
+    $disk_id, $disk_name, $disk_path = Get-DiskParams $torrent_id
+
+    $Path = $google_folder + $disk_path + $full_name
+
+    return $Path
+}
 # По ид раздачи вычислить ид диска, название диска/папки, путь к диску
 function Get-DiskParams ( [int]$torrent_id ) {
     $disk_id = [math]::Truncate(( $torrent_id - 1 ) / 300000) # 1..24
@@ -289,7 +302,8 @@ function Show-StoredUploads ( $uploads_all ) {
     $time_diff = 1, 3, 6, 12
     $yesterday = ( Get-date ).AddDays( -1 )
 
-    $row_text = "[limit][{4}] Выгружено {5,8}. Освободится: {0,9}; {1,9}; {2,9}; {3,9}."
+    Write-Host ( 'Текущие использованные лимиты выгрузки (освободится через [1,3,6,12] часов):' ) -ForegroundColor Yellow
+    $row_text = "[limit][{4}] Выгружено {5,9}. Освободится: {0,9}; {1,9}; {2,9}; {3,9}."
     $uploads_all.GetEnumerator() | Sort-Object Key | % {
         $disk_name = $_.key
         $full_size = ( $_.value.values | Measure-Object -sum ).Sum

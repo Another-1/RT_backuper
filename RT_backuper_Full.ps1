@@ -206,7 +206,5 @@ foreach ( $torrent in $torrents_list ) {
 
     Start-Pause
     Start-Stopping
-
-    Sync-ArchList
 }
 # end foreach

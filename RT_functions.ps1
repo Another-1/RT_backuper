@@ -68,11 +68,10 @@ function Get-Archives {
     }).TotalSeconds, 1 )
 
     $time_parse = [math]::Round( (Measure-Command {
-        $hashes = @{}
-        $dones | % {
+        $hashes = $dones | % {
             $id, $hash = $_.Split('_')
             if ( $id -And $hash ) {
-                $hashes[$hash] = $id
+                @{ $hash = $id }
             }
         }
     }).TotalSeconds, 1 )
@@ -84,11 +83,12 @@ function Get-Archives {
 # Обновить список архивов в локальной "БД".
 function Sync-ArchList ( $All = $false ) {
     $arch_folders = Get-ChildItem $google_params.folders[0] -Directory -Filter "$google_folder_prefix*"
+    $decay_hours = if ( $OS.names -eq 'windows' ) { 24 } else { 7 * 24 }
 
     # Собираем список гугл-дисков и проверяем наличие файла со списком архивов для каждого. Создаём если нет.
-    # Проверяем даты обновления файлов и размер. Если прошло 6ч или файл пуст -> пора обновлять.
+    # Проверяем даты обновления файлов и размер. Если прошло decay_hours или файл пуст -> пора обновлять.
     $folders = $arch_folders | % { Watch-FileExist ($stash_folder.archived + $OS.fsep + $_.Name + '.txt') }
-        | ? { $_.($OS.sizeField) -eq 0 -Or ($_.LastWriteTime -lt ( Get-Date ).AddHours( -6 )) }
+        | ? { $_.($OS.sizeField) -eq 0 -Or ($_.LastWriteTime -lt ( Get-Date ).AddHours( -$decay_hours )) }
         | Sort-Object -Property LastWriteTime
 
     # Выбираем первый диск по условиям выше и обновляем его.
@@ -105,6 +105,7 @@ function Sync-ArchList ( $All = $false ) {
     foreach ( $folder in $folders ) {
         $arch_path = ( $arch_folders | ? { $folder.BaseName -eq $_.BaseName } ).FullName
 
+        Write-Host ( '[archived][{0}] Начинаем обновление..' -f $folder.BaseName )
         $exec_time = (Measure-Command {
             $zip_list = Get-ChildItem $arch_path -File -Filter '*.7z'
             $zip_list | % { $_.BaseName } | Out-File $folder.FullName
@@ -161,11 +162,7 @@ function Get-TopicIDs ( $torrents_list, $hashes ) {
         }
         # если не удалось получить информацию об ID из коммента, сходим в API и попробуем получить там.
         if ( !$torrent.topic_id ) {
-            try {
-                $torrent.topic_id = ( ( Invoke-WebRequest ( 'http://api.rutracker.org/v1/get_topic_id?by=hash&val=' + $torrent.hash ) ).content | ConvertFrom-Json ).result.($torrent.hash)
-            } catch {
-                Write-Host ('[RT_API] Не удалось получить номер топика, hash={0}' -f $torrent.hash )
-            }
+            $torrent.topic_id = Get-ForumTopicId $torrent.hash
         }
 
         # исправление путей для кривых раздач с одним файлом в папке
@@ -188,6 +185,7 @@ function Get-TopicIDs ( $torrents_list, $hashes ) {
     return $torrents_list
 }
 
+# Проверим пути хранения раздач, и если есть одинаковые - ошибка.
 function Compare-UsedLocations ( $Torrents ) {
     $ok = $true
     # проверяем, что никакие раздачи не пересекаются по именам файлов (если файл один) или каталогов (если файлов много), чтобы не заархивировать не то
@@ -210,6 +208,7 @@ function Compare-UsedLocations ( $Torrents ) {
     }
 }
 
+# Проверим использованные лимиты выгрузки в облако.
 function Compare-UsedLimits ( $google_name, $uploads_all ) {
     # Перед переносом проверяем доступный трафик. 0 для получения актуальных данных.
     $today_size, $uploads_all = Get-TodayTraffic $uploads_all 0 $google_name
@@ -227,12 +226,12 @@ function Compare-UsedLimits ( $google_name, $uploads_all ) {
 }
 
 # По ид раздачи вычислить путь к файлу в облаке.
-function Get-TorrentPath ( [int]$id, [string]$hash, [string]$google_folder = $null ) {
-    $full_name = $id.ToString() + '_' + $hash.ToLower() + '.7z'
+function Get-TorrentPath ( [int]$topic_id, [string]$hash, [string]$google_folder = $null ) {
+    $full_name = $topic_id.ToString() + '_' + $hash.ToLower() + '.7z'
     if ( !$google_folder ) {
         $google_folder = $google_params.folders[0]
     }
-    $disk_id, $disk_name, $disk_path = Get-DiskParams $torrent_id
+    $disk_id, $disk_name, $disk_path = Get-DiskParams $topic_id
 
     $Path = $google_folder + $disk_path + $full_name
 
@@ -240,9 +239,10 @@ function Get-TorrentPath ( [int]$id, [string]$hash, [string]$google_folder = $nu
 }
 
 # По ид раздачи вычислить ид диска, название диска/папки, путь к диску
-function Get-DiskParams ( [int]$torrent_id ) {
-    $disk_id = [math]::Truncate(( $torrent_id - 1 ) / 300000) # 1..24
-    $disk_name = $google_folder_prefix + '_' + ( 300000 * $disk_id + 1 ) + '-' + 300000 * ( $disk_id + 1 )
+function Get-DiskParams ( [int]$topic_id ) {
+    $topic_step = 300000
+    $disk_id = [math]::Truncate( ( $topic_id - 1 ) / $topic_step ) # 1..24
+    $disk_name = $google_folder_prefix + '_' + ( $topic_step * $disk_id + 1 ) + '-' + $topic_step * ( $disk_id + 1 )
     $disk_path = $OS.fsep + $disk_name + $OS.fsep
 
     return $disk_id, $disk_name, $disk_path
@@ -254,18 +254,6 @@ function Get-GoogleNum ( [int]$DiskId, [int]$Accounts = 1, [int]$Uploaders = 1 )
         account = ($DiskId % $Accounts  + 1)
         upload  = ($DiskId % $Uploaders + 1)
     }
-}
-
-# Вычисляем сжатие архива, в зависимости от раздела раздачи и параметров.
-function Get-Compression ( [int]$torrent_id, $params ) {
-    try {
-        $topic = ( Invoke-WebRequest( 'http://api.rutracker.org/v1/get_tor_topic_data?by=topic_id&val=' + $torrent_id ) ).content | ConvertFrom-Json
-        $forum_id = [int]$topic.result.($torrent_id).forum_id
-        $compression = $params.sections_compression[ $forum_id ]
-    } catch {}
-    if ( $compression -eq $null ) { $compression = $params.compression }
-    if ( $compression -eq $null ) { $compression = 1 }
-    return $compression
 }
 
 # Подключаемся к форуму с логином и паролем.
@@ -303,6 +291,28 @@ function Initialize-Forum () {
     $forum.token = $forum_token
     $forum.sid = $sid
     Write-Host ( '[forum] Успешно. Токен: [{0}]' -f $forum_token )
+}
+
+# Найти ид раздачи по хешу.
+function Get-ForumTopicId ( [string]$hash ) {
+    try {
+        $topic_id = ( ( Invoke-WebRequest ( 'http://api.rutracker.org/v1/get_topic_id?by=hash&val=' + $hash ) ).content | ConvertFrom-Json ).result.( $hash )
+    } catch {
+        Write-Host ('[forum] Не удалось получить номер топика, hash={0}' -f $torrent.hash )
+    }
+    return $topic_id
+}
+
+# Вычисляем сжатие архива, в зависимости от раздела раздачи и параметров.
+function Get-Compression ( [int]$topic_id, $params ) {
+    try {
+        $topic = ( Invoke-WebRequest( 'http://api.rutracker.org/v1/get_tor_topic_data?by=topic_id&val=' + $topic_id ) ).content | ConvertFrom-Json
+        $forum_id = [int]$topic.result.($topic_id).forum_id
+        $compression = $params.sections_compression[ $forum_id ]
+    } catch {}
+    if ( $compression -eq $null ) { $compression = $params.compression }
+    if ( $compression -eq $null ) { $compression = 1 }
+    return $compression
 }
 
 # Скачать торрент-файл раздачи по ид, сложить во временную папку, вернуть ссылку
@@ -392,7 +402,7 @@ function Get-TodayTraffic ( $uploads_all, $zip_size, $google_folder ) {
     $uploads = $uploads_all[ $google_folder ]
     $uploads.keys | Where-Object { $_ -ge $daybefore } | ForEach-Object { $uploads_tmp += @{ $_ = $uploads[$_] } }
     $uploads = $uploads_tmp
-    if ($zip_size -gt 0) {
+    if ( $zip_size -gt 0 ) {
         $uploads += @{ $now = $zip_size }
     }
     $uploads_all[$google_folder] = $uploads
@@ -418,8 +428,8 @@ function Show-StoredUploads ( $uploads_all ) {
     $time_diff = 1, 3, 6, 12
     $yesterday = ( Get-date ).AddDays( -1 )
 
-    Write-Host ( 'Текущие использованные лимиты выгрузки (освободится через [1,3,6,12] часов):' ) -ForegroundColor Yellow
-    $row_text = "[limit][{4}] Выгружено {5,9}. Освободится: {0,9}; {1,9}; {2,9}; {3,9}."
+    Write-Host ( '[limit] Текущие использованные лимиты выгрузки (освободится через [1,3,6,12] часов):' ) -ForegroundColor Yellow
+    $row_text = '[limit][{4}] Выгружено {5,9}. Освободится: {0,9}; {1,9}; {2,9}; {3,9}.'
     $uploads_all.GetEnumerator() | Sort-Object Key | % {
         $disk_name = $_.key
         $full_size = ( $_.value.values | Measure-Object -sum ).Sum
@@ -463,7 +473,6 @@ function Get-OsParams {
         $OS.sizeField = 'Length'
     }
 }
-
 
 # Преобразовать большое число в читаемое число с множителем нужной базы.
 function Get-BaseSize ( [long]$size, [int]$base = 1024, [int]$pow = 0, $SI = 'byte_2' ) {
@@ -615,8 +624,8 @@ function Sync-Settings {
         }
     }
 
-    if ( !$rutracker ) {
-        $errors+= '[settings][rutracker] Отсутсвует блок параметров подключения к форуму'
+    if ( !$forum ) {
+        $errors+= '[settings][forum] Отсутсвует блок параметров подключения к форуму'
     }
 
     # Валидация настроек гугл-диска.

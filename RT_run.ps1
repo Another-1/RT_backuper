@@ -21,7 +21,7 @@ while( $true ) {
     $run.start = Get-Date
 
     if ( $run.file ) {
-        Write-Output ( '[{0:t}] Params: [{1}], file: {2}' -f (Get-Date), ($args -Join ','), $run.file )
+        Write-Output ( '[{0:t}] Process: [{1}], Timer: {2}, file: [{3}]' -f (Get-Date), $Process, $Timer, $run.file )
         if ( Test-Path $run.file ) {
             .$run.file -UsedClient $UsedClient
         }

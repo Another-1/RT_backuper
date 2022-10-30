@@ -99,6 +99,8 @@ function Add-ClientTorrent ( $Hash, $File, $Path, $Category ) {
         root_folder = 'false'
     }
 
+    # Добавляем раздачу в клиент.
+    New-Item -ItemType Directory -Path $Path -Force > $null
     $url = $client.url + '/api/v2/torrents/add'
     Invoke-WebRequest -Method POST -Uri $url -WebSession $client.sid -Form $Params -ContentType 'application/x-bittorrent' > $null
 }

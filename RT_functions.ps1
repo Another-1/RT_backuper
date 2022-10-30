@@ -81,6 +81,66 @@ function Get-Archives {
     return $dones, $hashes
 }
 
+# Обновить список архивов в локальной "БД".
+function Sync-ArchList ( $All = $false ) {
+    $arch_folders = Get-ChildItem $google_params.folders[0] -Directory -Filter "$google_folder_prefix*"
+
+    # Собираем список гугл-дисков и проверяем наличие файла со списком архивов для каждого. Создаём если нет.
+    # Проверяем даты обновления файлов и размер. Если прошло 6ч или файл пуст -> пора обновлять.
+    $folders = $arch_folders | % { Watch-FileExist ($stash_folder.archived + $OS.fsep + $_.Name + '.txt') }
+        | ? { $_.($OS.sizeField) -eq 0 -Or ($_.LastWriteTime -lt ( Get-Date ).AddHours( -6 )) }
+        | Sort-Object -Property LastWriteTime
+
+    # Выбираем первый диск по условиям выше и обновляем его.
+    if ( !$All ) {
+        Write-Host ''
+        Write-Host ( '[archived] Списков требущих обновления: {0}.' -f $folders.count )
+        $folders = $folders | Select -First 1
+    }
+
+    if ( !$folders ) {
+        return
+    }
+
+    foreach ( $folder in $folders ) {
+        $arch_path = ( $arch_folders | ? { $folder.BaseName -eq $_.BaseName } ).FullName
+
+        $exec_time = (Measure-Command {
+            $zip_list = Get-ChildItem $arch_path -File -Filter '*.7z'
+            $zip_list | % { $_.BaseName } | Out-File $folder.FullName
+        }).TotalSeconds
+
+        $text = '[archived][{0}] Обновление списка раздач заняло {1} секунд. Найдено архивов: {2} шт.'
+        Write-Host ( $text -f $folder.BaseName, ([math]::Round( $exec_time, 2 )), $zip_list.count )
+    }
+}
+
+
+# Пробуем удалить раздачу из клиента, если подходит под параметры.
+function Dismount-ClientTorrent ( [int]$torrent_id, [string]$torrent_hash, [string]$torrent_category = $null ) {
+    if ( !$uploader.delete ) { return }
+
+    # Если используется модуль пакетной очистки, то пишем в файлик.
+    if ( $used_modules.cleaner ) {
+        $finished_list = $stash_folder.finished_list
+        Watch-FileExist $finished_list > $null
+
+        ($torrent_id.ToString() + '_' + $torrent_hash.ToLower()) | Out-File $finished_list -Append
+        return
+    }
+
+    # Удаляем раздачу из клиента.
+    if ( !$torrent_category ) {
+        $torrent = Get-ClientTorrents @( $torrent_hash )
+        if ( !$torrent ) { return }
+        $torrent_category = $torrent.category
+    }
+
+    if ( $uploader.delete -And $uploader.delete_category -eq $torrent_category ) {
+        Remove-ClientTorrent $torrent_id $torrent_hash
+    }
+}
+
 # Найти ид раздач(топиков) в [списке архивов, комменте раздачи из клиента, api трекера].
 # Если раздача уже есть в списке архивов, то она исключается из итогового набора раздач.
 function Get-TopicIDs ( $torrents_list, $hashes ) {
@@ -166,78 +226,6 @@ function Compare-UsedLimits ( $google_name, $uploads_all ) {
     Write-Host ( '[limit] {0} {1} меньше чем лимит {2}, продолжаем!' -f $google_name, (Get-BaseSize $today_size), (Get-BaseSize $lv_750gb) )
 }
 
-# Обновить список архивов в локальной "БД".
-function Sync-ArchList ( $All = $false ) {
-    $arch_folders = Get-ChildItem $google_params.folders[0] -Directory -Filter "$google_folder_prefix*"
-
-    # Собираем список гугл-дисков и проверяем наличие файла со списком архивов для каждого. Создаём если нет.
-    # Проверяем даты обновления файлов и размер. Если прошло 6ч или файл пуст -> пора обновлять.
-    $folders = $arch_folders | % { Watch-FileExist ($stash_folder.archived + $OS.fsep + $_.Name + '.txt') }
-        | ? { $_.($OS.sizeField) -eq 0 -Or ($_.LastWriteTime -lt ( Get-Date ).AddHours( -6 )) }
-        | Sort-Object -Property LastWriteTime
-
-    # Выбираем первый диск по условиям выше и обновляем его.
-    if ( !$All ) {
-        Write-Host ''
-        Write-Host ( '[archived] Списков требущих обновления: {0}.' -f $folders.count )
-        $folders = $folders | Select -First 1
-    }
-
-    if ( !$folders ) {
-        return
-    }
-
-    foreach ( $folder in $folders ) {
-        $arch_path = ( $arch_folders | ? { $folder.BaseName -eq $_.BaseName } ).FullName
-
-        $exec_time = (Measure-Command {
-            $zip_list = Get-ChildItem $arch_path -File -Filter '*.7z'
-            $zip_list | % { $_.BaseName } | Out-File $folder.FullName
-        }).TotalSeconds
-
-        $text = '[archived][{0}] Обновление списка раздач заняло {1} секунд. Найдено архивов: {2} шт.'
-        Write-Host ( $text -f $folder.BaseName, ([math]::Round( $exec_time, 2 )), $zip_list.count )
-    }
-}
-
-# Пробуем удалить раздачу из клиента, если подходит под параметры.
-function Dismount-ClientTorrent ( [int]$torrent_id, [string]$torrent_hash, [string]$torrent_category = $null ) {
-    if ( !$uploader.delete ) { return }
-
-    # Если используется модуль пакетной очистки, то пишем в файлик.
-    if ( $used_modules.cleaner ) {
-        $finished_list = $stash_folder.finished_list
-        Watch-FileExist $finished_list > $null
-
-        ($torrent_id.ToString() + '_' + $torrent_hash.ToLower()) | Out-File $finished_list -Append
-        return
-    }
-
-    # Удаляем раздачу из клиента.
-    if ( !$torrent_category ) {
-        $torrent = Get-ClientTorrents @( $torrent_hash )
-        if ( !$torrent ) { return }
-        $torrent_category = $torrent.category
-    }
-
-    if ( $uploader.delete -And $uploader.delete_category -eq $torrent_category ) {
-        Remove-ClientTorrent $torrent_id $torrent_hash
-    }
-}
-
-# Вычисляем сжатие архива, в зависимости от раздела раздачи и параметров.
-function Get-Compression ( [int]$torrent_id, $params ) {
-    try {
-        $topic = ( Invoke-WebRequest( 'http://api.rutracker.org/v1/get_tor_topic_data?by=topic_id&val=' + $torrent_id ) ).content | ConvertFrom-Json
-        $forum_id = [int]$topic.result.($torrent_id).forum_id
-        $compression = $params.sections_compression[ $forum_id ]
-    } catch {}
-    if ( $compression -eq $null ) { $compression = $params.compression }
-    if ( $compression -eq $null ) { $compression = 1 }
-    return $compression
-}
-
-
 # По ид раздачи вычислить путь к файлу в облаке.
 function Get-TorrentPath ( [int]$id, [string]$hash, [string]$google_folder = $null ) {
     $full_name = $id.ToString() + '_' + $hash.ToLower() + '.7z'
@@ -250,6 +238,7 @@ function Get-TorrentPath ( [int]$id, [string]$hash, [string]$google_folder = $nu
 
     return $Path
 }
+
 # По ид раздачи вычислить ид диска, название диска/папки, путь к диску
 function Get-DiskParams ( [int]$torrent_id ) {
     $disk_id = [math]::Truncate(( $torrent_id - 1 ) / 300000) # 1..24
@@ -265,6 +254,133 @@ function Get-GoogleNum ( [int]$DiskId, [int]$Accounts = 1, [int]$Uploaders = 1 )
         account = ($DiskId % $Accounts  + 1)
         upload  = ($DiskId % $Uploaders + 1)
     }
+}
+
+# Вычисляем сжатие архива, в зависимости от раздела раздачи и параметров.
+function Get-Compression ( [int]$torrent_id, $params ) {
+    try {
+        $topic = ( Invoke-WebRequest( 'http://api.rutracker.org/v1/get_tor_topic_data?by=topic_id&val=' + $torrent_id ) ).content | ConvertFrom-Json
+        $forum_id = [int]$topic.result.($torrent_id).forum_id
+        $compression = $params.sections_compression[ $forum_id ]
+    } catch {}
+    if ( $compression -eq $null ) { $compression = $params.compression }
+    if ( $compression -eq $null ) { $compression = 1 }
+    return $compression
+}
+
+# Подключаемся к форуму с логином и паролем.
+function Initialize-Forum () {
+    if ( !$forum ) {
+        Write-Host '[forum] Не обнаружены данные для подключения к форуму. Проверьте настройки.'
+        Exit
+    }
+    Write-Host '[forum] Авторизуемся на форуме.'
+
+    $login_url = 'https://rutracker.org/forum/login.php'
+    $headers = @{ 'User-Agent' = 'Mozilla/5.0' }
+    $payload = @{ 'login_username' = $forum.login; 'login_password' = $forum.password; 'login' = '%E2%F5%EE%E4' }
+
+    try {
+        if ( $forum.proxy ) {
+            $proxy_url = $forum.proxy_address
+            Write-Host ( '[forum] Используем прокси {0}.' -f $proxy_url )
+
+            $secure_pass = ConvertTo-SecureString -String $forum.proxy_password -AsPlainText -Force
+            $proxy_creds = New-Object System.Management.Automation.PSCredential -ArgumentList $forum.proxy_login, $secure_pass
+            $forum_auth = Invoke-WebRequest -Uri $login_url -Method Post -Headers $headers -Body $payload -SessionVariable sid -Proxy $proxy_url -ProxyCredential $proxy_creds
+        } else {
+            $forum_auth = Invoke-WebRequest -Uri $login_url -Method Post -Headers $headers -Body $payload -SessionVariable sid
+        }
+        $match = Select-String "form_token: '(.*)'" -InputObject $forum_auth.Content
+        $forum_token = $match.Matches.Groups[1].Value
+    } catch {
+        Write-Host ( '[forum] Ошибка авторизации: {0}' -f $Error[0] )
+    }
+    if ( !$forum_token ) {
+        Write-Host '[forum] Не удалось авторизоваться на форуме.'
+        Exit
+    }
+    $forum.token = $forum_token
+    $forum.sid = $sid
+    Write-Host ( '[forum] Успешно. Токен: [{0}]' -f $forum_token )
+}
+
+# Скачать торрент-файл раздачи по ид, сложить во временную папку, вернуть ссылку
+function Get-ForumTorrentFile ( [int]$Id, [string]$Type = 'temp' ) {
+    if ( !$forum.sid ) { Initialize-Forum }
+
+    $forum_url = 'https://rutracker.org/forum/dl.php?t=' + $Id
+    $Path = $collector.tmp_folder + $OS.fsep + $Id + '_' + $Type + '.torrent'
+    New-Item -ItemType Directory -Path $collector.tmp_folder -Force > $null
+    Invoke-WebRequest -uri $forum_url -WebSession $forum.sid -OutFile $Path
+
+    return Get-Item $Path
+}
+
+# Получить данные о раздачах по списку ид или форумов.
+function Get-ForumTopics ( [int[]]$Topics, [int[]]$Forums ) {
+    # https://api.t-ru.org/v1/get_tor_status_titles
+    # "0": "не проверено",
+    # "1": "закрыто",
+    # "2": "проверено",
+    # "3": "недооформлено",
+    # "4": "не оформлено",
+    # "5": "повтор",
+    # "7": "поглощено",
+    # "8": "сомнительно",
+    # "9": "проверяется",
+    # "10": "временная",
+    # "11": "премодерация"
+    $exclude_status = 5, 7
+
+    if ( $Topics.count -gt 0 ) {
+        $request = @{ 'by' = 'topic_id'; 'val' = $Topics -Join ","}
+        $tracker_result = ( Invoke-WebRequest -Uri 'https://api.t-ru.org/v1/get_tor_topic_data' -Body $request ).content | ConvertFrom-Json -AsHashtable
+
+        $forum_topics = $tracker_result.result.GetEnumerator() | ? { $_.value } | % {
+            @{
+                topic_id = $_.key
+                hash     = $_.value['info_hash'].toLower()
+                seeders  = $_.value['seeders']
+                size     = $_.value['size']
+                priority = -1
+                status   = $_.value['tor_status']
+                reg_time = $_.value['reg_time']
+            }
+        } | ? { $_.status -notin $exclude_status }
+    }
+    elseif ( $Forums.count -gt 0 ) {
+        $Forums = $Forums | Sort-Object -Unique
+        Write-Host ( '[forum] Получаем список раздач в разделах {0}' -f ($Forums -Join ",") )
+        $forum_topics = @()
+        foreach ( $forum_id in $Forums ) {
+            try {
+                $tracker_result = ( Invoke-WebRequest -Uri ( 'http://api.rutracker.org/v1/static/pvc/f/' + $forum_id ) ).content | ConvertFrom-Json -AsHashtable
+            } catch {
+                Write-Host ( '[forum] Не найдены раздачи в разделе {0}' -f $forum_id )
+                Continue
+            }
+            $topic_header = [ordered]@{}; $tracker_result.format.topic_id | % -Begin { $i = 0 } { $topic_header[$_] = $i++ }
+
+            $temp_list = $tracker_result.result.GetEnumerator() | % {
+               @{
+                    topic_id = $_.key
+                    hash     = $_.value[ $topic_header['info_hash'] ].toLower()
+                    seeders  = $_.value[ $topic_header['seeders'] ]
+                    size     = $_.value[ $topic_header['tor_size_bytes'] ]
+                    priority = $_.value[ $topic_header['keeping_priority'] ]
+                    status   = $_.value[ $topic_header['tor_status'] ]
+                    reg_time = $_.value[ $topic_header['reg_time'] ]
+                }
+            } | ? { $_.status -notin $exclude_status }
+
+            Write-Host ( '- в разделе {0} имеется {1} раздач' -f $forum_id, $temp_list.count )
+
+            $forum_topics += $temp_list
+        }
+    }
+
+    return $forum_topics
 }
 
 # Записать размер выгруженного архива в файл и удалить старые записи.

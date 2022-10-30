@@ -146,6 +146,7 @@ function Add-ClientTorrent ( $Hash, $File, $Path, $Category ) {
     }
 
     # Добавляем раздачу в клиент.
+    New-Item -ItemType Directory -Path $Path -Force > $null
     $added = Read-Client $Params
 
     # Если есть категория, присваиваем её (в torrent-add оно не рботает, почему то).

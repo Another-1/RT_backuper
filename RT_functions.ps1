@@ -39,6 +39,7 @@ $def_paths = [ordered]@{
 $stash_folder = [ordered]@{
     default       = "$PSScriptRoot/stash"                   # Общий путь к папке.
     archived      = "$PSScriptRoot/stash/archived"          # Путь к спискам архивов по дискам.
+    archived_list = "$PSScriptRoot/stash/archived_list.xml" # Локальный общий список сществующих в облаке архивов.
     uploads_limit = "$PSScriptRoot/stash/uploads_limit.xml" # Файл записанных отдач (лимиты).
     pause         = "$PSScriptRoot/stash/pause.txt"         # Если в файле что-то есть, скрипт встанет на паузу.
 
@@ -58,25 +59,47 @@ $measure_names = @{
 
 # Получить список существующих архивов из списков по дискам.
 function Get-Archives {
-    Sync-ArchList $true
-
-    if ( !(Get-ChildItem $stash_folder.archived) ) { Exit }
+    $updated = Sync-ArchList $true
 
     Write-Host '[archived] Смотрим, что уже заархивировано..'
-    $time_collect = [math]::Round( (Measure-Command {
-        $dones = Get-Content ( $stash_folder.archived + $OS.fsep + '*.txt' )
-    }).TotalSeconds, 1 )
-
-    $time_parse = [math]::Round( (Measure-Command {
-        $arch_hashes = @{}
-        $dones | % {
-            $topic_id, $hash = ($_ -split '_',2).Trim()
-            if ( $topic_id -And $hash ) {
-                $arch_hashes[$hash] = $topic_id
-            }
+    # Пробуем вытащить готовый список
+    if ( !$updated -and (Test-Path $stash_folder.archived_list) ) {
+        try {
+            $time_collect = [math]::Round( (Measure-Command {
+                $restore = Import-Clixml -Path $stash_folder.archived_list
+                $dones       = $restore.dones
+                $arch_hashes = $restore.arch_hashes
+            }).TotalSeconds, 1 )
+            $time_parse = 0
+        } catch {
+            $updated = 1
         }
-    }).TotalSeconds, 1 )
+    }
 
+    # Если списка нет или были обновления списков по дискам - собираем заново
+    if ( $updated ) {
+        if ( !(Get-ChildItem $stash_folder.archived) ) { Exit }
+
+        Write-Host '[archived] Списки по дискам были обновлены, собираем общий список.'
+        $time_collect = [math]::Round( (Measure-Command {
+            $dones = Get-Content ( $stash_folder.archived + $OS.fsep + '*.txt' )
+            $dones = [string[]]$dones
+        }).TotalSeconds, 1 )
+
+        $time_parse = [math]::Round( (Measure-Command {
+            $arch_hashes = @{}
+            $dones | % {
+                $topic_id, $hash = ($_ -split '_',2).Trim()
+                if ( $topic_id -And $hash ) {
+                    $arch_hashes[$hash] = $topic_id
+                }
+            }
+        }).TotalSeconds, 1 )
+
+        $backup = @{ dones = $dones; arch_hashes = $arch_hashes }
+        $backup | Export-Clixml -Path $stash_folder.archived_list
+
+    }
     Write-Host ( '[archived] Обнаружено архивов: {0} [{1} сек], хешей: {2} [{3} сек]' -f $dones.count, $time_collect, $arch_hashes.count, $time_parse )
     return $dones, $arch_hashes
 }
@@ -103,6 +126,7 @@ function Sync-ArchList ( $All = $false ) {
         return
     }
 
+    $updated = 0
     foreach ( $folder in $folders ) {
         $arch_path = ( $arch_folders | ? { $folder.BaseName -eq $_.BaseName } ).FullName
 
@@ -112,9 +136,12 @@ function Sync-ArchList ( $All = $false ) {
             $zip_list | % { $_.BaseName } | Out-File $folder.FullName
         }).TotalSeconds
 
+        $updated += $zip_list.count
         $text = '[archived][{0}] Обновление списка раздач заняло {1} секунд. Найдено архивов: {2} шт.'
         Write-Host ( $text -f $folder.BaseName, ([math]::Round( $exec_time, 2 )), $zip_list.count )
     }
+
+    return $updated
 }
 
 

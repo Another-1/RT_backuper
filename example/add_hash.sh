@@ -1,8 +1,5 @@
 #!/bin/bash
-# Поправить путь к вашему файлу, а точнее к папке config
-# /config/qBittorrent/config/hashes.txt
-echo $1 >> /pwsh/hashes.txt
+echo $1 >> $2
 
-# Пример запуска:
-# /pwsh/add_hash.sh "%I"
-# /config/qBittorrent/add_hash.sh "%I"
+# /pwsh/add_hash.sh "%I" "/pwsh/qbd/hashes.txt"
+# /config/qBittorrent/add_hash.sh "%I" "/pwd/stash/myqbit/hashes.txt"

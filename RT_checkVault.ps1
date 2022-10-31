@@ -7,14 +7,30 @@ Param (
 
 . "$PSScriptRoot\RT_functions.ps1"
 
-Clear-Host
 if ( !(Confirm-Version) ) { Exit }
-if ( !( Sync-Settings ) ) { Pause; Exit }
+if ( !( Sync-Settings ) ) {
+    Write-Host 'Не обнаружен файл конфигурации, создать шаблон? [y/n]: ' -ForegroundColor Green -NoNewLine
+    $ch_config = ( Read-Host ).ToString().ToLower()
+    if ( $ch_config -in 'y','д' ) {
+        $settings_example = "$PSScriptRoot/example/RT_settings.{0}.ps1" -f $OS.name
+        $settings_local   = "$PSScriptRoot/config/RT_settings.ps1"
+        $settings_example
+        $settings_local
+        if ( Test-Path $settings_example ) {
+            Copy-Item $settings_example -Destination $settings_local -Force
+            Write-Host 'Файл конфигурации создан, откройте его и отредактируйте под свои нужды.'
+        } else {
+            
+        }
+    }
+    Exit
+}
 
 function Hide-Password ( [string]$psw ) {
     return $psw[0] + '****' + $psw[-1]
 }
 
+Clear-Host
 Write-Host ''
 Write-Host ( 'Система: {0}' -f $OS.name ) -ForegroundColor Yellow
 if ( $start_time -and $stop_time ) {
@@ -63,7 +79,7 @@ if ( $backuper.zip_folder_size ) {
 Write-Host ( '- {0,-18} путь к 7z: "{1}"' -f '[p7z]', $backuper.p7z )
 Write-Host ( '- {0,-18} опция скрывать вывод 7z: {1}' -f '[h7z]', ( $temp = if ($backuper.h7z) {'включена'} else {'выключена'} ) )
 Write-Host ( '- {0,-18} использование ядер при архивации: [{1}]' -f '[cores]', $backuper.cores )
-Write-Host ( '- {0,-18} стандартная степень сжатия при архивации: [{1}]' -f '[compression]', $backuper.compression )
+Write-Host ( '- {0,-18} стандартная степень сжатия при архивации: [{1}]' -f '[compression]', (Get-Compression -Param $backuper) )
 
 
 Write-Host ''

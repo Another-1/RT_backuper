@@ -27,8 +27,10 @@ function Read-IntValue ( $Prompt ) {
 
 . "$PSScriptRoot\RT_functions.ps1"
 
+$ScriptName = (Get-Item $PSCommandPath).BaseName
+
 if ( !(Confirm-Version) ) { Exit }
-if ( !( Sync-Settings ) ) { Pause; Exit }
+if ( !( Sync-Settings -Mode $ScriptName ) ) { Pause; Exit }
 
 # Если передан список раздач. работаем с ними.
 if ( $Topics.count ) {

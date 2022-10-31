@@ -631,7 +631,7 @@ function Start-Pause {
 
 
 # Проверка/валидация настроек.
-function Sync-Settings {
+function Sync-Settings ( [string]$Mode ) {
     # Определяем параметры окружения.
     Get-OsParams
 
@@ -651,10 +651,6 @@ function Sync-Settings {
                 $terminate = $true
             }
         }
-    }
-
-    if ( !$forum ) {
-        $errors+= '[settings][forum] Отсутсвует блок параметров подключения к форуму'
     }
 
     # Валидация настроек гугл-диска.
@@ -705,9 +701,16 @@ function Sync-Settings {
 
     if ( !$collector ) {
         $errors+= '[settings][collector] Отсутсвует блок параметров загрузки торрент-файлов'
+        if ( $Mode -eq 'RT_collector' ) { $terminate = $true }
+    }
+
+    if ( !$forum ) {
+        $errors+= '[settings][forum] Отсутсвует блок параметров подключения к форуму'
+        if ( $Mode -eq 'RT_collector' ) { $terminate = $true }
     }
 
     if ( $errors ) {
+        if ( $terminate ) { $errors += 'Проверьте файл настроек.'}
         $errors | Write-Host -ForegroundColor Yellow
     }
 

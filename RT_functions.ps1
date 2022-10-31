@@ -568,7 +568,7 @@ function Compare-MaxSize ( [string]$Path, [long]$MaxSize ) {
 # Удаление пустых каталогов по заданному пути.
 function Clear-EmptyFolders ( $Path ) {
     if ( Test-Path $Path ) {
-        Get-ChildItem $Path -Directory | ? { (Get-ChildItem -LiteralPath $_.Fullname).count -eq 0 } | % { Remove-Item $_.Fullname }
+        Get-ChildItem $Path -Directory | ? { (Get-ChildItem -LiteralPath $_.Fullname).count -eq 0 } | % { Remove-Item $_.Fullname -Force } > $null
     }
 }
 

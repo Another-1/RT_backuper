@@ -157,7 +157,7 @@ foreach ( $torrent in $torrents_list ) {
         Write-Host ( $success_text -f $time_arch, $compression, $backuper.cores, (Get-BaseSize $zip_size), $comp_perc, $speed_arch )
 
         # Перед переносом проверяем доступный трафик.
-        Compare-UsedLimits $google_name $uploads_all
+        Compare-StoredUploads $google_name $uploads_all
 
         # Проверка переполнения каталога с кешем гугла.
         if ( $google_params.cache_size ) {

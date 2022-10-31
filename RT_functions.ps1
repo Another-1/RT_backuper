@@ -236,23 +236,6 @@ function Compare-UsedLocations ( $Torrents ) {
     }
 }
 
-# Проверим использованные лимиты выгрузки в облако.
-function Compare-UsedLimits ( $google_name, $uploads_all ) {
-    # Перед переносом проверяем доступный трафик. 0 для получения актуальных данных.
-    $today_size, $uploads_all = Get-TodayTraffic $uploads_all 0 $google_name
-
-    # Если за последние 24ч, по выбранному аккаунту, было отправлено более квоты, то ждём.
-    while ( $today_size -gt $lv_750gb ) {
-        Write-Host ( '[limit][{0}] Трафик гугл-аккаунта {1} за прошедшие 24ч уже {2}' -f (Get-Date -Format t), $google_name, (Get-BaseSize $today_size ) )
-        Write-Host ( '[limit] Подождём часик чтобы не выйти за лимит {0} (сообщение будет повторяться пока не вернёмся в лимит).' -f (Get-BaseSize $lv_750gb ) )
-        Start-Sleep -Seconds ( 60 * 60 )
-
-        Start-Pause
-        $today_size, $uploads_all = Get-TodayTraffic $uploads_all 0 $google_name
-    }
-    Write-Host ( '[limit] {0} {1} меньше чем лимит {2}, продолжаем!' -f $google_name, (Get-BaseSize $today_size), (Get-BaseSize $lv_750gb) )
-}
-
 # По ид раздачи вычислить путь к файлу в облаке.
 function Get-TorrentPath ( [int]$topic_id, [string]$hash, [string]$google_folder = $null ) {
     $full_name = $topic_id.ToString() + '_' + $hash.ToLower() + '.7z'
@@ -451,6 +434,22 @@ function Get-StoredUploads ( $uploads_old = @{} ) {
         }
     }
     return $uploads_all
+}
+
+# Проверим использованные лимиты выгрузки в облако.
+function Compare-StoredUploads ( $google_name, $uploads_all ) {
+    # Перед переносом проверяем доступный трафик. 0 для получения актуальных данных.
+    $today_size, $uploads_all = Get-TodayTraffic $uploads_all 0 $google_name
+
+    # Если за последние 24ч, по выбранному аккаунту, было отправлено более квоты, то ждём.
+    while ( $today_size -gt $lv_750gb ) {
+        Write-Host ( '[limit][{0:t}] {1} выгружено {2} за прошедшие 24ч. Пауза на час.' -f (Get-Date), $google_name, (Get-BaseSize $today_size ) )
+        Start-Sleep -Seconds ( 60 * 60 )
+
+        Start-Pause
+        $today_size, $uploads_all = Get-TodayTraffic $uploads_all 0 $google_name
+    }
+    Write-Host ( '[limit][{0:t}] {1} выгружено {2}.' -f (Get-Date), $google_name, (Get-BaseSize $today_size) )
 }
 
 # Отобразить затраченные лимиты в разрезе периодов времени.

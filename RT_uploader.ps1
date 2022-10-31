@@ -106,7 +106,7 @@ foreach ( $zip in $zip_list ) {
         }
 
         # Перед переносом проверяем доступный трафик.
-        Compare-UsedLimits $google_name $uploads_all
+        Compare-StoredUploads $google_name $uploads_all
 
         # Проверка переполнения каталога с кешем гугла.
         if ( $google_params.cache_size ) {

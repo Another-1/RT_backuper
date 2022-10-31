@@ -69,7 +69,7 @@ function Get-ClientTorrents ( $Hashes, $Completed = $true, $Sort = 'size' ) {
     }
     $torrents_list = (Read-Client 'torrents/info' $Params )
         | ConvertFrom-Json
-        | Select-Object name, hash, content_path, save_path, state, size, category,
+        | Select-Object name, hash, content_path, save_path, size, category,
             @{N='topic_id'; E={$null}},
             @{N='comment';  E={$null}},
             @{N='status';   E={$_.state}}

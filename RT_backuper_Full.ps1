@@ -50,13 +50,13 @@ Write-Host ( '[backuper] Раздач получено: {0} [{1} сек].' -f $t
 
 # Если нужно будет перебирать много раздач, то загружаем списки заархивированных.
 if ( !$hash_list ) {
-    $dones, $hashes = Get-Archives
+    $done_list, $done_hashes = Get-Archives
 }
 
 # Фильтруем список раздач и получаем их ид.
 Write-Host ( '[backuper] Получаем номера топиков по раздачам и пропускаем уже заархивированное.' )
 $exec_time = [math]::Round( (Measure-Command {
-    $torrents_list = Get-TopicIDs $torrents_list $hashes
+    $torrents_list = Get-TopicIDs $torrents_list $done_hashes
 }).TotalSeconds, 1 )
 Write-Host ( '[backuper] Топиков с номерами получено: {0} [{1} сек].' -f $torrents_list.count, $exec_time )
 

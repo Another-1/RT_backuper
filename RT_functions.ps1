@@ -68,16 +68,17 @@ function Get-Archives {
     }).TotalSeconds, 1 )
 
     $time_parse = [math]::Round( (Measure-Command {
-        $hashes = $dones | % {
-            $id, $hash = $_.Split('_')
-            if ( $id -And $hash ) {
-                @{ $hash = $id }
+        $arch_hashes = @{}
+        $dones | % {
+            $topic_id, $hash = ($_ -split '_',2).Trim()
+            if ( $topic_id -And $hash ) {
+                $arch_hashes[$hash] = $topic_id
             }
         }
     }).TotalSeconds, 1 )
 
-    Write-Host ( '[archived] Обнаружено архивов: {0} [{1} сек], хешей: {2} [{3} сек]' -f $dones.count, $time_collect, $hashes.count, $time_parse )
-    return $dones, $hashes
+    Write-Host ( '[archived] Обнаружено архивов: {0} [{1} сек], хешей: {2} [{3} сек]' -f $dones.count, $time_collect, $arch_hashes.count, $time_parse )
+    return $dones, $arch_hashes
 }
 
 # Обновить список архивов в локальной "БД".
@@ -363,6 +364,7 @@ function Get-ForumTopics ( [int[]]$Topics, [int[]]$Forums ) {
         $Forums = $Forums | Sort-Object -Unique
         Write-Host ( '[forum] Получаем список раздач в разделах {0}' -f ($Forums -Join ",") )
         $forum_topics = @()
+        $forum_groups = @{}
         foreach ( $forum_id in $Forums ) {
             try {
                 $tracker_result = ( Invoke-WebRequest -Uri ( 'http://api.rutracker.org/v1/static/pvc/f/' + $forum_id ) ).content | ConvertFrom-Json -AsHashtable
@@ -384,13 +386,14 @@ function Get-ForumTopics ( [int[]]$Topics, [int[]]$Forums ) {
                 }
             } | ? { $_.status -notin $exclude_status }
 
-            Write-Host ( '- в разделе {0} имеется {1} раздач' -f $forum_id, $temp_list.count )
+            Write-Host ( '- в разделе {0,4} имеется {1,6} раздач' -f $forum_id, $temp_list.count )
 
+            $forum_groups[ $forum_id ] = $temp_list
             $forum_topics += $temp_list
         }
     }
 
-    return $forum_topics
+    return @{ topics = $forum_topics; groups = $forum_groups }
 }
 
 # Записать размер выгруженного архива в файл и удалить старые записи.
@@ -429,7 +432,7 @@ function Show-StoredUploads ( $uploads_all ) {
     $yesterday = ( Get-date ).AddDays( -1 )
 
     Write-Host ( '[limit] Текущие использованные лимиты выгрузки (освободится через [1,3,6,12] часов):' ) -ForegroundColor Yellow
-    $row_text = '[limit][{4}] Выгружено {5,9}. Освободится: {0,9}; {1,9}; {2,9}; {3,9}.'
+    $row_text = '[limit][{4}] Выгружено {5,9} => [{0,9}| {1,9}| {2,9}| {3,9}]'
     $uploads_all.GetEnumerator() | Sort-Object Key | % {
         $disk_name = $_.key
         $full_size = ( $_.value.values | Measure-Object -sum ).Sum
@@ -475,7 +478,7 @@ function Get-OsParams {
 }
 
 # Преобразовать большое число в читаемое число с множителем нужной базы.
-function Get-BaseSize ( [long]$size, [int]$base = 1024, [int]$pow = 0, $SI = 'byte_2' ) {
+function Get-BaseSize ( [long]$size, [int]$base = 1024, [int]$pow = 0, $SI = 'byte_2', [int]$Precision = 1 ) {
     $names = $measure_names[$SI]
     if ( !$names ) { $names = $measure_names.byte_2 }
 
@@ -487,7 +490,7 @@ function Get-BaseSize ( [long]$size, [int]$base = 1024, [int]$pow = 0, $SI = 'by
         if ( $pow -gt $names.count - 1 ) {
             $pow = $names.count - 1
         }
-        $val = [math]::Round( $size / [math]::Pow($base, $pow), 1)
+        $val = [math]::Round( $size / [math]::Pow($base, $pow), $Precision)
     }
 
     return ( $val ).ToString() + ' ' + $names[ $pow ]

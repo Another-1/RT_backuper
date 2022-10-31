@@ -39,21 +39,22 @@ if ( $tracker_list.count -eq 0 ) {
 Write-Host ( 'После фильтрации осталось раздач: {0}.' -f $tracker_list.count )
 
 # Получаем список существующих архивов.
-$dones, $hashes = Get-Archives
+$done_list, $done_hashes = Get-Archives
 
 # Вычисляем раздачи, у которых есть архив в облаке.
-$tracker_list = $tracker_list | ? { $hashes[ $_.hash ] }
+$tracker_list = $tracker_list | ? { $done_hashes[ $_.hash ] }
 Write-Host ( 'Имеется архивов в облаке: {0}.' -f $tracker_list.count )
 
 
 # Подключаемся к клиенту, получаем список существующих раздач.
 Write-Host 'Получаем список раздач из клиента..'
 Initialize-Client
-$torrents_list = Get-ClientTorrents -Completed $false | % { @{ $_.hash = 1} }
 
+$torrents_list = @{}
+Get-ClientTorrents -Completed $false | % { $torrents_list[ $_.hash ] = 1 }
 if ( $torrents_list ) {
     # Исключаем раздачи, которые уже есть в клиенте.
-    $tracker_list = $tracker_list | ? { !($torrents_list[ $_.hash ]) }
+    $tracker_list = $tracker_list | ? { !$torrents_list[ $_.hash ] }
     Write-Host ( 'От клиента [{0}] получено раздач: {1}. Раздач доступных к восстановлению: {2}.' -f $client.name, $torrents_list.count, $tracker_list.count )
 }
 

@@ -1,15 +1,36 @@
+Param (
+    [string]$UsedClient
+)
+
 . "$PSScriptRoot\RT_functions.ps1"
 
 if ( !(Confirm-Version) ) { Exit }
-If ( !( Sync-Settings ) ) { Write-Host 'Проверьте наличие и заполненность файла настроек в каталоге скрипта'; Pause; Exit }
+if ( !( Sync-Settings ) ) { Pause; Exit }
 
-Clear-Host
+$ScriptName = (Get-Item $PSCommandPath).BaseName
+$errors = @()
+if ( !$used_modules.backuper ) {
+    $errors += 'Вы запустили {0}, хотя он не включён в настройках. Проверьте настройки $used_modules.' -f $ScriptName
+}
+if ( !$used_modules.uploader ) {
+    $errors += 'Вы запустили {0}, хотя uploader не включён в настройках. Проверьте настройки $used_modules.' -f $ScriptName
+}
+if ( !$used_modules.cleaner ) {
+    $errors += 'Вы запустили {0}, хотя cleaner не включён в настройках. Проверьте настройки $used_modules.' -f $ScriptName
+}
+if ( $uploader.delete -and !$used_modules.cleaner ) {
+    $errors += 'Включено удаление раздач после архивирования, то не включён cleaner. Или включите его или используйте Backuper_Full.'
+}
+if ( $errors ) { Write-Host ''; $errors | Write-Host -ForegroundColor Yellow; Pause; Exit }
+
 Start-Pause
 Start-Stopping
 
 # Пробуем найти список раздач, которые обрабатывались, но процесс прервался.
 try {
-    $torrents_list = Import-Clixml $stash_folder.backup_list
+    $current_backup_list = $stash_folder.backup_list
+
+    $torrents_list = Import-Clixml $current_backup_list
     if ( $torrents_list ) {
         Write-Host ( '[backuper] Найдены недообработанные раздачи: {0}' -f $torrents_list.count )
     }
@@ -18,9 +39,9 @@ try {
 # Если список пуст, начинаем с начала.
 if ( !$torrents_list ) {
     # Ищем раздачи, которые скачал клиент и добавил в буферный файл.
-    $hash_file = Watch-FileExist $def_paths.downloaded
+    $hash_file = Watch-FileExist $stash_folder.downloaded
     if ( $hash_file.($OS.sizeField) ) {
-        $downloaded = ( Get-FileFirstContent $def_paths.downloaded $backuper.hashes_step )
+        $downloaded = ( Get-FileFirstContent $stash_folder.downloaded $backuper.hashes_step )
         Write-Host ( '[backuper] Найдено раздач, докачанных клиентом : {0}.' -f $downloaded.count )
     }
 
@@ -33,59 +54,44 @@ if ( !$torrents_list ) {
     Initialize-Client
 
     # получаем список раздач из клиента
-    Write-Host 'Получаем список раздач из клиента..'
+    Write-Host '[backuper] Получаем список раздач из клиента..'
     $exec_time = [math]::Round( (Measure-Command {
         $torrents_list = Get-ClientTorrents $downloaded
     }).TotalSeconds, 1 )
 
     if ( $torrents_list -eq $null ) {
-        Write-Host 'Не удалось получить раздачи!'
+        Write-Host '[backuper] Раздачи не получены.'
         Exit
     }
-    Write-Host ( '..от клиента получено раздач: {0} [{1} сек].' -f $torrents_list.count, $exec_time )
+    Write-Host ( '[backuper] Раздач получено: {0} [{1} сек].' -f $torrents_list.count, $exec_time )
 
     # Загружаем списки заархивированных раздач, чтобы отфильтровать.
-    $dones, $hashes = Get-Archives
+    $done_list, $done_hashes = Get-Archives
 
-    # по каждой раздаче получаем коммент, чтобы достать из него номер топика
+    # Фильтруем список раздач и получаем их ид.
     Write-Host ( 'Получаем номера топиков по раздачам и пропускаем уже заархивированное.' )
     $exec_time = [math]::Round( (Measure-Command {
-        $torrents_list = Get-TopicIDs $torrents_list $hashes
+        $torrents_list = Get-TopicIDs $torrents_list $done_hashes
     }).TotalSeconds, 1 )
     Write-Host ( '[backuper] Топиков с номерами получено: {0} [{1} сек].' -f $torrents_list.count, $exec_time )
 }
 
-
 # проверяем, что никакие раздачи не пересекаются по именам файлов (если файл один) или каталогов (если файлов много), чтобы не заархивировать не то
-$used_locs = [System.Collections.ArrayList]::new()
-$ok = $true
-Write-Host ( 'Проверяем уникальность путей сохранения раздач..' )
-
-foreach ( $torrent in $torrents_list ) {
-    if ( $used_locs.keys -contains $torrent.content_path ) {
-        Write-Host ( 'Несколько раздач хранятся по пути "' + $torrent.content_path + '" !')
-        Write-Host ( 'Нажмите любую клавищу, исправьте и начните заново !')
-        $ok = $false
-    }
-    else { $used_locs += $torrent.content_path }
-}
-If ( $ok -eq $false) {
-    pause
-    Exit
-}
+Compare-UsedLocations $torrents_list
 
 $proc_size = 0
 $proc_cnt = 0
 $sum_size = ( $torrents_list | Measure-Object size -Sum ).Sum
 $sum_cnt = $torrents_list.count
-Write-Host ( '[backuper] Объём новых раздач ({0} шт) {1}.' -f $sum_cnt, (Get-BaseSize $sum_size) )
+Write-Host ( '[backuper] Объём раздач: {0} ({1}).' -f $sum_cnt, (Get-BaseSize $sum_size) ) -ForegroundColor DarkCyan
+if ( !$sum_cnt ) { Exit }
 
 # Записываем найденные раздачи в файлик.
 $torrents_left = $torrents_list
-$torrents_left | Export-Clixml $stash_folder.backup_list
+$torrents_left | Export-Clixml $current_backup_list
 
-Write-Host ('[backuper] Начинаем перебирать раздачи.')
 # Перебираем найденные раздачи и бекапим их.
+Write-Host ('[backuper] Начинаем перебирать раздачи.')
 foreach ( $torrent in $torrents_list ) {
     # Проверка на переполнение каталога с архивами.
     if ( $backuper.zip_folder_size ) {
@@ -93,8 +99,14 @@ foreach ( $torrent in $torrents_list ) {
     }
 
     # Ид и прочие параметры раздачи.
-    $torrent_id = $torrent.state
+    $torrent_id   = $torrent.topic_id
     $torrent_hash = $torrent.hash.ToLower()
+    if ( !$torrent_id ) {
+        Write-Host '[skip] Отсутсвует ид раздачи. Пропускаем.'
+        Continue
+    }
+
+    # Собираем имя и путь хранения архива раздачи.
     $disk_id, $disk_name, $disk_path = Get-DiskParams $torrent_id
 
     # Имя архива.
@@ -108,7 +120,7 @@ foreach ( $torrent in $torrents_list ) {
 
     Start-Pause
     Write-Host ''
-    Write-Host ( '[torrent] Архивируем {0} ({2}), {1} ' -f $torrent_id, $torrent.name, (Get-BaseSize $torrent.size) ) -ForegroundColor Green
+    Write-Host ( '[torrent] Обрабатываем {0} ({2}), {1} ' -f $torrent_id, $torrent.name, (Get-BaseSize $torrent.size) ) -ForegroundColor Green
 
     try {
         Write-Host ( 'Проверяем гугл-диск {0}' -f $zip_google_path )
@@ -116,25 +128,24 @@ foreach ( $torrent in $torrents_list ) {
         $zip_test = Test-PathTimer $zip_google_path
         Write-Host ( '[check][{0}] Проверка выполнена за {1} сек, результат: {2}' -f $disk_name, $zip_test.exec, $zip_test.result )
         if ( $zip_test.result ) {
-            # Если раздача уже есть в гугле, то надо её удалить из клиента и добавить в локальный список архивированных.
+            # Если раздача уже есть в гугле, то надо её удалить из клиента.
             Dismount-ClientTorrent $torrent_id $torrent_hash
             throw '[skip] Раздача уже имеет архив в гугле, пропускаем.'
-
         }
+
         if ( Test-Path $zip_path_finished ) {
+            Dismount-ClientTorrent $torrent_id $torrent_hash
             throw '[skip] Раздача уже имеет архив ожидающий переноса в гугл, пропускаем.'
         }
 
         # Удаляем файл в месте архивирования, если он прочему-то есть.
         if ( Test-Path $zip_path_progress ) { Remove-Item $zip_path_progress }
 
-        # для Unix нужно экранировать кавычки и пробелы.
-        if ( $os -eq 'linux' ) { $torrent.content_path = $torrent.content_path.replace('"','\"') }
         $compression = Get-Compression $torrent_id $backuper
         $start_measure = Get-Date
 
         # Начинаем архивацию файла
-        Write-Host ( '[torrent] Архивация начата, сжатие:{0}.' -f $compression )
+        Write-Host ( '[torrent] Архивация начата, сжатие:{0}, ядра процессора:{1}.' -f $compression, $backuper.cores )
         if ( $backuper.h7z ) {
             & $backuper.p7z a $zip_path_progress $torrent.content_path "-p$pswd" "-mx$compression" ("-mmt" + $backuper.cores) -mhe=on -sccUTF-8 -bb0 > $null
         } else {
@@ -143,7 +154,7 @@ foreach ( $torrent in $torrents_list ) {
 
         if ( $LastExitCode -ne 0 ) {
             Remove-Item $zip_path_progress
-            throw ( 'Архивация завершилась ошибкой: {0}. Удаляем файл.' -f $LastExitCode )
+            throw ( '[skip] Архивация завершилась ошибкой: {0}. Удаляем файл.' -f $LastExitCode )
         }
 
         # Считаем результаты архивации
@@ -159,6 +170,8 @@ foreach ( $torrent in $torrents_list ) {
             if ( Test-Path $zip_path_finished ) { Remove-Item $zip_path_finished }
             Write-Host ( 'Перемещаем {0} в каталог {1}' -f  $base_name, $def_paths.finished )
             Move-Item -path $zip_path_progress -destination $zip_path_finished -Force -ErrorAction Stop
+
+            Dismount-ClientTorrent $torrent_id $torrent_hash
             Write-Host 'Готово!'
         }
         catch {
@@ -174,8 +187,8 @@ foreach ( $torrent in $torrents_list ) {
     Write-Host ( $text -f ++$proc_cnt, (Get-BaseSize $proc_size), $sum_cnt, (Get-BaseSize $sum_size) ) -ForegroundColor DarkCyan
 
     # Перезаписываем данные раздач, которые осталось обработать.
-    $torrents_left = $torrents_left | ? { $_.state -ne $torrent_id }
-    $torrents_left | Export-Clixml $stash_folder.backup_list
+    $torrents_left = $torrents_left | ? { $_.topic_id -ne $torrent_id }
+    $torrents_left | Export-Clixml $current_backup_list
 
     Start-Pause
     Start-Stopping

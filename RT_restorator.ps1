@@ -1,116 +1,117 @@
+Param (
+    [ValidateRange('Positive')][int[]]$Forums,
+    [ValidateRange('Positive')][int[]]$Topics,
+    [ValidateSet(0, 1, 2)][string]$Priority = -1,
+    [string]$Category,
+    [string]$UsedClient
+)
+
 . "$PSScriptRoot\RT_functions.ps1"
 
 if ( !(Confirm-Version) ) { Exit }
-If ( !( Sync-Settings ) ) { Write-Host 'Проверьте наличие и заполненность файла настроек в каталоге скрипта';  Pause; Exit }
+if ( !( Sync-Settings ) ) { Pause; Exit }
 
-
-$secure_pass = ConvertTo-SecureString -String $proxy_password -AsPlainText -Force
-$proxyCreds = New-Object System.Management.Automation.PSCredential -ArgumentList $proxy_login, $secure_pass
-
-Write-Output 'Смотрим, что уже заархивировано'
-$archives = @{}
-$hashes_tmp = @{}
-$hashes = @{}
-( get-childitem( $google_params.folders[0] ) | Where-Object { $_.name -like 'ArchRuT*' } ) | ForEach-Object { Get-ChildItem( $_ ) } | `
-    Sort-Object -Property CreationTime -Descending | ForEach-Object { try {
-        $archives[($_.Name.split('_')[0])] = $_.FullName
-        $hashes_tmp[($_.Name.split('_')[0])] = $_.name.Split('_')[1].split('.')[0]
+# Если передан список раздач. работаем с ними.
+if ( $Topics.count ) {
+    $tracker_list = Get-ForumTopics -Topics $Topics
+}
+# Идем по обычной цепочке получения всех раздач раздела.
+else {
+    if ( !$Forums ) {
+        $forum_id = Read-IntValue 'Введите раздел'
+        if ( $forum_id ) { $Forums = @( $forum_id ) }
     }
-    catch {}
-}
-$hashes_tmp.keys | ForEach-Object { $hashes[$hashes_tmp[$_]] = $_ }
-$hashes_tmp = @{}
+    if ( !$Forums ) { Exit }
 
-if ( $args ) {
-    $choice = $args[0]
-    Write-Host "Выбранный раздел: $choice"
-} else {
-    $choice = ( Read-Host -Prompt 'Выберите раздел' ).ToString()
+    $tracker_list = Get-ForumTopics -Forums $Forums
+
+    # Если задан приоритет, фильтруем.
+    if ( $Priority -ge 0 ) {
+        $tracker_list = $tracker_list | ? { $_.priority -eq $Priority }
+    }
 }
 
-$category = $collector.category
-if ( !$category ) {
-    $category = ( ( Invoke-WebRequest -Uri ( 'http://api.rutracker.org/v1/get_forum_name?by=forum_id&val=' + $choice ) ).content | ConvertFrom-Json -AsHashtable ).result[[string]$choice]
-}
-if ( !$category ) { $category = 'restored' }
-
-Write-Output 'Запрашиваем c трекера список раздач в разделе'
-$tracker_torrents_list = ( ( Invoke-WebRequest -Uri ( 'http://api.rutracker.org/v1/static/pvc/f/' + $choice ) ).content | ConvertFrom-Json -AsHashtable ).result
-
-if ( $tracker_torrents_list.count -eq 0) {
-    Write-Output 'Не получено ни одной раздачи'
+if ( $tracker_list.count -eq 0 ) {
+    Write-Host 'По заданным фильтрам не получено ни одной раздачи.'
     Pause
     Exit
 }
+Write-Host ( 'После фильтрации осталось раздач: {0}.' -f $tracker_list.count )
 
-Write-Output 'Отбрасываем архивы не по указанному разделу'
-$archives_required = @{}
-$archives.keys | Where-Object { $nul -ne $tracker_torrents_list[$_] } | ForEach-Object { $archives_required[$_] = $archives[$_] }
-$hashes_required = @{}
-$hashes.keys | Where-Object { $nul -ne $tracker_torrents_list[$hashes[$_]] } | ForEach-Object { $hashes_required[$_] = $hashes[$_] }
+# Получаем список существующих архивов.
+$done_list, $done_hashes = Get-Archives
 
-# Подключаемся к клиенту.
+# Вычисляем раздачи, у которых есть архив в облаке.
+$tracker_list = $tracker_list | ? { $done_hashes[ $_.hash ] }
+Write-Host ( 'Имеется архивов в облаке: {0}.' -f $tracker_list.count )
+
+
+# Подключаемся к клиенту, получаем список существующих раздач.
+Write-Host 'Получаем список раздач из клиента..'
 Initialize-Client
 
-Write-Output 'Получаем список раздач из клиента'
-$client_torrents_list = [string[]]( Read-Client 'torrents/info' ) | ConvertFrom-Json | % { $_.hash }
-
-Write-Output 'Исключаем раздачи, которые уже есть в клиенте'
-$hashes = @{}
-$hashes_required.keys | ? { $_ -notin $client_torrents_list } | ForEach-Object { $hashes[$_] = $hashes_required[$_] } 
-Remove-Variable -name hashes_required
-
-if ( !$hashes.count ) {
-    Write-Host 'Нет раздач для восстановления.'
-    Exit
+$torrents_list = @{}
+Get-ClientTorrents -Completed $false | % { $torrents_list[ $_.hash ] = 1 }
+if ( $torrents_list ) {
+    # Исключаем раздачи, которые уже есть в клиенте.
+    $tracker_list = $tracker_list | ? { !$torrents_list[ $_.hash ] }
+    Write-Host ( 'От клиента [{0}] получено раздач: {1}. Раздач доступных к восстановлению: {2}.' -f $client.name, $torrents_list.count, $tracker_list.count )
 }
 
-$archives = @{}
-$hashes.Values | ForEach-Object { $archives[$_] = $archives_required[$_] }
-Remove-Variable -name archives_required
+# Определить категорию добавляемых раздач.
+if ( !$Category ) { $Category = $collector.category }
+if ( !$Category ) { $Category = 'restored' }
 
-Write-Output 'Авторизуемся на форуме'
-$headers = @{'User-Agent' = 'Mozilla/5.0' }
-$payload = @{'login_username' = $rutracker.login; 'login_password' = $rutracker.password; 'login' = '%E2%F5%EE%E4' }
-Invoke-WebRequest -uri 'https://rutracker.org/forum/login.php' -SessionVariable forum_login -Method Post -body $payload -Headers $headers -Proxy $proxy_address -ProxyCredential $proxyCreds > $null
+# Авторизуемся на форуме
+Write-Host ''
+Initialize-Forum
 
 Write-Host 'Перебираем раздачи'
-foreach ( $hash in $hashes.Keys ) {
-    if ( $nul -eq ( $client_torrents_list[$hash])) {
-        $torrent_id = $hashes[$hash]
-        $filename = $archives[$torrent_id]
-        Write-Output "Распаковываем $filename"
-
-        $extract_path = $collector.collect
-        if ( $collector.sub_folder ) {
-            $extract_path = $collector.collect + $OS.fsep + $torrent_id
-        }
-
-        New-Item -ItemType Directory -Path $extract_path -Force > $null
-        if ( $backuper.h7z ) {
-            & $backuper.p7z x "$filename" "-p$pswd" "-o$extract_path" > $null
-        } else {
-            & $backuper.p7z x "$filename" "-p$pswd" "-o$extract_path"
-        }
-
-        Write-Output ( 'Скачиваем торрент для раздачи {0} с форума.' -f $torrent_id )
-        New-Item -ItemType Directory -Path $collector.tmp_folder -Force > $null
-        $forum_torrent_path = 'https://rutracker.org/forum/dl.php?t=' + $torrent_id
-        $torrent_file_path = $collector.tmp_folder + $OS.fsep + $torrent_id + '_restore.torrent'
-        Invoke-WebRequest -uri $forum_torrent_path -WebSession $forum_login -OutFile $torrent_file_path > $null
-
-        Write-Output ( 'Добавляем торрент для раздачи {0} в клиент.' -f $torrent_id )
-        $dl_url = @{
-            torrents    = Get-Item $torrent_file_path
-            savepath    = $extract_path
-            category    = $category
-            name        = 'torrents'
-            root_folder = 'false'
-        }
-
-        Invoke-WebRequest -uri ( $client.url + '/api/v2/torrents/add' ) -form $dl_url -WebSession $sid -Method POST -ContentType 'application/x-bittorrent' > $null
-        Remove-Item $torrent_file_path
-
-        Start-Sleep -Seconds 1
+foreach ( $torrent in $tracker_list ) {
+    # Ид и прочие параметры раздачи.
+    $torrent_id   = $torrent.topic_id
+    $torrent_hash = $torrent.hash.ToLower()
+    if ( !$torrent_id ) {
+        Write-Host '[skip] Отсутсвует ид раздачи. Пропускаем.'
+        Continue
     }
+
+    # Проверяем, наличие раздачи в облаке.
+    $zip_path = Get-TorrentPath $torrent_id $torrent_hash
+    Write-Host ( 'Проверяем гугл-диск {0}' -f $zip_path )
+    $zip_test = Test-PathTimer $zip_path
+    Write-Host ( '[check] Проверка выполнена за {0} сек, результат: {1}' -f $zip_test.exec, $zip_test.result )
+    if ( !$zip_test.result ) {
+        Write-Host '[skip] Не удалось найти архив для раздачи в облаке. Пропускаем.'
+        Continue
+    }
+
+    # Путь хранения раздачи, с учётом подпапки.
+    $extract_path = $collector.collect
+    if ( $collector.sub_folder ) {
+        $extract_path = $collector.collect + $OS.fsep + $torrent_id
+    }
+
+    Write-Host "Распаковываем $zip_path"
+    New-Item -ItemType Directory -Path $extract_path -Force > $null
+    if ( $backuper.h7z ) {
+        & $backuper.p7z x "$zip_path" "-p$pswd" "-aoa" "-o$extract_path" > $null
+    } else {
+        & $backuper.p7z x "$zip_path" "-p$pswd" "-aoa" "-o$extract_path"
+    }
+
+    if ( $LastExitCode -ne 0 ) {
+        Write-Host ( '[check] Ошибка распаковки архива, код ошибки: {0}.' -f $LastExitCode )
+        Continue
+    }
+
+    Write-Host ( 'Скачиваем торрент-файл раздачи {0} ({1}).' -f $torrent_id, (Get-BaseSize $torrent.size) )
+    $torrent_file = Get-ForumTorrentFile $torrent_id
+
+    # Добавляем раздачу в клиент.
+    Write-Host ( 'Добавляем торрент для раздачи {0} в клиент.' -f $torrent_id )
+    Add-ClientTorrent $torrent_hash $torrent_file.FullName $extract_path $Category > $null
+    Remove-Item $torrent_file.FullName
+
+    Start-Sleep -Seconds 1
 }

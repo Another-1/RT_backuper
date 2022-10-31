@@ -1,26 +1,41 @@
+Param (
+    [ValidateRange('Positive')][int]$Balance,
+    [switch]$NoClient = $true
+)
+
 . "$PSScriptRoot\RT_functions.ps1"
 
 if ( !(Confirm-Version) ) { Exit }
-If ( !( Sync-Settings ) ) { Write-Host 'Проверьте наличие и заполненность файла настроек в каталоге скрипта';  Pause; Exit }
+if ( !( Sync-Settings ) ) { Pause; Exit }
 
-Clear-Host
+$ScriptName = (Get-Item $PSCommandPath).BaseName
+$errors = @()
+if ( !$used_modules.uploader ) {
+    $errors += 'Вы запустили {0}, хотя он не включён в настройках. Проверьте настройки $used_modules.' -f $ScriptName
+}
+if ( !$used_modules.backuper ) {
+    $errors += 'Вы запустили {0}, хотя backuper не включён в настройках. Проверьте настройки $used_modules.' -f $ScriptName
+}
+if ( !$used_modules.cleaner ) {
+    $errors += 'Вы запустили {0}, хотя cleaner не включён в настройках. Проверьте настройки $used_modules.' -f $ScriptName
+}
+if ( $uploader.delete -and !$used_modules.cleaner ) {
+    $errors += 'Включено удаление раздач после архивирования, то не включён cleaner. Или включите его или используйте Backuper_Full.'
+}
+if ( $errors ) { Write-Host ''; $errors | Write-Host -ForegroundColor Yellow; Pause; Exit }
+
 Start-Pause
 Start-Stopping
 
 Write-Host '[uploader] Начинаем процесс выгрузки архивов в гугл.'
-# Ищем данные о прошлых выгрузках в гугл.
-$uploads_all = Get-StoredUploads
-Show-StoredUploads $uploads_all
 
 # Если используемых акков >1 и передан параметр с номером, то используем балансировку.
-if ( $args.count -ne 0 -and $google_params.accounts_count -gt 1 ) {
-    $uploader_num = $args[0]
-
-    if ( $uploader_num -gt $google_params.uploaders_count) {
-        Write-Host ( '[balance] Неверный параметр балансировки "{0}". Акканутов подключено {1}. Прерываем.' -f $uploader_num, $google_params.uploaders_count ) -ForegroundColor Red
+if ( $Balance -and $google_params.accounts_count -gt 1 ) {
+    if ( $Balance -gt $google_params.uploaders_count ) {
+        Write-Host ( '[balance] Неверный номер сервиса "{0}". Акканутов подключено {1}. Прерываем.' -f $Balance, $google_params.uploaders_count ) -ForegroundColor Red
         Exit
     }
-    Write-Host ( '[balance] Включена балансировка выгрузки. Выбранный аккаунт: {0}' -f $uploader_num ) -ForegroundColor Yellow
+    Write-Host ( '[balance] Включена многопоточная выгрузка. Номер сервиса: {0}' -f $Balance ) -ForegroundColor Yellow
 }
 
 # Ищем список архивов, которые нужно перенести
@@ -30,15 +45,20 @@ $proc_cnt = 0
 $proc_size = 0
 $sum_cnt = $zip_list.count
 $sum_size = ( $zip_list | Measure-Object $OS.sizeField -Sum ).Sum
-Write-Host ( '[uploader] Найдено архивов: {0} ({1}), требующих переноса на гугл-диск, начинаем!' -f $sum_cnt, (Get-BaseSize $sum_size) )
-if ( $sum_cnt -eq 0 ) { Exit }
+Write-Host ( '[uploader] Найдено архивов: {0} ({1}), требующих переноса на гугл-диск.' -f $sum_cnt, (Get-BaseSize $sum_size) ) -ForegroundColor DarkCyan
+if ( !$sum_cnt ) { Exit }
 
 Start-Sleep -Seconds (Get-Random -Minimum 2 -Maximum 10)
 
-# Перебираем архивы.
-foreach ( $zip in $zip_list ) {
-    Start-Pause
 
+# Ищем данные о прошлых выгрузках в гугл.
+$uploads_all = Get-StoredUploads
+Show-StoredUploads $uploads_all
+
+# Перебираем архивы.
+Write-Host ('[uploader] Начинаем перебирать раздачи.')
+foreach ( $zip in $zip_list ) {
+    # Ид и прочие параметры раздачи.
     $torrent_id, $torrent_hash = ( $zip.Name.Split('.')[0] ).Split('_')
     $zip_size = $zip.($OS.sizeField)
 
@@ -47,7 +67,7 @@ foreach ( $zip in $zip_list ) {
 
     # Вычисляем выгружаемый аккаунт и номер процесса выгрузки.
     $order = Get-GoogleNum $disk_id -Accounts $google_params.accounts_count -Uploaders $google_params.uploaders_count
-    if ( $uploader_num -And $uploader_num -ne $order.upload ) {
+    if ( $Balance -And $Balance -ne $order.upload ) {
         Write-Host ( '[skip] {0} для другого процесса [{1}].' -f $torrent_id, $order.upload ) -ForegroundColor Yellow
         Continue
     }
@@ -60,20 +80,21 @@ foreach ( $zip in $zip_list ) {
     $google_path = $google_params.folders[$folder_pointer]
     $google_name = ( '{0}({1})' -f $google_path, $order.account )
 
-    $zip_current_path = $def_paths.finished + $OS.fsep + $zip.Name
-    $zip_google_path  = $google_path + $disk_path + $zip.Name
+    $zip_path_progress = $def_paths.finished + $OS.fsep + $zip.Name
+    $zip_google_path   = $google_path + $disk_path + $zip.Name
 
     Write-Host ''
-    Write-Host ( '[torrent] Раздача: id={0} ({4}), disk=[{1}], path={2} {3}' -f $torrent_id, $disk_id, $google_name, $disk_name, (Get-BaseSize $zip_size) )
+    Write-Host ( '[torrent] Обрабатываем: id={0} ({4}), disk=[{1}], path={2} {3}' -f $torrent_id, $disk_id, $google_name, $disk_name, (Get-BaseSize $zip_size) ) -ForegroundColor Green
+
     try {
         if ( $uploader.validate ) {
             Write-Host '[check] Начинаем проверку целостности архива перед отправкой в гугл.'
             $start_measure = Get-Date
 
             if ( $backuper.h7z ) {
-                & $backuper.p7z t $zip_current_path "-p$pswd" > $null
+                & $backuper.p7z t $zip_path_progress "-p$pswd" > $null
             } else {
-                & $backuper.p7z t $zip_current_path "-p$pswd"
+                & $backuper.p7z t $zip_path_progress "-p$pswd"
             }
 
             if ( $LastExitCode -ne 0 ) {
@@ -84,21 +105,10 @@ foreach ( $zip in $zip_list ) {
             Write-Host ( '[check] Проверка завершена за {0} сек.' -f $time_valid )
         }
 
-        # Перед переносом проверяем доступный трафик. 0 для получения актуальных данных.
-        $today_size, $uploads_all = Get-TodayTraffic $uploads_all 0 $google_name
+        # Перед переносом проверяем доступный трафик.
+        Compare-StoredUploads $google_name $uploads_all
 
-        # Если за последние 24ч, по выбранному аккаунту, было отправлено более квоты, то ждём.
-        while ( $today_size -gt $lv_750gb ) {
-            Write-Host ( '[limit][{0}] Трафик гугл-аккаунта {1} за прошедшие 24ч уже {2}' -f (Get-Date -Format t), $google_name, (Get-BaseSize $today_size ) )
-            Write-Host ( '[limit] Подождём часик чтобы не выйти за лимит {0} (сообщение будет повторяться пока не вернёмся в лимит).' -f (Get-BaseSize $lv_750gb ) )
-            Start-Sleep -Seconds ( 60 * 60 )
-
-            Start-Pause
-            $today_size, $uploads_all = Get-TodayTraffic $uploads_all 0 $google_name
-        }
-        Write-Host ( '[limit] {0} {1} меньше чем лимит {2}, продолжаем!' -f $google_name, (Get-BaseSize $today_size), (Get-BaseSize $lv_750gb) )
-
-        # Проверка на переполнение каталога с архивами.
+        # Проверка переполнения каталога с кешем гугла.
         if ( $google_params.cache_size ) {
             Compare-MaxSize $google_params.cache $google_params.cache_size
         }
@@ -107,7 +117,6 @@ foreach ( $zip in $zip_list ) {
         $zip_test = Test-PathTimer $zip_google_path
         Write-Host ( '[check][{0}] Проверка выполнена за {1} сек, результат: {2}' -f $disk_name, $zip_test.exec, $zip_test.result )
         if ( $zip_test.result ) {
-            Dismount-ClientTorrent $torrent_id $torrent_hash
             throw '[skip] Такой архив уже существует на гугл-диске, удаляем файл и пропускаем раздачу.'
         }
         try {
@@ -115,29 +124,29 @@ foreach ( $zip in $zip_list ) {
             New-Item -ItemType Directory -Path ($google_path + $disk_path) -Force > $null
 
             $move_sec = [math]::Round( (Measure-Command {
-                Move-Item -path $zip_current_path -destination ( $zip_google_path ) -Force -ErrorAction Stop
+                Move-Item -Path $zip_path_progress -Destination ( $zip_google_path ) -Force -ErrorAction Stop
             }).TotalSeconds, 1 )
             if ( !$move_sec ) {$move_sec = 0.1}
 
             $speed_move = (Get-BaseSize ($zip_size / $move_sec) -SI speed_2)
             Write-Host ( '[uploader] Готово! Завершено за {0} минут, средняя скорость {1}' -f [math]::Round($move_sec/60, 1) , $speed_move )
 
-            Dismount-ClientTorrent $torrent_id $torrent_hash
-
             # После успешного переноса архива записываем затраченный трафик
             Get-TodayTraffic $uploads_all $zip_size $google_name > $null
         }
         catch {
             Write-Host '[uploader] Не удалось отправить файл на гугл-диск'
+            Write-Host ( '{0} => {1}' -f $zip_path_progress, $zip_google_path )
             Pause
         }
     } catch {
-        Remove-Item $zip_current_path
+        if ( Test-Path $zip_path_progress ) { Remove-Item $zip_path_progress }
         Write-Host $Error[0] -ForegroundColor Red
     }
 
     $proc_size += $zip_size
-    Write-Host ( '[uploader] Обработано раздач {0} ({1}) из {2} ({3})' -f ++$proc_cnt, (Get-BaseSize $proc_size), $sum_cnt, (Get-BaseSize $sum_size) )
+    $text = '[uploader] Обработано раздач {0} ({1}) из {2} ({3})'
+    Write-Host ( $text -f ++$proc_cnt, (Get-BaseSize $proc_size), $sum_cnt, (Get-BaseSize $sum_size) ) -ForegroundColor DarkCyan
 
     Start-Pause
     Start-Stopping

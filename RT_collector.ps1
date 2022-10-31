@@ -101,10 +101,15 @@ if ( $tracker_list.count -eq 0 ) {
     Exit
 }
 
+# Проверим указанные разделы и статус их выгрузки в облако.
 if ( $Analyze ) {
+    if ( !$tracker.groups ) {
+        Write-Host ( 'Нет данных о раздачах в разделах: {0}' -f ($Forums -Join ",") )
+    }
     # Получаем список существующих архивов.
     $done_list, $done_hashes = Get-Archives
 
+    # Получаем данные о раздачах клиента.
     $torrents_list = @{}
     Get-ClientTorrents -Completed $false | % { $torrents_list[ $_.hash ] = 1 }
 
@@ -171,8 +176,11 @@ if ( $torrents_list ) {
     $tracker_list = $tracker_list | ? { !$torrents_list[ $_.hash ] }
     Write-Host ( '- от клиента получено раздач: {0}, после их исключения, раздач осталось: {1}.' -f $torrents_list.count, $tracker_list.count )
 }
-if ( $First -or $SizeLimit ) {
-    Write-Host ( '- будет добавлено первых {0} раздач или первые {1} GiB.' -f $First, $SizeLimit )
+if ( $First ) {
+    Write-Host ( '- будет добавлено первых {0} раздач.' -f $First )
+}
+if ( $SizeLimit ) {
+    Write-Host ( '- будет добавлено первые {0} GiB.' -f $SizeLimit )
 }
 
 # Определить категорию новых раздач.
@@ -197,7 +205,8 @@ Write-Host 'Перебираем раздачи'
 foreach ( $torrent in $tracker_list ) {
     $ProgressPreference = 'Continue'
     $perc = [math]::Round( $current * 100 / $tracker_list.count )
-    Write-Progress -Activity 'Обрабатываем раздачи' -Status ( "$current всего, $added добавлено, $perc %" ) -PercentComplete $perc
+    $status = "всего: {0} из {1}, добавлено {2} ({3}), {4} %" -f $current, $tracker_list.count, $added, (Get-BaseSize $SizeUsed), $perc
+    Write-Progress -Activity 'Обрабатываем раздачи' -Status $status -PercentComplete $perc
     $ProgressPreference = 'SilentlyContinue'
     $current++
 

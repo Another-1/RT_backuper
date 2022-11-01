@@ -47,9 +47,9 @@ function Read-Client ( [string]$Metod, $Params ) {
 }
 
 # Получаем данные о клиенте.
-function Get-ClientVerion {
+function Get-ClientVersion {
     $version_info = @()
-    $version_info += "- verion: {0}" -f (Read-Client 'app/version')
+    $version_info += "- version: {0}" -f (Read-Client 'app/version')
     $version_info += "- apiVersion: {0}" -f (Read-Client 'app/webapiVersion')
     $version_info += "- build: {0}" -f (Read-Client 'app/buildInfo')
 

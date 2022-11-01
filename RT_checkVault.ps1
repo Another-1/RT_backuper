@@ -157,7 +157,7 @@ foreach ( $cl in $client_list ) {
     Write-Host ( '- опция [hashes_only] для работы только с докачанными раздачами: {0}' -f ( $temp = if ($client.hashes_only) {'включена'} else {'выключена'} ) )
 
     Initialize-Client
-    Get-ClientVerion
+    Get-ClientVersion
 
     if ( !$Full -and !$Skip ) {
         Write-Host 'Посчитать раздачи в клиенте? [y/n]: ' -ForegroundColor Green -NoNewLine

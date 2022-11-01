@@ -66,7 +66,7 @@ function Read-Client ( $Params ) {
 }
 
 # Получаем данные о клиенте.
-function Get-ClientVerion {
+function Get-ClientVersion {
     $Params = @{
         method = 'session-get'
         arguments = @{

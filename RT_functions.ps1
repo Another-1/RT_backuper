@@ -62,33 +62,34 @@ function Get-Archives {
     $updated = Sync-ArchList $true
 
     Write-Host '[archived] Смотрим, что уже заархивировано..'
+    $archive = @{}
     # Пробуем вытащить готовый список
     if ( !$updated -and (Test-Path $stash_folder.archived_list) ) {
         try {
             $time_collect = [math]::Round( (Measure-Command {
                 $restore = Import-Clixml -Path $stash_folder.archived_list
-                $dones       = $restore.dones
-                $arch_hashes = $restore.arch_hashes
+                if ( $restore.hashes ) {
+                    $archive = $restore
+                }
             }).TotalSeconds, 1 )
             $time_parse = 0
         } catch {
-            $updated = 1
         }
     }
 
     # Если списка нет или были обновления списков по дискам - собираем заново
-    if ( $updated ) {
+    if ( !$archive.hashes ) {
         if ( !(Get-ChildItem $stash_folder.archived) ) { Exit }
 
-        Write-Host '[archived] Списки по дискам были обновлены, собираем общий список.'
+        Write-Host '[archived] Собираем общий список из данных по каждому диску.'
         $time_collect = [math]::Round( (Measure-Command {
-            $dones = Get-Content ( $stash_folder.archived + $OS.fsep + '*.txt' )
-            $dones = [string[]]$dones
+            $arch_dones = Get-Content ( $stash_folder.archived + $OS.fsep + '*.txt' )
+            $arch_dones = [string[]]$arch_dones
         }).TotalSeconds, 1 )
 
         $time_parse = [math]::Round( (Measure-Command {
             $arch_hashes = @{}
-            $dones | % {
+            $arch_dones | % {
                 $topic_id, $hash = ($_ -split '_',2).Trim()
                 if ( $topic_id -And $hash ) {
                     $arch_hashes[$hash] = $topic_id
@@ -96,12 +97,12 @@ function Get-Archives {
             }
         }).TotalSeconds, 1 )
 
-        $backup = @{ dones = $dones; arch_hashes = $arch_hashes }
-        $backup | Export-Clixml -Path $stash_folder.archived_list
+        $archive = @{ dones = $arch_dones; hashes = $arch_hashes }
+        $archive | Export-Clixml -Path $stash_folder.archived_list
 
     }
-    Write-Host ( '[archived] Обнаружено архивов: {0} [{1} сек], хешей: {2} [{3} сек]' -f $dones.count, $time_collect, $arch_hashes.count, $time_parse )
-    return $dones, $arch_hashes
+    Write-Host ( '[archived] Обнаружено архивов: {0} [{1} сек], хешей: {2} [{3} сек]' -f $archive.dones.count, $time_collect, $archive.hashes.count, $time_parse )
+    return $archive.dones, $archive.hashes
 }
 
 # Обновить список архивов в локальной "БД".

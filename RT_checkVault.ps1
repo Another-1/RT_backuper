@@ -5,6 +5,7 @@ Param (
     [switch]$NoClient = $true
 )
 
+Clear-Host
 . "$PSScriptRoot\RT_functions.ps1"
 
 if ( !(Confirm-Version) ) { Exit }
@@ -30,7 +31,6 @@ function Hide-Password ( [string]$psw ) {
     return $psw[0] + '****' + $psw[-1]
 }
 
-Clear-Host
 Write-Host ''
 Write-Host ( 'Система: {0}' -f $OS.name ) -ForegroundColor Yellow
 if ( $start_time -and $stop_time ) {
@@ -59,6 +59,9 @@ if ( $google_params.cache ) {
         Write-Host ( '- {0,-18} лимит размера кеша не задан' -f '[cache_size]')
     }
 }
+if ( $google_params.decay_hours ) {
+    Write-Host ( '- {0,-18} время устаревания локального списка архивов [{1} ч]' -f '[decay_hours]', $google_params.decay_hours )
+}
 
 
 Write-Host ''
@@ -76,7 +79,7 @@ if ( $backuper.zip_folder_size ) {
 } else {
     Write-Host ( '- {0,-18} лимит размера каталога не задан' -f '[zip_folder_size]' )
 }
-Write-Host ( '- {0,-18} путь к 7z: "{1}"' -f '[p7z]', $backuper.p7z )
+Write-Host ( '- {0,-18} путь к 7z: [{1}]' -f '[p7z]', $backuper.p7z )
 Write-Host ( '- {0,-18} опция скрывать вывод 7z: {1}' -f '[h7z]', ( $temp = if ($backuper.h7z) {'включена'} else {'выключена'} ) )
 Write-Host ( '- {0,-18} использование ядер при архивации: [{1}]' -f '[cores]', $backuper.cores )
 Write-Host ( '- {0,-18} стандартная степень сжатия при архивации: [{1}]' -f '[compression]', (Get-Compression -Param $backuper) )
@@ -96,9 +99,9 @@ Write-Host ( 'Настройки коллектора [collector]:' ) -Foregroun
 if ( !$collector ) {
     Write-Host '- отсутствуют' -ForegroundColor Yellow
 } else {
-    Write-Host ( '- {0,-18} категория для добавленных раздач [{1}]' -f '[category]', $collector.category )
-    Write-Host ( '- {0,-18} опция добавления раздачи в подкаталог по ИД: {1}' -f '[sub_folder]', ( $temp = if ($collector.sub_folder) {'включена'} else {'выключена'} ) )
     Write-Host ( '- {0,-18} каталог, в который будут добавлено содержимое раздач [{1}]' -f '[collect]', $collector.collect )
+    Write-Host ( '- {0,-18} опция добавления раздачи в подкаталог по ИД: {1}' -f '[sub_folder]', ( $temp = if ($collector.sub_folder) {'включена'} else {'выключена'} ) )
+    Write-Host ( '- {0,-18} категория для добавленных раздач [{1}]' -f '[category]', $collector.category )
     if ( $collector.collect_size ) {
         $size = Get-BaseSize $collector.collect_size
         $current_size = Get-BaseSize ( Get-FolderSize $collector.collect )
@@ -106,7 +109,6 @@ if ( !$collector ) {
     } else {
         Write-Host ( '- {0,-18} лимит размера каталога не задан' -f '[collect_size]' )
     }
-    Write-Host ( '- {0,-18} каталог временного хранения торрент-файлов [{1}]' -f '[tmp_folder]', $collector.tmp_folder )
 }
 
 Write-Host ''
@@ -125,7 +127,6 @@ if ( !$forum ) {
 }
 
 
-Write-Host ''
 if ( !$Full -and !$Skip ) {
     Write-Host 'Обновить списки архивов в облаке? [y/n]: ' -ForegroundColor Green -NoNewLine
     $ch_refresh = ( Read-Host ).ToString().ToLower()
@@ -141,6 +142,10 @@ if ( $UsedClient ) {
     $client_list = $client_list | ? { $_.name -eq $UsedClient }
 }
 
+if ( $client_list.count -gt 1 ) {
+    Write-Host ''
+    Write-Host ( 'Количество подключённых торрент-клиентов: {0}' -f $client_list.count ) -ForegroundColor Yellow
+}
 foreach ( $cl in $client_list ) {
     Write-Host ''
     # Подключаемся к выбранному клиенту.
@@ -149,6 +154,7 @@ foreach ( $cl in $client_list ) {
 
     Write-Host ( 'Настройки для клиента "{0}" [{1}]' -f $client.name, $client.type ) -ForegroundColor Yellow
     Write-Host ( '- url: {0}; login: "{1}"; password: "{2}"' -f $client.url, $client.login, (Hide-Password $client.password) )
+    Write-Host ( '- опция [hashes_only] для работы только с докачанными раздачами: {0}' -f ( $temp = if ($client.hashes_only) {'включена'} else {'выключена'} ) )
 
     Initialize-Client
     Get-ClientVerion
@@ -163,9 +169,13 @@ foreach ( $cl in $client_list ) {
         Write-Host ( '[client] Завершённых раздач в клиенте: {0} ({1})' -f $torrents_list.count, (Get-BaseSize $torrents_size) ) -ForegroundColor DarkCyan
 
         if ( $done_hashes ) {
-            $torrents_left = $torrents_list | ? { !($done_hashes[ $_.hash ]) }
+            $torrents_left = $torrents_list | ? { !$done_hashes[ $_.hash ] }
             $torrents_size = ( $torrents_left | Measure-Object size -Sum ).Sum
             Write-Host ( '[client] Раздач, которые нужно залить: {0} ({1})' -f $torrents_left.count, (Get-BaseSize $torrents_size) ) -ForegroundColor DarkCyan
         }
     }
 }
+
+Write-Host ''
+$stash_size = Get-BaseSize ( Get-FolderSize $stash_folder.default )
+Write-Host ( 'Каталог временных файлов [{1}], текущий размер: {2}' -f '[stash]', $stash_folder.default, $stash_size ) -ForegroundColor Yellow

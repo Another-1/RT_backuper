@@ -45,7 +45,7 @@ if ( !$torrents_list ) {
         Write-Host ( '[backuper] Найдено раздач, докачанных клиентом : {0}.' -f $downloaded.count )
     }
 
-    if ( !$downloaded -And $backuper.hashes_only ) {
+    if ( !$downloaded -And (Get-ClientProperty 'hashes_only') ) {
         Write-Host '[backuper] В конфиге обнаружена опция [hashes_only], прерываем.'
         Exit
     }
@@ -91,7 +91,7 @@ $torrents_left = $torrents_list
 $torrents_left | Export-Clixml $current_backup_list
 
 # Перебираем найденные раздачи и бекапим их.
-Write-Host ('[backuper] Начинаем перебирать раздачи.')
+Write-Host ( '[backuper][{0:t}] Начинаем перебирать раздачи.' -f (Get-Date) )
 foreach ( $torrent in $torrents_list ) {
     # Проверка на переполнение каталога с архивами.
     if ( $backuper.zip_folder_size ) {
@@ -103,6 +103,11 @@ foreach ( $torrent in $torrents_list ) {
     $torrent_hash = $torrent.hash.ToLower()
     if ( !$torrent_id ) {
         Write-Host '[skip] Отсутсвует ид раздачи. Пропускаем.'
+        Continue
+    }
+    if ( !(Test-Path -LiteralPath $torrent.content_path) ) {
+        Write-Host ( '[skip] Не удалось найти файлы раздачи, по указанному пути: [{0}]' -f $torrent.content_path ) -ForegroundColor Red
+        Pause
         Continue
     }
 
@@ -120,7 +125,7 @@ foreach ( $torrent in $torrents_list ) {
 
     Start-Pause
     Write-Host ''
-    Write-Host ( '[torrent] Обрабатываем {0} ({2}), {1} ' -f $torrent_id, $torrent.name, (Get-BaseSize $torrent.size) ) -ForegroundColor Green
+    Write-Host ( '[torrent][{0:t}] Обрабатываем {1} ({2}), {3} ' -f (Get-Date), $torrent_id, (Get-BaseSize $torrent.size), $torrent.name ) -ForegroundColor Green
 
     try {
         Write-Host ( 'Проверяем гугл-диск {0}' -f $zip_google_path )
@@ -145,7 +150,7 @@ foreach ( $torrent in $torrents_list ) {
         $start_measure = Get-Date
 
         # Начинаем архивацию файла
-        Write-Host ( '[torrent] Архивация начата, сжатие:{0}, ядра процессора:{1}.' -f $compression, $backuper.cores )
+        Write-Host ( '[torrent][{0:t}] Архивация начата, сжатие:{1}, ядра процессора:{2}.' -f (Get-Date), $compression, $backuper.cores )
         if ( $backuper.h7z ) {
             & $backuper.p7z a $zip_path_progress $torrent.content_path "-p$pswd" "-mx$compression" ("-mmt" + $backuper.cores) -mhe=on -sccUTF-8 -bb0 > $null
         } else {
@@ -183,8 +188,8 @@ foreach ( $torrent in $torrents_list ) {
     }
 
     $proc_size += $torrent.size
-    $text = 'Обработано раздач {0} ({1}) из {2} ({3})'
-    Write-Host ( $text -f ++$proc_cnt, (Get-BaseSize $proc_size), $sum_cnt, (Get-BaseSize $sum_size) ) -ForegroundColor DarkCyan
+    $text = '[backuper][{4:t}] Обработано раздач {0} ({1}) из {2} ({3})'
+    Write-Host ( $text -f ++$proc_cnt, (Get-BaseSize $proc_size), $sum_cnt, (Get-BaseSize $sum_size), (Get-Date) ) -ForegroundColor DarkCyan
 
     # Перезаписываем данные раздач, которые осталось обработать.
     $torrents_left = $torrents_left | ? { $_.topic_id -ne $torrent_id }

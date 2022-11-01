@@ -38,6 +38,7 @@ $def_paths = [ordered]@{
 # Временные файлы для хранения прогресса и прочего.
 $stash_folder = [ordered]@{
     default       = "$PSScriptRoot/stash"                   # Общий путь к папке.
+    tmp_folder    = "$PSScriptRoot/stash/tmp_folder"        # Каталог временного хранения торрент-файлов.
     archived      = "$PSScriptRoot/stash/archived"          # Путь к спискам архивов по дискам.
     archived_list = "$PSScriptRoot/stash/archived_list.xml" # Локальный общий список сществующих в облаке архивов.
     uploads_limit = "$PSScriptRoot/stash/uploads_limit.xml" # Файл записанных отдач (лимиты).
@@ -61,6 +62,7 @@ $measure_names = @{
 function Get-Archives {
     $updated = Sync-ArchList $true
 
+    Write-Host ''
     Write-Host '[archived] Смотрим, что уже заархивировано..'
     $archive = @{}
     # Пробуем вытащить готовый список
@@ -108,7 +110,8 @@ function Get-Archives {
 # Обновить список архивов в локальной "БД".
 function Sync-ArchList ( $All = $false ) {
     $arch_folders = Get-ChildItem $google_params.folders[0] -Directory -Filter "$google_folder_prefix*"
-    $decay_hours = if ( $OS.names -eq 'windows' ) { 24 } else { 7 * 24 }
+    $decay_hours = $google_params.decay_hours
+    if ( !$decay_hours ) { $decay_hours = 12 }
 
     # Собираем список гугл-дисков и проверяем наличие файла со списком архивов для каждого. Создаём если нет.
     # Проверяем даты обновления файлов и размер. Если прошло decay_hours или файл пуст -> пора обновлять.
@@ -169,6 +172,10 @@ function Dismount-ClientTorrent ( [int]$torrent_id, [string]$torrent_hash, [stri
     if ( $uploader.delete -And $uploader.delete_category -eq $torrent_category ) {
         Remove-ClientTorrent $torrent_id $torrent_hash
     }
+}
+
+function Get-ClientProperty( [string]$Property ) {
+    return $client[ $Property ]
 }
 
 # Найти ид раздач(топиков) в [списке архивов, комменте раздачи из клиента, api трекера].
@@ -332,8 +339,8 @@ function Get-ForumTorrentFile ( [int]$Id, [string]$Type = 'temp' ) {
     if ( !$forum.sid ) { Initialize-Forum }
 
     $forum_url = 'https://rutracker.org/forum/dl.php?t=' + $Id
-    $Path = $collector.tmp_folder + $OS.fsep + $Id + '_' + $Type + '.torrent'
-    New-Item -ItemType Directory -Path $collector.tmp_folder -Force > $null
+    $Path = $stash_folder.tmp_folder + $OS.fsep + $Id + '_' + $Type + '.torrent'
+    New-Item -ItemType Directory -Path $stash_folder.tmp_folder -Force > $null
     Invoke-WebRequest -uri $forum_url -WebSession $forum.sid -OutFile $Path
 
     return Get-Item $Path
@@ -455,6 +462,7 @@ function Compare-StoredUploads ( $google_name, $uploads_all ) {
 
 # Отобразить затраченные лимиты в разрезе периодов времени.
 function Show-StoredUploads ( $uploads_all ) {
+    if ( !$uploads_all ) { Exit }
     $time_diff = 1, 3, 6, 12
     $yesterday = ( Get-date ).AddDays( -1 )
 

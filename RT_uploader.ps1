@@ -56,7 +56,7 @@ $uploads_all = Get-StoredUploads
 Show-StoredUploads $uploads_all
 
 # Перебираем архивы.
-Write-Host ('[uploader] Начинаем перебирать раздачи.')
+Write-Host ( '[uploader][{0:t}] Начинаем перебирать раздачи.' -f (Get-Date) )
 foreach ( $zip in $zip_list ) {
     # Ид и прочие параметры раздачи.
     $torrent_id, $torrent_hash = ( $zip.Name.Split('.')[0] ).Split('_')
@@ -145,8 +145,8 @@ foreach ( $zip in $zip_list ) {
     }
 
     $proc_size += $zip_size
-    $text = '[uploader] Обработано раздач {0} ({1}) из {2} ({3})'
-    Write-Host ( $text -f ++$proc_cnt, (Get-BaseSize $proc_size), $sum_cnt, (Get-BaseSize $sum_size) ) -ForegroundColor DarkCyan
+    $text = '[uploader][{4:t}] Обработано раздач {0} ({1}) из {2} ({3})'
+    Write-Host ( $text -f ++$proc_cnt, (Get-BaseSize $proc_size), $sum_cnt, (Get-BaseSize $sum_size), (Get-Date) ) -ForegroundColor DarkCyan
 
     Start-Pause
     Start-Stopping

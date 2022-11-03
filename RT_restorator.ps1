@@ -3,7 +3,11 @@ Param (
     [ValidateRange('Positive')][int[]]$Topics,
     [ValidateSet(0, 1, 2)][string]$Priority = -1,
     [string]$Category,
-    [string]$UsedClient
+    [switch]$DryRun,
+
+    [ArgumentCompleter({ param($cmd, $param, $word) [array](Get-Content "$PSScriptRoot/clients.txt") -like "$word*" })]
+    [string]
+    $UsedClient
 )
 
 . "$PSScriptRoot\RT_functions.ps1"
@@ -19,7 +23,8 @@ New-Item -ItemType Directory -Path $collector.collect -Force > $null
 
 # Если передан список раздач. работаем с ними.
 if ( $Topics.count ) {
-    $tracker_list = Get-ForumTopics -Topics $Topics
+    $tracker = Get-ForumTopics -Topics $Topics
+    $tracker_list = $tracker.topics
 }
 # Идем по обычной цепочке получения всех раздач раздела.
 else {
@@ -29,12 +34,20 @@ else {
     }
     if ( !$Forums ) { Exit }
 
-    $tracker_list = Get-ForumTopics -Forums $Forums
+    $tracker = Get-ForumTopics -Forums $Forums
+    $tracker_list = $tracker.topics
 
     # Если задан приоритет, фильтруем.
     if ( $Priority -ge 0 ) {
-        $tracker_list = $tracker_list | ? { $_.priority -eq $Priority }
+        $tracker_list = @( $tracker_list | ? { $_.priority -eq $Priority } )
     }
+
+    # Получаем список существующих архивов.
+    $done_list, $done_hashes = Get-Archives
+
+    # Вычисляем раздачи, у которых есть архив в облаке.
+    $tracker_list = @( $tracker_list | ? { $done_hashes[ $_.hash ] } )
+    Write-Host ( 'Имеется архивов в облаке: {0}.' -f $tracker_list.count )
 }
 
 if ( $tracker_list.count -eq 0 ) {
@@ -43,13 +56,6 @@ if ( $tracker_list.count -eq 0 ) {
     Exit
 }
 Write-Host ( 'После фильтрации осталось раздач: {0}.' -f $tracker_list.count )
-
-# Получаем список существующих архивов.
-$done_list, $done_hashes = Get-Archives
-
-# Вычисляем раздачи, у которых есть архив в облаке.
-$tracker_list = $tracker_list | ? { $done_hashes[ $_.hash ] }
-Write-Host ( 'Имеется архивов в облаке: {0}.' -f $tracker_list.count )
 
 
 # Подключаемся к клиенту, получаем список существующих раздач.
@@ -60,8 +66,12 @@ $torrents_list = @{}
 Get-ClientTorrents -Completed $false | % { $torrents_list[ $_.hash ] = 1 }
 if ( $torrents_list ) {
     # Исключаем раздачи, которые уже есть в клиенте.
-    $tracker_list = $tracker_list | ? { !$torrents_list[ $_.hash ] }
+    $tracker_list = @( $tracker_list | ? { !$torrents_list[ $_.hash ] } )
     Write-Host ( 'От клиента [{0}] получено раздач: {1}. Раздач доступных к восстановлению: {2}.' -f $client.name, $torrents_list.count, $tracker_list.count )
+}
+
+if ( $tracker_list.count -eq 0 ) {
+    Exit
 }
 
 # Определить категорию добавляемых раздач.
@@ -72,7 +82,7 @@ if ( !$Category ) { $Category = 'restored' }
 Write-Host ''
 Initialize-Forum
 
-Write-Host 'Перебираем раздачи'
+Write-Host ( '[restore][{0:t}] Начинаем перебирать раздачи.' -f (Get-Date) )
 foreach ( $torrent in $tracker_list ) {
     # Ид и прочие параметры раздачи.
     $torrent_id   = $torrent.topic_id
@@ -88,9 +98,10 @@ foreach ( $torrent in $tracker_list ) {
     $zip_test = Test-PathTimer $zip_path
     Write-Host ( '[check] Проверка выполнена за {0} сек, результат: {1}' -f $zip_test.exec, $zip_test.result )
     if ( !$zip_test.result ) {
-        Write-Host '[skip] Не удалось найти архив для раздачи в облаке. Пропускаем.'
+        Write-Host ( '[skip] Нет архива для раздачи {0} в облаке. Пропускаем.' -f $torrent_id ) -ForegroundColor Yellow
         Continue
     }
+    if ( $DryRun ) { Exit }
 
     # Путь хранения раздачи, с учётом подпапки.
     $extract_path = $collector.collect

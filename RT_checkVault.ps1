@@ -1,8 +1,11 @@
 Param (
     [switch]$Full,
     [switch]$Skip,
-    [string]$UsedClient,
-    [switch]$NoClient = $true
+    [switch]$NoClient = $true,
+
+    [ArgumentCompleter({ param($cmd, $param, $word) [array](Get-Content "$PSScriptRoot/clients.txt") -like "$word*" })]
+    [string]
+    $UsedClient
 )
 
 Clear-Host

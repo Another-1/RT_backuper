@@ -8,13 +8,16 @@ Param (
     [ValidateSet('topic_id', 'seeders', 'size', 'priority')][string]$Sort = 'size',
     [ValidateRange('Positive')][int]$First,
     [switch]$Descending,
-    [ValidateRange('NonNegative')][int]$Status,
+    [ValidateRange(0,12)][int]$Status,
     [ValidateRange('Positive')][int[]]$Topics,
     [ValidateRange('Positive')][int]$SizeLimit = 1024, #Гб
     [string]$Category,
-    [string]$UsedClient,
     [switch]$Analyze,
-    [switch]$DryRun
+    [switch]$DryRun,
+
+    [ArgumentCompleter({ param($cmd, $param, $word) [array](Get-Content "$PSScriptRoot/clients.txt") -like "$word*" })]
+    [string]
+    $UsedClient
 )
 
 function Read-IntValue ( $Prompt ) {
@@ -221,7 +224,7 @@ $added = 0
 [long]$SizeLimit = ($SizeLimit * [math]::Pow(1024, 3)) # Гб
 [long]$SizeUsed = 0
 
-Write-Host 'Перебираем раздачи'
+Write-Host ( '[collect][{0:t}] Начинаем перебирать раздачи.' -f (Get-Date) )
 foreach ( $torrent in $tracker_list ) {
     if ( $collector.collect_size -and $current_size -gt $collector.collect_size ) {
         $limit_text = '[limit][{0:t}] Занятый объём каталога ({1}) {2} больше допустимого {3}. Прерываем.'
@@ -243,7 +246,6 @@ foreach ( $torrent in $tracker_list ) {
         Write-Host '[skip] Отсутсвует ид раздачи. Пропускаем.'
         Continue
     }
-
 
     # Проверяем, наличие раздачи в облаке.
     $zip_path = Get-TorrentPath $torrent_id $torrent_hash

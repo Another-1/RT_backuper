@@ -2,7 +2,9 @@ Param (
     [ValidateSet('backuper', 'uploader', 'cleaner')][string]$Process,
     [ValidateRange('Positive')][int]$Timer = 60,
 
-    [string]$UsedClient = $null
+    [ArgumentCompleter({ param($cmd, $param, $word) [array](Get-Content "$PSScriptRoot/clients.txt") -like "$word*" })]
+    [string]
+    $UsedClient
 )
 # Зацикливаем файл. Если передано название файла, то вызываем его.
 $run = @{

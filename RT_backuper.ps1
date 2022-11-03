@@ -1,5 +1,7 @@
 Param (
-    [string]$UsedClient
+    [ArgumentCompleter({ param($cmd, $param, $word) [array](Get-Content "$PSScriptRoot/clients.txt") -like "$word*" })]
+    [string]
+    $UsedClient
 )
 
 . "$PSScriptRoot\RT_functions.ps1"

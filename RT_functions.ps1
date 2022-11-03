@@ -14,6 +14,7 @@ if ( $client_list.count ) {
         $client = $client_list | ? { $_.name -eq $UsedClient }
     }
     if ( !$client ) { $client = $client_list[0] }
+    $client_list | % { $_.name } | Out-File "$PSScriptRoot/clients.txt"
 }
 
 # лимит закачки на один диск в сутки

@@ -11,6 +11,12 @@ Param (
 if ( !(Confirm-Version) ) { Exit }
 if ( !( Sync-Settings ) ) { Pause; Exit }
 
+if ( !$collector.collect ) {
+    Write-Host 'Каталог хранения раздач ($collector.collect) не задан.'
+    Exit
+}
+New-Item -ItemType Directory -Path $collector.collect -Force > $null
+
 # Если передан список раздач. работаем с ними.
 if ( $Topics.count ) {
     $tracker_list = Get-ForumTopics -Topics $Topics

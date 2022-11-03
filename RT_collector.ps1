@@ -1,13 +1,14 @@
 Param (
     [ValidateRange('Positive')][int[]]$Forums,
-    [ValidateRange('NonNegative')][int]$MinTopic = -1,
-    [ValidateRange('NonNegative')][int]$MaxTopic = -1,
-    [ValidateRange('NonNegative')][int]$MinSeed  = -1,
+    [ValidateRange('NonNegative')][int]$MinTopic = 0,
+    [ValidateRange('NonNegative')][int]$MaxTopic = 0,
+    [ValidateRange('NonNegative')][int]$MinSeed  = 0,
     [ValidateRange('NonNegative')][int]$MinSize, #Мб
     [ValidateSet(0, 1, 2)][string]$Priority = -1,
     [ValidateSet('topic_id', 'seeders', 'size', 'priority')][string]$Sort = 'size',
     [ValidateRange('Positive')][int]$First,
     [switch]$Descending,
+    [ValidateRange('NonNegative')][int]$Status,
     [ValidateRange('Positive')][int[]]$Topics,
     [ValidateRange('Positive')][int]$SizeLimit = 1024, #Гб
     [string]$Category,
@@ -32,30 +33,41 @@ $ScriptName = (Get-Item $PSCommandPath).BaseName
 if ( !(Confirm-Version) ) { Exit }
 if ( !( Sync-Settings -Mode $ScriptName ) ) { Pause; Exit }
 
+if ( !$collector.collect ) {
+    Write-Host 'Каталог хранения раздач ($collector.collect) не задан.'
+    Exit
+}
+New-Item -ItemType Directory -Path $collector.collect -Force > $null
+
 # Если передан список раздач. работаем с ними.
 if ( $Topics.count ) {
-    $tracker_list = Get-ForumTopics -Topics $Topics
+    $tracker = Get-ForumTopics -Topics $Topics -Status $Status
+    $tracker_list = $tracker.topics
 }
 # Идем по обычной цепочке получения всех раздач раздела.
 else {
     if ( !$Forums ) {
+        $askLimit = $true
         $forum_id = Read-IntValue 'Введите раздел'
         if ( $forum_id ) { $Forums = @( $forum_id ) }
     }
     if ( !$Forums ) { Exit }
 
+    # Если параметры не заданы через консоль, то спрашиваем фильтры.
+    if ( $askLimit ) {
+        if ( $MinTopic -le 0 ) {
+            $MinTopic = Read-IntValue 'Минимальный ID (опционально)'
+        }
+        if ( $MaxTopic -le 0 ) {
+            $MaxTopic = Read-IntValue 'Максимальный ID (опционально)'
+        }
+        if ( $MinSeed -le 0 ) {
+            $MinSeed = Read-IntValue 'Минимальное количество сидов (опционально)'
+        }
+    }
+    # Если только анализ раздела, перезаписываем фильтры.
     if ( $Analyze ) {
         $MinTopic = $MaxTopic = $MinSeed = $MinSize = 0
-    }
-
-    if ( $MinTopic -lt 0 ) {
-        $MinTopic = Read-IntValue 'Минимальный ID (опционально)'
-    }
-    if ( $MaxTopic -lt 0 ) {
-        $MaxTopic = Read-IntValue 'Максимальный ID (опционально)'
-    }
-    if ( $MinSeed -lt 0 ) {
-        $MinSeed = Read-IntValue 'Минимальное количество сидов (опционально)'
     }
 
     if ( $MinTopic -and $MaxTopic -and $MinTopic -ge $MaxTopic ) {
@@ -73,26 +85,26 @@ else {
 
     # Если задан приоритет, фильтруем.
     if ( $Priority -ge 0 ) {
-        $tracker_list = $tracker_list | ? { $_.priority -eq $Priority }
+        $tracker_list = @( $tracker_list | ? { $_.priority -eq $Priority } )
     }
 
     # Если задан минимум сидов, фильтруем.
     if ( $MinSeed -gt 0 ) {
-        $tracker_list = $tracker_list | ? { $_.seeders -ge $MinSeed }
+        $tracker_list = @( $tracker_list | ? { $_.seeders -ge $MinSeed } )
     }
 
     # Если задан минимум ид раздачи, фильтруем.
     if ( $MinTopic -gt 0 ) {
-        $tracker_list = $tracker_list | ? { $_.topic_id -ge $MinTopic }
+        $tracker_list = @( $tracker_list | ? { $_.topic_id -ge $MinTopic } )
     }
     # Если задан максимум ид раздачи, фильтруем.
     if ( $MaxTopic -gt 0 ) {
-        $tracker_list = $tracker_list | ? { $_.topic_id -le $MaxTopic }
+        $tracker_list = @( $tracker_list | ? { $_.topic_id -le $MaxTopic } )
     }
     # Если задан минимальный размер раздачи, фильтруем.
     if ( $MinSize -gt 0 ) {
         [long]$MinSize = $MinSize * [math]::Pow(1024, 2) # Мб
-        $tracker_list = $tracker_list | ? { $_.size -ge $MinSize }
+        $tracker_list = @( $tracker_list | ? { $_.size -ge $MinSize } )
     }
 
 }
@@ -160,24 +172,33 @@ if ( $Analyze ) {
 
 Write-Host ( '- после фильтрации осталось раздач: {0}.' -f $tracker_list.count )
 
+
 # Получаем список существующих архивов.
 $done_list, $done_hashes = Get-Archives
 
 # Вычисляем раздачи, у которых нет архива в облаке.
-$tracker_list = $tracker_list | ? { !$done_hashes[ $_.hash ] }
+$tracker_list = @( $tracker_list | ? { !$done_hashes[ $_.hash ] } )
 Write-Host ( '- после исключения существущих архивов, осталось раздач: {0}.' -f $tracker_list.count )
+
+# Определить категорию новых раздач.
+if ( !$Category ) { $Category = $collector.category }
+if ( !$Category ) { $Category = 'temp' }
 
 # Подключаемся к клиенту.
 Write-Host 'Получаем список раздач из клиента..'
 Initialize-Client
 
 $torrents_list = @{}
-Get-ClientTorrents -Completed $false | % { $torrents_list[ $_.hash ] = 1 }
+$torrents_all = Get-ClientTorrents -Completed $false 
+$torrents_all | % { $torrents_list[ $_.hash ] = 1 }
+[long]$current_size = ( @( $torrents_all | ? { $_.category -eq $Category } ) | Measure-Object size -Sum ).Sum
+
 if ( $torrents_list ) {
     # Исключаем раздачи, которые уже есть в клиенте.
-    $tracker_list = $tracker_list | ? { !$torrents_list[ $_.hash ] }
+    $tracker_list = @( $tracker_list | ? { !$torrents_list[ $_.hash ] } )
     Write-Host ( '- от клиента получено раздач: {0}, после их исключения, раздач осталось: {1}.' -f $torrents_list.count, $tracker_list.count )
 }
+
 if ( $First ) {
     Write-Host ( '- будет добавлено первых {0} раздач.' -f $First )
 }
@@ -185,12 +206,9 @@ if ( $SizeLimit ) {
     Write-Host ( '- будет добавлено первые {0} GiB.' -f $SizeLimit )
 }
 
-# Определить категорию новых раздач.
-if ( !$Category ) { $Category = $collector.category }
-if ( !$Category ) { $Category = 'temp' }
 
 # Сортируем по заданному полю (size по-умолчанию).
-$tracker_list = $tracker_list | Sort-Object -Property @{Expression = $Sort; Descending = $Descending}
+$tracker_list = @( $tracker_list | Sort-Object -Property @{Expression = $Sort; Descending = $Descending} )
 
 if ( $DryRun ) { Exit }
 
@@ -205,10 +223,16 @@ $added = 0
 
 Write-Host 'Перебираем раздачи'
 foreach ( $torrent in $tracker_list ) {
+    if ( $collector.collect_size -and $current_size -gt $collector.collect_size ) {
+        $limit_text = '[limit][{0:t}] Занятый объём каталога ({1}) {2} больше допустимого {3}. Прерываем.'
+        Write-Host ( $limit_text -f (Get-Date), $collector.collect, (Get-BaseSize $current_size), (Get-BaseSize $collector.collect_size) ) -ForegroundColor Yellow
+        Exit
+    }
+
     $ProgressPreference = 'Continue'
     $perc = [math]::Round( $current * 100 / $tracker_list.count )
-    $status = "всего: {0} из {1}, добавлено {2} ({3}), {4} %" -f $current, $tracker_list.count, $added, (Get-BaseSize $SizeUsed), $perc
-    Write-Progress -Activity 'Обрабатываем раздачи' -Status $status -PercentComplete $perc
+    $ActivityStatus = "всего: {0} из {1}, добавлено {2} ({3}), {4} %" -f $current, $tracker_list.count, $added, (Get-BaseSize $SizeUsed), $perc
+    Write-Progress -Activity 'Обрабатываем раздачи' -Status $ActivityStatus -PercentComplete $perc
     $ProgressPreference = 'SilentlyContinue'
     $current++
 
@@ -220,10 +244,6 @@ foreach ( $torrent in $tracker_list ) {
         Continue
     }
 
-    # Проверка на переполнение каталога с загрузками.
-    if ( $collector.collect_size ) {
-        Compare-MaxSize $collector.collect $collector.collect_size
-    }
 
     # Проверяем, наличие раздачи в облаке.
     $zip_path = Get-TorrentPath $torrent_id $torrent_hash
@@ -253,12 +273,14 @@ foreach ( $torrent in $tracker_list ) {
 
     $added++
     $SizeUsed += $torrent.size
+    $current_size += $torrent.size
+
     $errors = @()
     if ( $First -and $added -ge $First ) {
-        $errors += 'Количество добавленных раздач ({0}) равно лимиту ({1}). Завершаем работу.' -f $added, $First
+        $errors += 'Заданный лимит ({1}) добавленных раздач выполнен. Количество: {0}.' -f $added, $First
     }
     if ( $SizeLimit -and $SizeUsed -ge $SizeLimit ) {
-        $errors += 'Размер добавленных раздач ({0}) равно лимиту ({1}). Завершаем работу.' -f (Get-BaseSize $SizeUsed), (Get-BaseSize $SizeLimit)
+        $errors += 'Заданный лимит ({1}) добавленных раздач выполнен. Размер: {0}.' -f (Get-BaseSize $SizeUsed), (Get-BaseSize $SizeLimit)
     }
     if ( $errors ) { Write-Host ''; $errors | Write-Host -ForegroundColor Yellow; Pause; Exit }
 

@@ -347,7 +347,7 @@ function Get-ForumTorrentFile ( [int]$Id, [string]$Type = 'temp' ) {
 }
 
 # Получить данные о раздачах по списку ид или форумов.
-function Get-ForumTopics ( [int[]]$Topics, [int[]]$Forums ) {
+function Get-ForumTopics ( [int[]]$Topics, [int[]]$Forums, [int[]]$Status ) {
     # https://api.t-ru.org/v1/get_tor_status_titles
     # "0": "не проверено",
     # "1": "закрыто",
@@ -362,6 +362,7 @@ function Get-ForumTopics ( [int[]]$Topics, [int[]]$Forums ) {
     # "11": "премодерация"
     $exclude_status = 5, 7
 
+    $forum_topics = @()
     if ( $Topics.count -gt 0 ) {
         $request = @{ 'by' = 'topic_id'; 'val' = $Topics -Join ","}
         $tracker_result = ( Invoke-WebRequest -Uri 'https://api.t-ru.org/v1/get_tor_topic_data' -Body $request ).content | ConvertFrom-Json -AsHashtable
@@ -381,7 +382,6 @@ function Get-ForumTopics ( [int[]]$Topics, [int[]]$Forums ) {
     elseif ( $Forums.count -gt 0 ) {
         $Forums = $Forums | Sort-Object -Unique
         Write-Host ( '[forum] Получаем список раздач в разделах {0}' -f ($Forums -Join ",") )
-        $forum_topics = @()
         $forum_groups = @{}
         foreach ( $forum_id in $Forums ) {
             try {
@@ -411,7 +411,10 @@ function Get-ForumTopics ( [int[]]$Topics, [int[]]$Forums ) {
         }
     }
 
-    return @{ topics = $forum_topics; groups = $forum_groups }
+    if ( $Status ) {
+        $forum_topics = $forum_topics | ? { $_.status -in $Status }
+    }
+    return @{ topics = @( $forum_topics ); groups = $forum_groups }
 }
 
 # Записать размер выгруженного архива в файл и удалить старые записи.

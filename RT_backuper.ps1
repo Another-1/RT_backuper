@@ -1,4 +1,6 @@
 Param (
+    [switch]$Verbose,
+
     [ArgumentCompleter({ param($cmd, $param, $word) [array](Get-Content "$PSScriptRoot/clients.txt") -like "$word*" })]
     [string]
     $UsedClient

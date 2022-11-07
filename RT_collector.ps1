@@ -10,14 +10,15 @@ Param (
     [ValidateRange(0,12)][int]$Status,
     [ValidateRange('Positive')][int[]]$Topics,
 
-    [ValidateRange('Positive')][int]$First,
-    [ValidateRange('Positive')][int]$TopicsTotal,
-    [ValidateRange('Positive')][int]$SizeLimit = 1024, #Гб
-    [ValidateRange('Positive')][int]$SizeTotal, #Гб
+    [ValidateRange('NonNegative')][int]$First,
+    [ValidateRange('NonNegative')][int]$TopicsTotal,
+    [ValidateRange('NonNegative')][int]$SizeLimit = 1024, #Гб
+    [ValidateRange('NonNegative')][int]$SizeTotal, #Гб
 
     [string]$Category,
     [switch]$Analyze,
     [switch]$DryRun,
+    [switch]$Verbose,
 
     [ArgumentCompleter({ param($cmd, $param, $word) [array](Get-Content "$PSScriptRoot/clients.txt") -like "$word*" })]
     [string]
@@ -221,6 +222,7 @@ $added = 0
 [long]$SizeLimit = ($SizeLimit * [math]::Pow(1024, 3)) # Гб
 # Общий возможный занятый объём раздачами. Если не задан в параметрах вызова, берём настройку из скрипта.
 [long]$SizeTotal = if ( $SizeTotal ) { $SizeTotal * [math]::Pow(1024, 3) } else { $collector.collect_size }
+if ( !$TopicsTotal ) { $TopicsTotal = $collector.collect_count }
 
 
 if ( $First ) {
@@ -250,13 +252,13 @@ Write-Host ( '[collect][{0:t}] Начинаем перебирать разда�
 foreach ( $torrent in $tracker_list ) {
     # Проверяем общие лимиты коллектора.
     $errors = @()
-    if ( $TopicsTotal -and $current_total -gt $TopicsTotal ) {
-        $limit_text = '[limit] Общее количество раздач в клиенте ({0}) {1} больше допустимого {2}.'
-        $errors += $limit_text -f $collector.collect, $current_total, $TopicsTotal
+    if ( $TopicsTotal -and $current_total -ge $TopicsTotal ) {
+        $limit_text = '[limit] Общее количество раздач в клиенте [{0}]: {1}, больше допустимого {2}.'
+        $errors += $limit_text -f $client.name, $current_total, $TopicsTotal
     }
-    if ( $SizeTotal -and $current_size -gt $SizeTotal ) {
-        $limit_text = '[limit] Занятый объём каталога ({0}) {1} больше допустимого {2}.'
-        $errors += $limit_text -f $collector.collect, (Get-BaseSize $current_size), (Get-BaseSize $SizeTotal)
+    if ( $SizeTotal -and $current_size -ge $SizeTotal ) {
+        $limit_text = '[limit] Занятый объём раздач в клиенте [{0}]: {1}, больше допустимого {2}.'
+        $errors += $limit_text -f $client.name, (Get-BaseSize $current_size), (Get-BaseSize $SizeTotal)
     }
     if ( $errors ) { Write-Host ''; $errors | Write-Host -ForegroundColor Yellow; Break; }
 

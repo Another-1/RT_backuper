@@ -2,6 +2,7 @@ Param (
     [switch]$Full,
     [switch]$Skip,
     [switch]$NoClient = $true,
+    [switch]$Verbose,
 
     [ArgumentCompleter({ param($cmd, $param, $word) [array](Get-Content "$PSScriptRoot/clients.txt") -like "$word*" })]
     [string]
@@ -142,7 +143,7 @@ if ( !$client_list ) {
     $client_list = @( $client )
 }
 if ( $UsedClient ) {
-    $client_list = $client_list | ? { $_.name -eq $UsedClient }
+    $client_list = @( $client_list | ? { $_.name -eq $UsedClient } )
 }
 
 if ( $client_list.count -gt 1 ) {

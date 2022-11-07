@@ -2,6 +2,7 @@ Param (
     [ValidateSet('backuper', 'uploader', 'cleaner')][string]$Process,
     [ValidateRange('Positive')][int]$Timer = 60,
     [ValidateRange(0,3)][int]$Balance,
+    [switch]$Verbose,
 
     [ArgumentCompleter({ param($cmd, $param, $word) [array](Get-Content "$PSScriptRoot/clients.txt") -like "$word*" })]
     [string]
@@ -25,7 +26,7 @@ while( $true ) {
     if ( $run.file ) {
         Write-Output ( '[{0:t}] Process: [{1}], Timer: {2}, file: [{3}]' -f (Get-Date), $Process, $Timer, $run.file )
         if ( Test-Path $run.file ) {
-            .$run.file -UsedClient $UsedClient -Balance $Balance
+            .$run.file -UsedClient $UsedClient -Balance $Balance -Verbose:$Verbose
         }
     }
 

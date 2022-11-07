@@ -1,4 +1,10 @@
+function Write-Verbose ( [string]$Text ){
+    if ( $Verbose ) { Write-Host ( '[{0:t}] {1}' -f (Get-Date), $Text ) }
+}
+
 $RT_version = '2.1.1'
+Write-Verbose "RT_versios: $RT_version"
+
 New-Item -ItemType Directory -Path "$PSScriptRoot\config" -Force > $null
 
 # Проверяем наличие файла настроек и подключаем его.
@@ -8,6 +14,7 @@ if ( !(Test-Path $config_path) ) {
 } else {
     . $config_path
 }
+Write-Verbose 'Config connected'
 
 # Если задано несколько клиентов, пробуем определить нужный.
 if ( $client_list.count ) {
@@ -17,6 +24,7 @@ if ( $client_list.count ) {
     if ( !$client ) { $client = $client_list[0] }
     $client_list | % { $_.name } | Out-File "$PSScriptRoot/clients.txt"
 }
+Write-Verbose 'Clients counted'
 
 # лимит закачки на один диск в сутки
 $lv_750gb = 740 * 1024 * 1024 * 1024
@@ -174,7 +182,7 @@ function Dismount-ClientTorrent ( [int]$torrent_id, [string]$torrent_hash, [stri
         $torrent_category = $torrent.category
     }
 
-    if ( $uploader.delete -And $uploader.delete_category -eq $torrent_category ) {
+    if ( $uploader.delete -And $uploader.delete_category -in $torrent_category ) {
         Remove-ClientTorrent $torrent_id $torrent_hash
     }
 }
@@ -210,7 +218,8 @@ function Get-TopicIDs ( $torrents_list, $hashes ) {
         }
         # если не удалось получить информацию об ID из коммента, сходим в API и попробуем получить там.
         if ( !$torrent.topic_id ) {
-            $torrent.topic_id = Get-ForumTopicId $torrent.hash
+            $forum_res = Get-ForumTopicId $torrent.hash
+            $torrent.topic_id = $forum_res[ $torrent.hash ]
         }
 
         # исправление путей для кривых раздач с одним файлом в папке
@@ -271,7 +280,18 @@ function Get-TorrentPath ( [int]$topic_id, [string]$hash, [string]$google_folder
 
 # Получить список названий дисков, по списку раздач от трекера/клиента.
 function Get-DiskList ( $TopicList ) {
-    return $TopicList | ? { $_.topic_id } | % { $null, $disk_name, $null = Get-DiskParams $_.topic_id; $disk_name } | Sort-Object -Unique
+    $topic_count = $TopicList.count
+    $has_topic_id = ($TopicList | ? { $_.topic_id }).count
+
+    # Если раздачи без ид, и их немного, дёрнем апи.
+    if ( $topic_count -le 100 -and !$has_topic_id ) {
+        $forum_res = Get-ForumTopicId ($TopicList | % { $_.hash })
+        $topics = $forum_res.values
+    } else {
+        $topics = @( $TopicList | % { $_.topic_id } )
+    }
+    # Получаем уникальный список названий дисков по списку ид раздач.
+    return $topics | % { $null, $disk_name, $null = Get-DiskParams $_; $disk_name } | Sort-Object -Unique
 }
 
 # По ид раздачи вычислить ид диска, название диска/папки, путь к диску
@@ -330,13 +350,16 @@ function Initialize-Forum () {
 }
 
 # Найти ид раздачи по хешу.
-function Get-ForumTopicId ( [string]$hash ) {
+function Get-ForumTopicId ( [string[]]$hashes ) {
+    $topics = @{}
     try {
-        $topic_id = ( ( Invoke-WebRequest ( 'http://api.rutracker.org/v1/get_topic_id?by=hash&val=' + $hash ) ).content | ConvertFrom-Json ).result.( $hash )
+        $forum_url = 'http://api.rutracker.org/v1/get_topic_id?by=hash&val={0}' -f ($hashes -Join ',')
+        $result = ( ( Invoke-WebRequest $forum_url ).content | ConvertFrom-Json ).result
+
+        $hashes | % { $topics[ $_ ] = $result.( $_ ) }
     } catch {
-        Write-Host ('[forum] Не удалось получить номер топика, hash={0}' -f $torrent.hash )
     }
-    return $topic_id
+    return $topics
 }
 
 # Вычисляем сжатие архива, в зависимости от раздела раздачи и параметров.
@@ -765,6 +788,7 @@ function Select-Client ( [Parameter (Mandatory = $true)][string]$ClientName ) {
 }
 
 function Connect-Client {
+    Write-Verbose 'client connect start'
     if ( !$client.name -And $client.type ) {
         $client.name = $client.type
     }
@@ -776,6 +800,7 @@ function Connect-Client {
     $client_file = "$PSScriptRoot\clients\client.{0}.ps1" -f $client.type.ToLower()
     if ( Test-Path $client_file ) {
         Write-Host ( '[client] Выбранный торрент-клиент "{0}" [{1}], подключаем модуль.' -f $client.name, $client.type ) -ForegroundColor Green
+        Write-Verbose 'client connect end'
         return $client_file
     }
 }
@@ -783,5 +808,7 @@ function Connect-Client {
 
 # Подключаем файл с функциями выбранного клиента, если он есть.
 if ( $client.type -and !$NoClient ) {
+    Write-Verbose 'client init start'
     . (Connect-Client)
+    Write-Verbose 'client init end'
 }

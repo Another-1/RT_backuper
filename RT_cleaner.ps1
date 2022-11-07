@@ -1,4 +1,5 @@
 Param (
+    [switch]$Verbose,
     [switch]$NoClient = $true
 )
 
@@ -10,16 +11,13 @@ function Clear-ClientDownloads {
     $total = Get-Content $finished_list | Sort-Object -Unique
     $total_count = $total.count
 
-    Write-Host ( '[cleaner] Обнаружено раздач: {0}.' -f $total_count )
-    if ( $total_count -eq 0 ) {
-        return
-    }
+    if ( !$total_count ) { return }
 
     # Подключаемся к клиенту.
     Initialize-Client
 
+    $deleted = 0
     $runs = [math]::Ceiling( $total_count / $step )
-    Write-Host ( 'Начинаем обработку. Потребуется итераций {0}.' -f $runs )
     For ( $i = 1; $i -le $runs; $i++ ) {
         $selected = Get-FileFirstContent $finished_list $step
 
@@ -38,13 +36,13 @@ function Clear-ClientDownloads {
         foreach ( $torrent in $torrents ) {
             $torrent_id = $hashes[$torrent.hash]
             # Собираем имя и путь хранения архива раздачи.
-            $disk_id, $disk_name, $disk_path = Get-DiskParams $torrent_id
 
-            $zip_google_path = $google_params.folders[0] + $disk_path + $torrent_id + '_' + $torrent.hash + '.7z'
+            $zip_google_path = Get-TorrentPath $torrent_id $torrent.hash
             $zip_test = Test-PathTimer $zip_google_path
             # Если в облаке раздача есть, то её можно смело удалять из клиента
             if ( $zip_test.result ) {
                 Write-Host ( '[cleaner] Пробуем удалить раздачу {0}, {1}' -f $torrent_id, $torrent.name )
+                $deleted++
                 Remove-ClientTorrent $torrent_id $torrent.hash
             } else {
                 Write-Host ( '[cleaner] Раздачи ещё нет в облаке {0}, {1}' -f $torrent_id, $torrent.name )
@@ -55,7 +53,7 @@ function Clear-ClientDownloads {
     }
     # end foreach
 
-    Write-Host ( 'Обработано {0} раздач.' -f $total_count )
+    Write-Host ( 'Для клиента {0} раздач обработано: {1}, удалено: {2}.' -f $cl.name, $total_count, $deleted ) -ForegroundColor Green
 }
 
 . "$PSScriptRoot\RT_functions.ps1"
@@ -64,11 +62,11 @@ if ( !(Confirm-Version) ) { Exit }
 if ( !( Sync-Settings ) ) { Pause; Exit }
 
 $ScriptName = (Get-Item $PSCommandPath).BaseName
+
 $errors = @()
 if ( !$used_modules.cleaner ) {
     $errors += 'Вы запустили {0}, хотя он не включён в настройках. Проверьте настройки $used_modules.' -f $ScriptName
 }
-
 if ( !$uploader.delete ) {
     $errors += '[cleaner] Опция удаления раздач выключена. Если вы хотите удалять обработанные раздачи, сперва включите.'
 }

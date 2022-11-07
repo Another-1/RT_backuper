@@ -1,5 +1,7 @@
 Param (
     [ValidateRange(0,3)][int]$Balance,
+
+    [switch]$Verbose,
     [switch]$NoClient = $true
 )
 

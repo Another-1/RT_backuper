@@ -6,11 +6,15 @@ Param (
     [ValidateRange('NonNegative')][int]$MinSize, #Мб
     [ValidateSet(0, 1, 2)][string]$Priority = -1,
     [ValidateSet('topic_id', 'seeders', 'size', 'priority')][string]$Sort = 'size',
-    [ValidateRange('Positive')][int]$First,
     [switch]$Descending,
     [ValidateRange(0,12)][int]$Status,
     [ValidateRange('Positive')][int[]]$Topics,
+
+    [ValidateRange('Positive')][int]$First,
+    [ValidateRange('Positive')][int]$TopicsTotal,
     [ValidateRange('Positive')][int]$SizeLimit = 1024, #Гб
+    [ValidateRange('Positive')][int]$SizeTotal, #Гб
+
     [string]$Category,
     [switch]$Analyze,
     [switch]$DryRun,
@@ -109,7 +113,6 @@ else {
         [long]$MinSize = $MinSize * [math]::Pow(1024, 2) # Мб
         $tracker_list = @( $tracker_list | ? { $_.size -ge $MinSize } )
     }
-
 }
 
 if ( !$tracker_list ) {
@@ -195,7 +198,7 @@ Initialize-Client
 $torrents_list = @{}
 $torrents_all = Get-ClientTorrents -Completed $false
 $torrents_all | % { $torrents_list[ $_.hash ] = 1 }
-[long]$current_size = ( @( $torrents_all | ? { $_.category -eq $Category } ) | Measure-Object size -Sum ).Sum
+
 
 if ( $torrents_list ) {
     # Исключаем раздачи, которые уже есть в клиенте.
@@ -204,11 +207,33 @@ if ( $torrents_list ) {
 }
 if ( !$tracker_list ) { Exit }
 
+
+# Текущее количество и объём раздач в клиенте выбранной категории.
+$current = 1
+$torrents_cat = @( $torrents_all | ? { $_.category -eq $Category } )
+$current_total = $torrents_cat.count
+[long]$current_size = ( $torrents_cat | Measure-Object size -Sum ).Sum
+
+$added = 0
+[long]$added_size = 0
+
+# Добавленый объём раздач за этот запуск коллектора.
+[long]$SizeLimit = ($SizeLimit * [math]::Pow(1024, 3)) # Гб
+# Общий возможный занятый объём раздачами. Если не задан в параметрах вызова, берём настройку из скрипта.
+[long]$SizeTotal = if ( $SizeTotal ) { $SizeTotal * [math]::Pow(1024, 3) } else { $collector.collect_size }
+
+
 if ( $First ) {
-    Write-Host ( '- будет добавлено первых {0} раздач.' -f $First )
+    Write-Host ( '- будет добавлено первых {0} раздач.' -f $First ) -ForegroundColor DarkCyan
 }
 if ( $SizeLimit ) {
-    Write-Host ( '- будет добавлено первые {0} GiB.' -f $SizeLimit )
+    Write-Host ( '- будет добавлено первые {0} раздач.' -f (Get-BaseSize $SizeLimit ) ) -ForegroundColor DarkCyan
+}
+if ( $TopicsTotal ) {
+    Write-Host ( '- общий лимит количества раздач: {0}.' -f $TopicsTotal ) -ForegroundColor DarkCyan
+}
+if ( $SizeTotal ) {
+    Write-Host ( '- общий лимит объёма раздач {0}.' -f ( Get-BaseSize $SizeTotal) ) -ForegroundColor DarkCyan
 }
 
 # Сортируем по заданному полю (size по-умолчанию).
@@ -220,22 +245,25 @@ if ( $DryRun ) { Exit }
 Write-Host ''
 Initialize-Forum
 
-$current = 1
-$added = 0
-[long]$SizeLimit = ($SizeLimit * [math]::Pow(1024, 3)) # Гб
-[long]$SizeUsed = 0
-
-Write-Host ( '[collect][{0:t}] Начинаем перебирать раздачи.' -f (Get-Date) )
+Write-Host ''
+Write-Host ( '[collect][{0:t}] Начинаем перебирать раздачи.' -f (Get-Date) ) -ForegroundColor Green
 foreach ( $torrent in $tracker_list ) {
-    if ( $collector.collect_size -and $current_size -gt $collector.collect_size ) {
-        $limit_text = '[limit][{0:t}] Занятый объём каталога ({1}) {2} больше допустимого {3}. Прерываем.'
-        Write-Host ( $limit_text -f (Get-Date), $collector.collect, (Get-BaseSize $current_size), (Get-BaseSize $collector.collect_size) ) -ForegroundColor Yellow
-        Exit
+    # Проверяем общие лимиты коллектора.
+    $errors = @()
+    if ( $TopicsTotal -and $current_total -gt $TopicsTotal ) {
+        $limit_text = '[limit] Общее количество раздач в клиенте ({0}) {1} больше допустимого {2}.'
+        $errors += $limit_text -f $collector.collect, $current_total, $TopicsTotal
     }
+    if ( $SizeTotal -and $current_size -gt $SizeTotal ) {
+        $limit_text = '[limit] Занятый объём каталога ({0}) {1} больше допустимого {2}.'
+        $errors += $limit_text -f $collector.collect, (Get-BaseSize $current_size), (Get-BaseSize $SizeTotal)
+    }
+    if ( $errors ) { Write-Host ''; $errors | Write-Host -ForegroundColor Yellow; Break; }
+
 
     $ProgressPreference = 'Continue'
     $perc = [math]::Round( $current * 100 / $tracker_list.count )
-    $ActivityStatus = "всего: {0} из {1}, добавлено {2} ({3}), {4} %" -f $current, $tracker_list.count, $added, (Get-BaseSize $SizeUsed), $perc
+    $ActivityStatus = "всего: {0} из {1}, добавлено {2} ({3}), {4} %" -f $current, $tracker_list.count, $added, (Get-BaseSize $added_size), $perc
     Write-Progress -Activity 'Обрабатываем раздачи' -Status $ActivityStatus -PercentComplete $perc
     $ProgressPreference = 'SilentlyContinue'
     $current++
@@ -275,17 +303,23 @@ foreach ( $torrent in $tracker_list ) {
 
 
     $added++
-    $SizeUsed += $torrent.size
+    $current_total++
+    $added_size += $torrent.size
     $current_size += $torrent.size
 
     $errors = @()
+    # Проверяем лимиты на запуск.
     if ( $First -and $added -ge $First ) {
-        $errors += 'Заданный лимит ({1}) добавленных раздач выполнен. Количество: {0}.' -f $added, $First
+        $errors += '[limit] Заданный лимит ({1}) добавленных раздач выполнен. Количество: {0}.' -f $added, $First
     }
-    if ( $SizeLimit -and $SizeUsed -ge $SizeLimit ) {
-        $errors += 'Заданный лимит ({1}) добавленных раздач выполнен. Размер: {0}.' -f (Get-BaseSize $SizeUsed), (Get-BaseSize $SizeLimit)
+    if ( $SizeLimit -and $added_size -ge $SizeLimit ) {
+        $errors += '[limit] Заданный лимит ({1}) добавленных раздач выполнен. Размер: {0}.' -f (Get-BaseSize $added_size), (Get-BaseSize $SizeLimit)
     }
-    if ( $errors ) { Write-Host ''; $errors | Write-Host -ForegroundColor Yellow; Pause; Exit }
 
+    if ( $errors ) { Write-Host ''; $errors | Write-Host -ForegroundColor Yellow; Break; }
     Start-Sleep -Seconds 1
 } # end foreach
+
+Write-Host ''
+$text_total = '[collect][{0:t}] Раздач добавлено {1} ({2}). Всего в клиенте раздач с категорией [{3}]: {4} ({5})'
+Write-Host ( $text_total -f (Get-Date), $added, (Get-BaseSize $added_size), $Category, $current_total, (Get-BaseSize $current_size) ) -ForegroundColor Green

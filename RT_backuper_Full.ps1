@@ -52,7 +52,10 @@ Write-Host ( '[backuper] Раздач получено: {0} [{1} сек].' -f $t
 
 # Если нужно будет перебирать много раздач, то загружаем списки заархивированных.
 if ( !$hash_list ) {
-    $done_list, $done_hashes = Get-Archives
+    # Получаем список дисков, которые нужно обновить для текущего набора раздач.
+    $disk_names = Get-DiskList $torrents_list
+    # Получаем список существующих архивов.
+    $done_list, $done_hashes = Get-Archives -Name $disk_names
 }
 
 # Фильтруем список раздач и получаем их ид.
@@ -92,11 +95,6 @@ foreach ( $torrent in $torrents_list ) {
         Continue
     }
 
-    if ( !(Test-Path -LiteralPath $torrent.content_path) ) {
-        Write-Host ( '[skip] Не удалось найти файлы раздачи, по указанному пути: [{0}]' -f $torrent.content_path ) -ForegroundColor Red
-        Pause
-        Continue
-    }
 
     # Собираем имя и путь хранения архива раздачи.
     $disk_id, $disk_name, $disk_path = Get-DiskParams $torrent_id
@@ -132,12 +130,14 @@ foreach ( $torrent in $torrents_list ) {
         Write-Host ( '[check][{0}] Проверка выполнена за {1} сек, результат: {2}' -f $disk_name, $zip_test.exec, $zip_test.result )
         if ( $zip_test.result ) {
             # Если раздача уже есть в гугле, то надо её удалить из клиента и добавить в локальный список архивированных.
-            Dismount-ClientTorrent $torrent_id $torrent_hash
             throw '[skip] Раздача уже имеет архив в гугле, пропускаем.'
         }
 
         # Удаляем файл в месте архивирования, если он прочему-то есть.
         if ( Test-Path $zip_path_progress ) { Remove-Item $zip_path_progress }
+        if ( !(Test-Path -LiteralPath $torrent.content_path) ) {
+            throw ( '[skip] Не удалось найти файлы раздачи, по указанному пути: [{0}]' -f $torrent.content_path )
+        }
 
         $compression = Get-Compression $torrent_id $backuper
         $start_measure = Get-Date
@@ -176,7 +176,6 @@ foreach ( $torrent in $torrents_list ) {
         $zip_test = Test-PathTimer $zip_google_path
         Write-Host ( '[check][{0}] Проверка выполнена за {1} сек, результат: {2}' -f $disk_name, $zip_test.exec, $zip_test.result )
         if ( $zip_test.result ) {
-            Dismount-ClientTorrent $torrent_id $torrent_hash
             throw '[skip] Такой архив уже существует на гугл-диске, удаляем файл и пропускаем раздачу.'
         }
 
@@ -192,7 +191,6 @@ foreach ( $torrent in $torrents_list ) {
             $speed_move = (Get-BaseSize ($zip_size / $move_sec) -SI speed_2)
             Write-Host ( '[uploader] Готово! Завершено за {0} минут, средняя скорость {1}' -f [math]::Round($move_sec/60, 1) , $speed_move )
 
-            Dismount-ClientTorrent $torrent_id $torrent_hash
             # После успешного переноса архива записываем затраченный трафик
             Get-TodayTraffic $uploads_all $zip_size $google_name > $null
         }
@@ -214,5 +212,7 @@ foreach ( $torrent in $torrents_list ) {
 
     Start-Pause
     Start-Stopping
+
+    Sync-ArchList -Name $disk_name
 }
 # end foreach

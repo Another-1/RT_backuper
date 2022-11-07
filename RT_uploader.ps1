@@ -1,5 +1,5 @@
 Param (
-    [ValidateRange('Positive')][int]$Balance,
+    [ValidateRange(0,3)][int]$Balance,
     [switch]$NoClient = $true
 )
 
@@ -150,5 +150,7 @@ foreach ( $zip in $zip_list ) {
 
     Start-Pause
     Start-Stopping
+
+    Sync-ArchList -Name $disk_name
 }
 # end foreach

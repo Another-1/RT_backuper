@@ -35,7 +35,7 @@ function Hide-Password ( [string]$psw ) {
 }
 
 Write-Host ''
-Write-Host ( 'Система: {0}' -f $OS.name ) -ForegroundColor Yellow
+Write-Host ( 'Система: {0}, версия скриптов: v{1}' -f $OS.name, $RT_version ) -ForegroundColor Yellow
 if ( $start_time -and $stop_time ) {
     Write-Host ( '[start_time,stop_time] Расписание работы, период ({0} - {1})' -f $start_time, $stop_time )
 }
@@ -131,11 +131,11 @@ if ( !$forum ) {
 
 
 if ( !$Full -and !$Skip ) {
-    Write-Host 'Обновить списки архивов в облаке? [y/n]: ' -ForegroundColor Green -NoNewLine
+    Write-Host 'Принудительно обновить все списки существующих архивов? [y/n]: ' -ForegroundColor Green -NoNewLine
     $ch_refresh = ( Read-Host ).ToString().ToLower()
 }
-if ( $Full -or $ch_refresh -in 'y','д' ) {
-    $done_list, $done_hashes = Get-Archives
+if ( !$Skip ) {
+    $done_list, $done_hashes = Get-Archives -Force:($Full -or $ch_refresh -in 'y','д')
 }
 
 if ( !$client_list ) {

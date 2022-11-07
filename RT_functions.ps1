@@ -1,3 +1,4 @@
+$RT_version = '2.1.1'
 New-Item -ItemType Directory -Path "$PSScriptRoot\config" -Force > $null
 
 # Проверяем наличие файла настроек и подключаем его.
@@ -60,14 +61,14 @@ $measure_names = @{
 
 
 # Получить список существующих архивов из списков по дискам.
-function Get-Archives {
-    $updated = Sync-ArchList $true
+function Get-Archives ( [switch]$Force, [string[]]$Name ){
+    Sync-ArchList -Force:$Force -Name:$Name
 
     Write-Host ''
     Write-Host '[archived] Смотрим, что уже заархивировано..'
     $archive = @{}
     # Пробуем вытащить готовый список
-    if ( !$updated -and (Test-Path $stash_folder.archived_list) ) {
+    if ( Test-Path $stash_folder.archived_list ) {
         try {
             $time_collect = [math]::Round( (Measure-Command {
                 $restore = Import-Clixml -Path $stash_folder.archived_list
@@ -109,10 +110,14 @@ function Get-Archives {
 }
 
 # Обновить список архивов в локальной "БД".
-function Sync-ArchList ( $All = $false ) {
+function Sync-ArchList ( [switch]$Force, [string[]]$Name ) {
     $arch_folders = Get-ChildItem $google_params.folders[0] -Directory -Filter "$google_folder_prefix*"
+
     $decay_hours = $google_params.decay_hours
     if ( !$decay_hours ) { $decay_hours = 12 }
+    if ( $Name )  { $decay_hours = [math]::Ceiling( $decay_hours / 2 ) }
+    # Принудительно обновление.
+    if ( $Force ) { $decay_hours = 1 }
 
     # Собираем список гугл-дисков и проверяем наличие файла со списком архивов для каждого. Создаём если нет.
     # Проверяем даты обновления файлов и размер. Если прошло decay_hours или файл пуст -> пора обновлять.
@@ -120,18 +125,15 @@ function Sync-ArchList ( $All = $false ) {
         | ? { $_.($OS.sizeField) -eq 0 -Or ($_.LastWriteTime -lt ( Get-Date ).AddHours( -$decay_hours )) }
         | Sort-Object -Property LastWriteTime
 
-    # Выбираем первый диск по условиям выше и обновляем его.
-    if ( !$All ) {
-        Write-Host ''
-        Write-Host ( '[archived] Списков требущих обновления: {0}.' -f $folders.count )
-        $folders = $folders | Select -First 1
+    # Если передан конкретный диск, обновляем только его.
+    if ( $Name ) {
+        $folders = $folders | ? { $_.BaseName -in $Name }
     }
 
-    if ( !$folders ) {
-        return
-    }
+    if ( !$folders ) { return }
 
     $updated = 0
+    Write-Host ( '[archived] Обновляем списков: {0} шт.' -f $folders.count )
     foreach ( $folder in $folders ) {
         $arch_path = ( $arch_folders | ? { $folder.BaseName -eq $_.BaseName } ).FullName
 
@@ -146,7 +148,9 @@ function Sync-ArchList ( $All = $false ) {
         Write-Host ( $text -f $folder.BaseName, ([math]::Round( $exec_time, 2 )), $zip_list.count )
     }
 
-    return $updated
+    if ( $updated ) {
+        Clear-Content -Path $stash_folder.archived_list
+    }
 }
 
 
@@ -177,6 +181,13 @@ function Dismount-ClientTorrent ( [int]$torrent_id, [string]$torrent_hash, [stri
 
 function Get-ClientProperty( [string]$Property ) {
     return $client[ $Property ]
+}
+
+# Вытащить ид раздачи из комментария.
+function Get-TopicID ( [string]$Comment ) {
+    if ( $Comment -match 'rutracker' ) {
+        return ( Select-String "\d*$" -InputObject $comment ).Matches.Value
+    }
 }
 
 # Найти ид раздач(топиков) в [списке архивов, комменте раздачи из клиента, api трекера].
@@ -256,6 +267,11 @@ function Get-TorrentPath ( [int]$topic_id, [string]$hash, [string]$google_folder
     $Path = $google_folder + $disk_path + $full_name
 
     return $Path
+}
+
+# Получить список названий дисков, по списку раздач от трекера/клиента.
+function Get-DiskList ( $TopicList ) {
+    return $TopicList | ? { $_.topic_id } | % { $null, $disk_name, $null = Get-DiskParams $_.topic_id; $disk_name } | Sort-Object -Unique
 }
 
 # По ид раздачи вычислить ид диска, название диска/папки, путь к диску

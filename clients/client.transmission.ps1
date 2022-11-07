@@ -113,23 +113,21 @@ function Get-ClientTorrents ( $Hashes, $Completed = $true, $Sort = 'size' ) {
         $torrents_list = $torrents_list | ? { $_.percentDone -eq 1 }
     }
     $torrents_list = $torrents_list | Select-Object name, status, comment,
-            @{N='topic_id';  E={$null}},
-            @{N='hash';      E={$_.hashString}},
-            @{N='size';      E={$_.totalSize}},
-            @{N='category';  E={$_.labels -Join ''}},
-            @{N='save_path'; E={$_.downloadDir}},
-            @{N='content_path'; E={$_.downloadDir + $OS.fsep + $_.name}}
+            @{N='topic_id';     E={ Get-TopicID $_.comment} },
+            @{N='hash';         E={ $_.hashString} },
+            @{N='size';         E={ $_.totalSize} },
+            @{N='category';     E={ $_.labels -Join ''} },
+            @{N='save_path';    E={ $_.downloadDir} },
+            @{N='content_path'; E={ $_.downloadDir + $OS.fsep + $_.name} }
         | Sort-Object -Property $Sort
 
     return $torrents_list
 }
 
 # Получить ид раздачи из данных торрента.
-function Get-ClientTopic ( $torrent) {
+function Get-ClientTopic ( $torrent ) {
     if ( !$torrent.topic_id ) {
-        if ( $torrent.comment -match 'rutracker' ) {
-            $torrent.topic_id = ( Select-String "\d*$" -InputObject $torrent.comment ).Matches.Value
-        }
+        $torrent.topic_id = Get-TopicID $torrent.comment
     }
 }
 

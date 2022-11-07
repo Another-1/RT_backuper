@@ -112,19 +112,24 @@ else {
 
 }
 
-if ( $tracker_list.count -eq 0 ) {
-    Write-Host 'По заданным фильтрам не получено ни одной раздачи.'
-    Pause
+if ( !$tracker_list ) {
+    Write-Host 'По заданным фильтрам не получено ни одной раздачи.' -ForegroundColor Green
     Exit
 }
+Write-Host ( '- после фильтрации осталось раздач: {0}.' -f $tracker_list.count )
+
+# Получаем список дисков, которые нужно обновить для текущего набора раздач.
+$disk_names = Get-DiskList $tracker_list
+# Получаем список существующих архивов.
+$done_list, $done_hashes = Get-Archives -Force -Name $disk_names
+
 
 # Проверим указанные разделы и статус их выгрузки в облако.
 if ( $Analyze ) {
     if ( !$tracker.groups ) {
         Write-Host ( 'Нет данных о раздачах в разделах: {0}' -f ($Forums -Join ",") )
     }
-    # Получаем список существующих архивов.
-    $done_list, $done_hashes = Get-Archives
+    Write-Host ( 'Получаем данные от клиента и анализируем разделы {0}' -f ($Forums -Join ",") ) -ForegroundColor Green
 
     # Получаем данные о раздачах клиента.
     $torrents_list = @{}
@@ -173,15 +178,11 @@ if ( $Analyze ) {
     Exit
 }
 
-Write-Host ( '- после фильтрации осталось раздач: {0}.' -f $tracker_list.count )
-
-
-# Получаем список существующих архивов.
-$done_list, $done_hashes = Get-Archives
 
 # Вычисляем раздачи, у которых нет архива в облаке.
 $tracker_list = @( $tracker_list | ? { !$done_hashes[ $_.hash ] } )
 Write-Host ( '- после исключения существущих архивов, осталось раздач: {0}.' -f $tracker_list.count )
+if ( !$tracker_list ) { Exit }
 
 # Определить категорию новых раздач.
 if ( !$Category ) { $Category = $collector.category }
@@ -192,7 +193,7 @@ Write-Host 'Получаем список раздач из клиента..'
 Initialize-Client
 
 $torrents_list = @{}
-$torrents_all = Get-ClientTorrents -Completed $false 
+$torrents_all = Get-ClientTorrents -Completed $false
 $torrents_all | % { $torrents_list[ $_.hash ] = 1 }
 [long]$current_size = ( @( $torrents_all | ? { $_.category -eq $Category } ) | Measure-Object size -Sum ).Sum
 
@@ -201,6 +202,7 @@ if ( $torrents_list ) {
     $tracker_list = @( $tracker_list | ? { !$torrents_list[ $_.hash ] } )
     Write-Host ( '- от клиента получено раздач: {0}, после их исключения, раздач осталось: {1}.' -f $torrents_list.count, $tracker_list.count )
 }
+if ( !$tracker_list ) { Exit }
 
 if ( $First ) {
     Write-Host ( '- будет добавлено первых {0} раздач.' -f $First )
@@ -208,7 +210,6 @@ if ( $First ) {
 if ( $SizeLimit ) {
     Write-Host ( '- будет добавлено первые {0} GiB.' -f $SizeLimit )
 }
-
 
 # Сортируем по заданному полю (size по-умолчанию).
 $tracker_list = @( $tracker_list | Sort-Object -Property @{Expression = $Sort; Descending = $Descending} )

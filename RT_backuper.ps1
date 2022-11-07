@@ -67,8 +67,10 @@ if ( !$torrents_list ) {
     }
     Write-Host ( '[backuper] Раздач получено: {0} [{1} сек].' -f $torrents_list.count, $exec_time )
 
-    # Загружаем списки заархивированных раздач, чтобы отфильтровать.
-    $done_list, $done_hashes = Get-Archives
+    # Получаем список дисков, которые нужно обновить для текущего набора раздач.
+    $disk_names = Get-DiskList $torrents_list
+    # Получаем список существующих архивов.
+    $done_list, $done_hashes = Get-Archives -Name $disk_names
 
     # Фильтруем список раздач и получаем их ид.
     Write-Host ( 'Получаем номера топиков по раздачам и пропускаем уже заархивированное.' )
@@ -107,11 +109,6 @@ foreach ( $torrent in $torrents_list ) {
         Write-Host '[skip] Отсутсвует ид раздачи. Пропускаем.'
         Continue
     }
-    if ( !(Test-Path -LiteralPath $torrent.content_path) ) {
-        Write-Host ( '[skip] Не удалось найти файлы раздачи, по указанному пути: [{0}]' -f $torrent.content_path ) -ForegroundColor Red
-        Pause
-        Continue
-    }
 
     # Собираем имя и путь хранения архива раздачи.
     $disk_id, $disk_name, $disk_path = Get-DiskParams $torrent_id
@@ -147,6 +144,9 @@ foreach ( $torrent in $torrents_list ) {
 
         # Удаляем файл в месте архивирования, если он прочему-то есть.
         if ( Test-Path $zip_path_progress ) { Remove-Item $zip_path_progress }
+        if ( !(Test-Path -LiteralPath $torrent.content_path) ) {
+            throw ( '[skip] Не удалось найти файлы раздачи, по указанному пути: [{0}]' -f $torrent.content_path )
+        }
 
         $compression = Get-Compression $torrent_id $backuper
         $start_measure = Get-Date

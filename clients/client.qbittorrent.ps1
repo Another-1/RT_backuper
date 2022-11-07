@@ -49,9 +49,9 @@ function Read-Client ( [string]$Metod, $Params ) {
 # Получаем данные о клиенте.
 function Get-ClientVersion {
     $version_info = @()
-    $version_info += "- version: {0}" -f (Read-Client 'app/version')
+    $version_info += "- version: {0}"    -f (Read-Client 'app/version')
     $version_info += "- apiVersion: {0}" -f (Read-Client 'app/webapiVersion')
-    $version_info += "- build: {0}" -f (Read-Client 'app/buildInfo')
+    $version_info += "- build: {0}"      -f (Read-Client 'app/buildInfo')
 
     return $version_info
 }
@@ -70,9 +70,9 @@ function Get-ClientTorrents ( $Hashes, $Completed = $true, $Sort = 'size' ) {
     $torrents_list = (Read-Client 'torrents/info' $Params )
         | ConvertFrom-Json
         | Select-Object name, hash, content_path, save_path, size, category,
-            @{N='topic_id'; E={$null}},
-            @{N='comment';  E={$null}},
-            @{N='status';   E={$_.state}}
+            @{N='topic_id'; E={ $null} },
+            @{N='comment';  E={ $null} },
+            @{N='status';   E={ $_.state} }
         | Sort-Object -Property $Sort
 
     return $torrents_list
@@ -82,10 +82,8 @@ function Get-ClientTorrents ( $Hashes, $Completed = $true, $Sort = 'size' ) {
 function Get-ClientTopic ( $torrent ) {
     $filter = @{hash = $torrent.hash }
     if ( !$torrent.topic_id ) {
-        $torprops = (Read-Client 'torrents/properties' $filter ) | ConvertFrom-Json
-        if ( $torprops.comment -match 'rutracker' ) {
-            $torrent.topic_id = ( Select-String "\d*$" -InputObject $torprops.comment ).Matches.Value
-        }
+        $props = (Read-Client 'torrents/properties' $filter ) | ConvertFrom-Json
+        $torrent.topic_id = Get-TopicID $props.comment
     }
 }
 

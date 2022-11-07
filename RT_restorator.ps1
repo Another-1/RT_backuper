@@ -41,22 +41,22 @@ else {
     if ( $Priority -ge 0 ) {
         $tracker_list = @( $tracker_list | ? { $_.priority -eq $Priority } )
     }
-
-    # Получаем список существующих архивов.
-    $done_list, $done_hashes = Get-Archives
-
-    # Вычисляем раздачи, у которых есть архив в облаке.
-    $tracker_list = @( $tracker_list | ? { $done_hashes[ $_.hash ] } )
-    Write-Host ( 'Имеется архивов в облаке: {0}.' -f $tracker_list.count )
 }
 
-if ( $tracker_list.count -eq 0 ) {
-    Write-Host 'По заданным фильтрам не получено ни одной раздачи.'
-    Pause
+if ( !$tracker_list ) {
+    Write-Host 'По заданным фильтрам не получено ни одной раздачи.' -ForegroundColor Green
     Exit
 }
 Write-Host ( 'После фильтрации осталось раздач: {0}.' -f $tracker_list.count )
 
+# Получаем список дисков, которые нужно обновить для текущего набора раздач.
+$disk_names = Get-DiskList $tracker_list
+# Получаем список существующих архивов.
+$done_list, $done_hashes = Get-Archives -Force -Name $disk_names
+
+# Вычисляем раздачи, у которых есть архив в облаке.
+$tracker_list = @( $tracker_list | ? { $done_hashes[ $_.hash ] } )
+Write-Host ( 'Имеется архивов в облаке: {0}.' -f $tracker_list.count )
 
 # Подключаемся к клиенту, получаем список существующих раздач.
 Write-Host 'Получаем список раздач из клиента..'
@@ -70,9 +70,7 @@ if ( $torrents_list ) {
     Write-Host ( 'От клиента [{0}] получено раздач: {1}. Раздач доступных к восстановлению: {2}.' -f $client.name, $torrents_list.count, $tracker_list.count )
 }
 
-if ( $tracker_list.count -eq 0 ) {
-    Exit
-}
+if ( !$tracker_list ) { Exit }
 
 # Определить категорию добавляемых раздач.
 if ( !$Category ) { $Category = $collector.category }

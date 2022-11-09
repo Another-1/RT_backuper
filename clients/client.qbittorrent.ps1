@@ -57,7 +57,7 @@ function Get-ClientVersion {
 }
 
 # Обязательный список полей:
-# name, hash, topic_id, comment, status, content_path, save_path, size, category
+# name, hash, topic_id, forum_id, comment, status, content_path, save_path, size, category
 # Получить список завершённых раздач.
 function Get-ClientTorrents ( $Hashes, $Completed = $true, $Sort = 'size' ) {
     $Params = @{}
@@ -70,9 +70,10 @@ function Get-ClientTorrents ( $Hashes, $Completed = $true, $Sort = 'size' ) {
     $torrents_list = (Read-Client 'torrents/info' $Params )
         | ConvertFrom-Json
         | Select-Object name, hash, content_path, save_path, size, category,
-            @{N='topic_id'; E={ $null} },
-            @{N='comment';  E={ $null} },
-            @{N='status';   E={ $_.state} }
+            @{N='topic_id'; E={$null} },
+            @{N='forum_id'; E={$null} },
+            @{N='comment';  E={$null} },
+            @{N='status';   E={$_.state} }
         | Sort-Object -Property $Sort
 
     return $torrents_list

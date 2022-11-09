@@ -116,7 +116,7 @@ foreach ( $torrent in $torrents_list ) {
     $disk_id, $disk_name, $disk_path = Get-DiskParams $torrent_id
 
     # Имя архива.
-    $base_name = $torrent_id.ToString() + '_' + $torrent.hash.ToLower()
+    $base_name = $torrent_id.ToString() + '_' + $torrent_hash.ToLower()
     $full_name = $base_name + '.7z'
 
     # Полный путь хранения обрабатываемого архива и архива, который готов к заливке.
@@ -143,15 +143,13 @@ foreach ( $torrent in $torrents_list ) {
 
         # Удаляем файл в месте архивирования, если он прочему-то есть.
         if ( Test-Path $zip_path_progress ) { Remove-Item $zip_path_progress }
-        if ( !(Test-Path -LiteralPath $torrent.content_path) ) {
-            throw ( '[skip] Не удалось найти файлы раздачи, по указанному пути: [{0}]' -f $torrent.content_path )
-        }
-
-        $compression = Get-Compression $torrent_id $backuper
-        $start_measure = Get-Date
+        Test-TorrentContent ( $torrent )
 
         # Начинаем архивацию файла
+        $compression = Get-Compression $torrent $backuper
         Write-Host ( '[torrent][{0:t}] Архивация начата, сжатие:{1}, ядра процессора:{2}.' -f (Get-Date), $compression, $backuper.cores )
+        $start_measure = Get-Date
+
         if ( $backuper.h7z ) {
             & $backuper.p7z a $zip_path_progress $torrent.content_path "-p$pswd" "-mx$compression" ("-mmt" + $backuper.cores) -mhe=on -sccUTF-8 -bb0 > $null
         } else {

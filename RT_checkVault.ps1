@@ -86,7 +86,7 @@ if ( $backuper.zip_folder_size ) {
 Write-Host ( '- {0,-18} путь к 7z: [{1}]' -f '[p7z]', $backuper.p7z )
 Write-Host ( '- {0,-18} опция скрывать вывод 7z: {1}' -f '[h7z]', ( $temp = if ($backuper.h7z) {'включена'} else {'выключена'} ) )
 Write-Host ( '- {0,-18} использование ядер при архивации: [{1}]' -f '[cores]', $backuper.cores )
-Write-Host ( '- {0,-18} стандартная степень сжатия при архивации: [{1}]' -f '[compression]', (Get-Compression -Param $backuper) )
+Write-Host ( '- {0,-18} стандартная степень сжатия при архивации: [{1}]' -f '[compression]', (Get-Compression -Params $backuper) )
 
 
 Write-Host ''

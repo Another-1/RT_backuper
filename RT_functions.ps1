@@ -243,6 +243,33 @@ function Get-TopicIDs ( $torrents_list, $hashes ) {
     return $torrents_list
 }
 
+# Проверки содержимого раздачи.
+function Test-TorrentContent ( $torrent ) {
+    $content_path = $torrent.content_path
+    $topic_id = $torrent.topic_id
+
+    if ( !$content_path ) {
+        throw '[skip] Отсутсвует путь к содержимому раздачи. Пропускаем.'
+    }
+    if ( !(Test-Path -LiteralPath $content_path) ) {
+        throw ( '[skip] Не удалось найти файлы раздачи, по указанному пути: [{0}]. Пропускаем.' -f $content_path )
+    }
+
+    # Проверим размер указанный в раздаче и размер фактического содержимого.
+    $content_size = Get-FolderSize $content_path
+    if ( $torrent.size -ne $content_size ) {
+        throw ( '[skip] Размер раздачи {0} ({1}) указанный в клиенте, не совпадает с фактическим ({2}). Пропускаем.' -f $topic_id, $torrent.size, $content_size )
+    }
+
+    # Проверим раздачу на форуме.
+    $forum_topic = ( Get-ForumTopics -Topics $topic_id ).topics
+    if ( $torrent.hash -ne $forum_topic.hash ) {
+        Write-Host ( 'client hash: {0}; forum hash: {1}' -f $torrent.hash, $forum_topic.hash )
+        throw ( '[skip] Раздача {0} имеет другой хеш на форуме. Вероятно, она обновлена. Пропускаем.' -f $topic_id )
+    }
+    $torrent.forum_id = $forum_topic.forum_id
+}
+
 # Проверим пути хранения раздач, и если есть одинаковые - ошибка.
 function Compare-UsedLocations ( $Torrents ) {
     $ok = $true
@@ -273,7 +300,6 @@ function Get-TorrentPath ( [int]$topic_id, [string]$hash, [string]$google_folder
         $google_folder = $google_params.folders[0]
     }
     $disk_id, $disk_name, $disk_path = Get-DiskParams $topic_id
-
     $Path = $google_folder + $disk_path + $full_name
 
     return $Path
@@ -311,6 +337,16 @@ function Get-GoogleNum ( [int]$DiskId, [int]$Accounts = 1, [int]$Uploaders = 1 )
         account = ($DiskId % $Accounts  + 1)
         upload  = ($DiskId % $Uploaders + 1)
     }
+}
+
+# Вычисляем сжатие архива, в зависимости от раздела раздачи и параметров.
+function Get-Compression ( $torrent, $params ) {
+    try {
+        $compression = $params.sections_compression[ [int]$torrent.forum_id ]
+    } catch {}
+    if ( $compression -eq $null ) { $compression = $params.compression }
+    if ( $compression -eq $null ) { $compression = 1 }
+    return $compression
 }
 
 
@@ -364,18 +400,6 @@ function Get-ForumTopicId ( [string[]]$hashes ) {
     return $topics
 }
 
-# Вычисляем сжатие архива, в зависимости от раздела раздачи и параметров.
-function Get-Compression ( [int]$topic_id, $params ) {
-    try {
-        $topic = ( Invoke-WebRequest( 'http://api.rutracker.org/v1/get_tor_topic_data?by=topic_id&val=' + $topic_id ) ).content | ConvertFrom-Json
-        $forum_id = [int]$topic.result.($topic_id).forum_id
-        $compression = $params.sections_compression[ $forum_id ]
-    } catch {}
-    if ( $compression -eq $null ) { $compression = $params.compression }
-    if ( $compression -eq $null ) { $compression = 1 }
-    return $compression
-}
-
 # Скачать торрент-файл раздачи по ид, сложить во временную папку, вернуть ссылку
 function Get-ForumTorrentFile ( [int]$Id, [string]$Type = 'temp' ) {
     if ( !$forum.sid ) { Initialize-Forum }
@@ -417,6 +441,7 @@ function Get-ForumTopics ( [int[]]$Topics, [int[]]$Forums, [int[]]$Status ) {
                 size     = $_.value['size']
                 priority = -1
                 status   = $_.value['tor_status']
+                forum_id = $_.value['forum_id']
                 reg_time = $_.value['reg_time']
             }
         } | ? { $_.status -notin $exclude_status }
@@ -442,6 +467,7 @@ function Get-ForumTopics ( [int[]]$Topics, [int[]]$Forums, [int[]]$Status ) {
                     size     = $_.value[ $topic_header['tor_size_bytes'] ]
                     priority = $_.value[ $topic_header['keeping_priority'] ]
                     status   = $_.value[ $topic_header['tor_status'] ]
+                    forum_id = $forum_id
                     reg_time = $_.value[ $topic_header['reg_time'] ]
                 }
             } | ? { $_.status -notin $exclude_status }
@@ -671,12 +697,13 @@ function Start-Stopping {
 # Ставим скрипт на паузу если имеется заданный файл с содержимым.
 function Start-Pause {
     $pause_path = $stash_folder.pause
+    Watch-FileExist $pause_path > $null
     while ( $true ) {
         $needSleep = $false
         $pausetime = 0
 
         # Если есть файлик и в нём есть содержимое - ставим скрипт на паузу.
-        If ( Test-Path $pause_path) {
+        If ( Test-Path $pause_path ) {
             $pause = ( Get-Content $pause_path | Select-Object -First 1 )
             if ( !($pause -eq $null) ) {
                 $needSleep = $true

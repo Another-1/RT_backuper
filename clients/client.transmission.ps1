@@ -113,12 +113,13 @@ function Get-ClientTorrents ( $Hashes, $Completed = $true, $Sort = 'size' ) {
         $torrents_list = $torrents_list | ? { $_.percentDone -eq 1 }
     }
     $torrents_list = $torrents_list | Select-Object name, status, comment,
-            @{N='topic_id';     E={ Get-TopicID $_.comment} },
-            @{N='hash';         E={ $_.hashString} },
-            @{N='size';         E={ $_.totalSize} },
-            @{N='category';     E={ $_.labels -Join ''} },
-            @{N='save_path';    E={ $_.downloadDir} },
-            @{N='content_path'; E={ $_.downloadDir + $OS.fsep + $_.name} }
+            @{N='topic_id';     E={Get-TopicID $_.comment} },
+            @{N='hash';         E={$_.hashString} },
+            @{N='forum_id';     E={$null } },
+            @{N='size';         E={$_.totalSize} },
+            @{N='category';     E={$_.labels -Join ''} },
+            @{N='save_path';    E={$_.downloadDir} },
+            @{N='content_path'; E={$_.downloadDir + $OS.fsep + $_.name} }
         | Sort-Object -Property $Sort
 
     return $torrents_list

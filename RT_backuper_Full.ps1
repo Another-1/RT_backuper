@@ -126,10 +126,8 @@ foreach ( $torrent in $torrents_list ) {
     Write-Host ( '[torrent][{0:t}] Обрабатываем {1} ({2}), {3} ' -f (Get-Date), $torrent_id, (Get-BaseSize $torrent.size), $torrent.name ) -ForegroundColor Green
 
     try {
-        Write-Host ( 'Проверяем гугл-диск {0}' -f $zip_google_path )
         # Проверяем, что архив для такой раздачи ещё не создан.
-        $zip_test = Test-PathTimer $zip_google_path
-        Write-Host ( '[check][{0}] Проверка выполнена за {1}, результат: {2}' -f $disk_name, (Get-BaseSize $zip_test.exec -SI time), $zip_test.result )
+        $zip_test = Test-CloudPath $zip_google_path
         if ( $zip_test.result ) {
             # Если раздача уже есть в гугле, то надо её удалить из клиента и добавить в локальный список архивированных.
             throw '[skip] Раздача уже имеет архив в гугле, пропускаем.'
@@ -174,9 +172,7 @@ foreach ( $torrent in $torrents_list ) {
             Compare-MaxSize $google_params.cache $google_params.cache_size
         }
 
-        Write-Host ( 'Проверяем гугл-диск {0}' -f $zip_google_path )
-        $zip_test = Test-PathTimer $zip_google_path
-        Write-Host ( '[check][{0}] Проверка выполнена за {1}, результат: {2}' -f $disk_name, (Get-BaseSize $zip_test.exec -SI time), $zip_test.result )
+        $zip_test = Test-CloudPath $zip_google_path
         if ( $zip_test.result ) {
             throw '[skip] Такой архив уже существует на гугл-диске, удаляем файл и пропускаем раздачу.'
         }
@@ -186,7 +182,7 @@ foreach ( $torrent in $torrents_list ) {
             New-Item -ItemType Directory -Path ($google_path + $disk_path) -Force > $null
 
             $move_sec = [math]::Round( (Measure-Command {
-                Move-Item -Path $zip_path_progress -Destination ( $zip_google_path ) -Force -ErrorAction Stop
+                Move-Item -Path $zip_path_progress -Destination $zip_google_path -Force -ErrorAction Stop
             }).TotalSeconds, 1 )
             if ( !$move_sec ) {$move_sec = 0.1}
 

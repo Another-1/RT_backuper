@@ -115,9 +115,7 @@ foreach ( $zip in $zip_list ) {
             Compare-MaxSize $google_params.cache $google_params.cache_size
         }
 
-        Write-Host ( 'Проверяем гугл-диск {0}' -f $zip_google_path )
-        $zip_test = Test-PathTimer $zip_google_path
-        Write-Host ( '[check][{0}] Проверка выполнена за {1}, результат: {2}' -f $disk_name, (Get-BaseSize $zip_test.exec -SI time), $zip_test.result )
+        $zip_test = Test-CloudPath $zip_google_path
         if ( $zip_test.result ) {
             throw '[skip] Такой архив уже существует на гугл-диске, удаляем файл и пропускаем раздачу.'
         }

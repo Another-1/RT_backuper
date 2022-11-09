@@ -313,6 +313,7 @@ function Get-GoogleNum ( [int]$DiskId, [int]$Accounts = 1, [int]$Uploaders = 1 )
     }
 }
 
+
 # Подключаемся к форуму с логином и паролем.
 function Initialize-Forum () {
     if ( !$forum ) {
@@ -631,7 +632,18 @@ function Test-PathTimer ( $Path ) {
         $result = Test-Path $Path
     }).TotalSeconds, 1 )
 
-    return @{ result = $result; exec = $exec_time}
+    return @{ result = $result; exec = $exec_time }
+}
+
+# Проверка наличия архива по заданному пути с выводом таймеров.
+function Test-CloudPath ( [string]$Path ) {
+    Write-Host ( '[check] Проверяем путь к архиву в облаке: {0}' -f $Path )
+    $test = Test-PathTimer $Path
+
+    $resultText = if ( $test.result ) { 'имеется' } else { 'отсутсвует' }
+    Write-Host ( '[check] Проверка выполнена за {0}, архив в облаке {1}' -f (Get-BaseSize $test.exec -SI time), $resultText )
+
+    return $test
 }
 
 # Обеспечение работы скрипта только в заданный промежуток времени (от старт до стоп).

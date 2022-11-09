@@ -129,10 +129,7 @@ foreach ( $torrent in $torrents_list ) {
     Write-Host ( '[torrent][{0:t}] Обрабатываем {1} ({2}), {3} ' -f (Get-Date), $torrent_id, (Get-BaseSize $torrent.size), $torrent.name ) -ForegroundColor Green
 
     try {
-        Write-Host ( 'Проверяем гугл-диск {0}' -f $zip_google_path )
-        # Проверяем, что архив для такой раздачи ещё не создан.
-        $zip_test = Test-PathTimer $zip_google_path
-        Write-Host ( '[check][{0}] Проверка выполнена за {1} сек, результат: {2}' -f $disk_name, $zip_test.exec, $zip_test.result )
+        $zip_test = Test-CloudPath $zip_google_path
         if ( $zip_test.result ) {
             # Если раздача уже есть в гугле, то надо её удалить из клиента.
             Dismount-ClientTorrent $torrent_id $torrent_hash

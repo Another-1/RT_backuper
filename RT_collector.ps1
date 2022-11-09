@@ -280,11 +280,9 @@ foreach ( $torrent in $tracker_list ) {
 
     # Проверяем, наличие раздачи в облаке.
     $zip_path = Get-TorrentPath $torrent_id $torrent_hash
-    Write-Host ( 'Проверяем гугл-диск {0}' -f $zip_path )
-    $zip_test = Test-PathTimer $zip_path
-    Write-Host ( '[check] Проверка выполнена за {0} сек, результат: {1}' -f $zip_test.exec, $zip_test.result )
+    $zip_test = Test-CloudPath $zip_path
     if ( $zip_test.result ) {
-        Write-Host ( 'Раздача уже имеется в облаке {0}.' -f $torrent_id )
+        Write-Host ( 'Раздача уже имеется в облаке {0}. Пропускаем.' -f $torrent_id )
         Continue
     }
 

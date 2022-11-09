@@ -104,7 +104,7 @@ foreach ( $zip in $zip_list ) {
             }
 
             $time_valid = [math]::Round( ((Get-Date) - $start_measure).TotalSeconds, 1 )
-            Write-Host ( '[check] Проверка завершена за {0} сек.' -f $time_valid )
+            Write-Host ( '[check] Проверка завершена за {0}.' -f (Get-BaseSize $time_valid -SI time) )
         }
 
         # Перед переносом проверяем доступный трафик.
@@ -117,7 +117,7 @@ foreach ( $zip in $zip_list ) {
 
         Write-Host ( 'Проверяем гугл-диск {0}' -f $zip_google_path )
         $zip_test = Test-PathTimer $zip_google_path
-        Write-Host ( '[check][{0}] Проверка выполнена за {1} сек, результат: {2}' -f $disk_name, $zip_test.exec, $zip_test.result )
+        Write-Host ( '[check][{0}] Проверка выполнена за {1}, результат: {2}' -f $disk_name, (Get-BaseSize $zip_test.exec -SI time), $zip_test.result )
         if ( $zip_test.result ) {
             throw '[skip] Такой архив уже существует на гугл-диске, удаляем файл и пропускаем раздачу.'
         }
@@ -131,7 +131,7 @@ foreach ( $zip in $zip_list ) {
             if ( !$move_sec ) {$move_sec = 0.1}
 
             $speed_move = (Get-BaseSize ($zip_size / $move_sec) -SI speed_2)
-            Write-Host ( '[uploader] Готово! Завершено за {0} минут, средняя скорость {1}' -f [math]::Round($move_sec/60, 1) , $speed_move )
+            Write-Host ( '[uploader] Готово! Завершено за {0}, средняя скорость {1}' -f (Get-BaseSize $move_sec -SI time) , $speed_move )
 
             # После успешного переноса архива записываем затраченный трафик
             Get-TodayTraffic $uploads_all $zip_size $google_name > $null

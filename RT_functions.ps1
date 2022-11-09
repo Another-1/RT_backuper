@@ -2,7 +2,7 @@ function Write-Verbose ( [string]$Text ){
     if ( $Verbose ) { Write-Host ( '[{0:t}] {1}' -f (Get-Date), $Text ) }
 }
 
-$RT_version = '2.1.1'
+$RT_version = 'v2.1.1'
 Write-Verbose "RT_versios: $RT_version"
 
 New-Item -ItemType Directory -Path "$PSScriptRoot\config" -Force > $null
@@ -61,10 +61,11 @@ $stash_folder = [ordered]@{
 
 
 $measure_names = @{
-    byte_2   = 'B','KiB','MiB','GiB','TiB','PiB'
-    byte_10  = 'B','KB', 'MB', 'GB', 'TB', 'PB'
-    speed_2  = 'B/s','KiB/s','MiB/s','GiB/s','TiB/s','PiB/s'
-    speed_10 = 'B/s','KB/s' ,'MB/s' ,'GB/s' ,'TB/s' ,'PB/s'
+    byte_2   = @{ base = 1024; names = 'B','KiB','MiB','GiB','TiB','PiB' }
+    byte_10  = @{ base = 1000; names = 'B','KB', 'MB', 'GB', 'TB', 'PB' }
+    speed_2  = @{ base = 1024; names = 'B/s','KiB/s','MiB/s','GiB/s','TiB/s','PiB/s' }
+    speed_10 = @{ base = 1000; names = 'B/s','KB/s' ,'MB/s' ,'GB/s' ,'TB/s' ,'PB/s' }
+    time     = @{ base = 60;   names = 'сек', 'мин', 'час' }
 }
 
 
@@ -556,22 +557,23 @@ function Get-OsParams {
 }
 
 # Преобразовать большое число в читаемое число с множителем нужной базы.
-function Get-BaseSize ( [long]$size, [int]$base = 1024, [int]$pow = 0, $SI = 'byte_2', [int]$Precision = 1 ) {
-    $names = $measure_names[$SI]
-    if ( !$names ) { $names = $measure_names.byte_2 }
+function Get-BaseSize ( [long]$Size, [int]$pow = 0, $SI = 'byte_2', [int]$Precision = 1 ) {
+    $measure = $measure_names[$SI]
+    if ( !$measure ) { $measure = $measure_names.byte_2 }
+
 
     $val = 0
-    if ( $size -gt 0 ) {
+    if ( $Size -gt 0 ) {
         if ( $pow -le 0 ) {
-            $pow = [math]::Floor( [math]::Log( $size, $base) )
+            $pow = [math]::Floor( [math]::Log( $Size, $measure.base) )
         }
-        if ( $pow -gt $names.count - 1 ) {
-            $pow = $names.count - 1
+        if ( $pow -gt $measure.names.count - 1 ) {
+            $pow = $measure.names.count - 1
         }
-        $val = [math]::Round( $size / [math]::Pow($base, $pow), $Precision)
+        $val = [math]::Round( $Size / [math]::Pow($measure.base, $pow), $Precision)
     }
 
-    return ( $val ).ToString() + ' ' + $names[ $pow ]
+    return ( $val ).ToString() + ' ' + $measure.names[ $pow ]
 }
 
 # Если файла нет - создать его и вернуть свойства.

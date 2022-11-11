@@ -38,7 +38,7 @@ function Clear-ClientDownloads {
             # Собираем имя и путь хранения архива раздачи.
 
             $zip_google_path = Get-TorrentPath $torrent_id $torrent.hash
-            $zip_test = Test-PathTimer $zip_google_path
+            $zip_test = Test-CloudPath $zip_google_path
             # Если в облаке раздача есть, то её можно смело удалять из клиента
             if ( $zip_test.result ) {
                 Write-Host ( '[cleaner] Пробуем удалить раздачу {0}, {1}' -f $torrent_id, $torrent.name )

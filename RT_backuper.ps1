@@ -150,12 +150,7 @@ foreach ( $torrent in $torrents_list ) {
         Write-Host ( '[torrent][{0:t}] Архивация начата, сжатие:{1}, ядра процессора:{2}.' -f (Get-Date), $compression, $backuper.cores )
         $start_measure = Get-Date
 
-        if ( $backuper.h7z ) {
-            & $backuper.p7z a $zip_path_progress $torrent.content_path "-p$pswd" "-mx$compression" ("-mmt" + $backuper.cores) -mhe=on -sccUTF-8 -bb0 > $null
-        } else {
-            & $backuper.p7z a $zip_path_progress $torrent.content_path "-p$pswd" "-mx$compression" ("-mmt" + $backuper.cores) -mhe=on -sccUTF-8 -bb0
-        }
-
+        New-ZipTopic $zip_path_progress $torrent.content_path $compression
         if ( $LastExitCode -ne 0 ) {
             Remove-Item $zip_path_progress
             throw ( '[skip] Архивация завершилась ошибкой: {0}. Удаляем файл.' -f $LastExitCode )
@@ -173,7 +168,7 @@ foreach ( $torrent in $torrents_list ) {
         try {
             if ( Test-Path $zip_path_finished ) { Remove-Item $zip_path_finished }
             Write-Host ( 'Перемещаем {0} в каталог {1}' -f  $base_name, $def_paths.finished )
-            Move-Item -path $zip_path_progress -destination $zip_path_finished -Force -ErrorAction Stop
+            Move-Item -Path $zip_path_progress -Destination $zip_path_finished -Force -ErrorAction Stop
 
             Dismount-ClientTorrent $torrent_id $torrent_hash
             Write-Host 'Готово!'

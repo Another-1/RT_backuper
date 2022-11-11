@@ -92,10 +92,8 @@ foreach ( $torrent in $tracker_list ) {
     }
 
     # Проверяем, наличие раздачи в облаке.
-    $zip_path = Get-TorrentPath $torrent_id $torrent_hash
-    Write-Host ( 'Проверяем гугл-диск {0}' -f $zip_path )
-    $zip_test = Test-PathTimer $zip_path
-    Write-Host ( '[check] Проверка выполнена за {0} сек, результат: {1}' -f $zip_test.exec, $zip_test.result )
+    $zip_google_path = Get-TorrentPath $torrent_id $torrent_hash
+    $zip_test = Test-CloudPath $zip_google_path
     if ( !$zip_test.result ) {
         Write-Host ( '[skip] Нет архива для раздачи {0} в облаке. Пропускаем.' -f $torrent_id ) -ForegroundColor Yellow
         Continue
@@ -108,14 +106,8 @@ foreach ( $torrent in $tracker_list ) {
         $extract_path = $collector.collect + $OS.fsep + $torrent_id
     }
 
-    Write-Host "Распаковываем $zip_path"
-    New-Item -ItemType Directory -Path $extract_path -Force > $null
-    if ( $backuper.h7z ) {
-        & $backuper.p7z x "$zip_path" "-p$pswd" "-aoa" "-o$extract_path" > $null
-    } else {
-        & $backuper.p7z x "$zip_path" "-p$pswd" "-aoa" "-o$extract_path"
-    }
-
+    Write-Host "Распаковываем $zip_google_path"
+    Restore-ZipTopic $zip_google_path $extract_path
     if ( $LastExitCode -ne 0 ) {
         Write-Host ( '[check] Ошибка распаковки архива, код ошибки: {0}.' -f $LastExitCode )
         Continue
@@ -131,3 +123,4 @@ foreach ( $torrent in $tracker_list ) {
 
     Start-Sleep -Seconds 1
 }
+# end foreach

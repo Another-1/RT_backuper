@@ -166,6 +166,7 @@ function Sync-ArchList ( [switch]$Force, [string[]]$Name ) {
 # Пробуем удалить раздачу из клиента, если подходит под параметры.
 function Dismount-ClientTorrent ( [int]$torrent_id, [string]$torrent_hash, [string]$torrent_category = $null ) {
     if ( !$uploader.delete ) { return }
+    if ( !$uploader.delete_category ) { return }
 
     # Если используется модуль пакетной очистки, то пишем в файлик.
     if ( $used_modules.cleaner ) {
@@ -183,7 +184,7 @@ function Dismount-ClientTorrent ( [int]$torrent_id, [string]$torrent_hash, [stri
         $torrent_category = $torrent.category
     }
 
-    if ( $uploader.delete -And $uploader.delete_category -in $torrent_category ) {
+    if ( $uploader.delete_category -in $torrent_category ) {
         Remove-ClientTorrent $torrent_id $torrent_hash
     }
 }
@@ -239,14 +240,14 @@ function Get-TopicIDs ( $torrents_list, $hashes ) {
         Write-Host( '[skip] Пропущено раздач: {0}.' -f $removed )
     }
 
-    $torrents_list = $torrents_list | Where-Object { $nul -ne $_.topic_id }
+    $torrents_list = @( $torrents_list | ? { $nul -ne $_.topic_id } )
     return $torrents_list
 }
 
 # Проверки содержимого раздачи.
 function Test-TorrentContent ( $torrent ) {
+    $topic_id     = $torrent.topic_id
     $content_path = $torrent.content_path
-    $topic_id = $torrent.topic_id
 
     if ( !$content_path ) {
         throw '[skip] Отсутсвует путь к содержимому раздачи. Пропускаем.'
@@ -290,6 +291,37 @@ function Compare-UsedLocations ( $Torrents ) {
     If ( !$ok ) {
         pause
         Exit
+    }
+}
+
+# Создаём новых архив.
+function New-ZipTopic ( [string]$Path, [string]$Content, [int]$Compression, [int]$Cores ) {
+    if ( !$Cores ) { $Cores = $backuper.cores }
+    if ( $Cores -le 0 ) { $Cores = 1 }
+
+    if ( $backuper.h7z ) {
+        & $backuper.p7z a $Path $Content "-p$pswd" "-mx$Compression" ("-mmt" + $Cores) -mhe=on -sccUTF-8 -bb0 > $null
+    } else {
+        & $backuper.p7z a $Path $Content "-p$pswd" "-mx$Compression" ("-mmt" + $Cores) -mhe=on -sccUTF-8 -bb0
+    }
+}
+
+# Распаковать содержимое архива по заданному пути.
+function Restore-ZipTopic ( [string]$Path, [string]$Extract ) {
+    New-Item -ItemType Directory -Path $Extract -Force > $null
+    if ( $backuper.h7z ) {
+        & $backuper.p7z x "$Path" "-p$pswd" "-aoa" "-o$Extract" > $null
+    } else {
+        & $backuper.p7z x "$Path" "-p$pswd" "-aoa" "-o$Extract"
+    }
+}
+
+# Проверка целостности архива.
+function Test-ZipIntegrity ( [string]$Path ) {
+    if ( $backuper.h7z ) {
+        & $backuper.p7z t $Path "-p$pswd" > $null
+    } else {
+        & $backuper.p7z t $Path "-p$pswd"
     }
 }
 
@@ -588,7 +620,6 @@ function Get-BaseSize ( [long]$Size, [int]$pow = 0, $SI = 'byte_2', [int]$Precis
     $measure = $measure_names[$SI]
     if ( !$measure ) { $measure = $measure_names.byte_2 }
 
-
     $val = 0
     if ( $Size -gt 0 ) {
         if ( $pow -le 0 ) {
@@ -652,24 +683,19 @@ function Clear-EmptyFolders ( $Path ) {
     }
 }
 
-# Test-Path с временем выполнения.
-function Test-PathTimer ( $Path ) {
+# Проверка наличия архива по заданному пути с выводом таймеров.
+function Test-CloudPath ( [string]$Path ) {
+    Write-Host ( '[check] Проверяем путь к архиву в облаке: {0}' -f $Path )
     $exec_time = [math]::Round( (Measure-Command {
         $result = Test-Path $Path
     }).TotalSeconds, 1 )
 
-    return @{ result = $result; exec = $exec_time }
-}
+    $resultText = if ( $result ) { 'имеется' } else { 'отсутсвует' }
+    Write-Host ( '[check] Проверка выполнена за {0}, архив в облаке {1}' -f (Get-BaseSize $exec_time -SI time), $resultText )
 
-# Проверка наличия архива по заданному пути с выводом таймеров.
-function Test-CloudPath ( [string]$Path ) {
-    Write-Host ( '[check] Проверяем путь к архиву в облаке: {0}' -f $Path )
-    $test = Test-PathTimer $Path
+    $size = if ( $result ) { (Get-Item $Path).Length } else { 0 }
 
-    $resultText = if ( $test.result ) { 'имеется' } else { 'отсутсвует' }
-    Write-Host ( '[check] Проверка выполнена за {0}, архив в облаке {1}' -f (Get-BaseSize $test.exec -SI time), $resultText )
-
-    return $test
+    return @{ result = $result; size = $size; exec = $exec_time }
 }
 
 # Обеспечение работы скрипта только в заданный промежуток времени (от старт до стоп).

@@ -120,6 +120,7 @@ foreach ( $torrent in $torrents_list ) {
 
     # Полные пути к архиву этой итерации и итоговому месту хранения.
     $zip_path_progress = $def_paths.progress + $OS.fsep + $full_name
+    $zip_path_finished = $def_paths.finished + $OS.fsep + $full_name
     $zip_google_path   = $google_path + $disk_path + $full_name
 
     Start-Pause
@@ -133,34 +134,51 @@ foreach ( $torrent in $torrents_list ) {
             throw '[skip] Раздача уже имеет архив в гугле, пропускаем.'
         }
 
+        $alreadyFinished = $false
+        if ( Test-Path $zip_path_finished ) {
+            Write-Host '[check] Найден архив для раздачи, проверим его..'
+            Test-ZipIntegrity $zip_path_finished
+            if ( $LastExitCode -ne 0 ) {
+                Remove-Item $zip_path_finished
+                Write-Host ( '[check] Архив не прошёл проверку, код ошибки: {0}. Удаляем файл.' -f $LastExitCode )
+            } else {
+                Write-Host ( '[check] Проверка успешно завершена, зальём готовый архив.' )
+
+                $zip_size = (Get-Item $zip_path_finished).Length
+                $alreadyFinished = $true
+            }
+        }
+
         # Удаляем файл в месте архивирования, если он прочему-то есть.
         if ( Test-Path $zip_path_progress ) { Remove-Item $zip_path_progress }
-        Test-TorrentContent ( $torrent )
 
-        # Начинаем архивацию файла
-        $compression = Get-Compression $torrent $backuper
-        Write-Host ( '[torrent][{0:t}] Архивация начата, сжатие:{1}, ядра процессора:{2}.' -f (Get-Date), $compression, $backuper.cores )
-        $start_measure = Get-Date
+        # Если архива нет, создаём его и переносим в finished.
+        if ( !$alreadyFinished ) {
+            Test-TorrentContent $torrent
 
-        if ( $backuper.h7z ) {
-            & $backuper.p7z a $zip_path_progress $torrent.content_path "-p$pswd" "-mx$compression" ("-mmt" + $backuper.cores) -mhe=on -sccUTF-8 -bb0 > $null
-        } else {
-            & $backuper.p7z a $zip_path_progress $torrent.content_path "-p$pswd" "-mx$compression" ("-mmt" + $backuper.cores) -mhe=on -sccUTF-8 -bb0
+            # Начинаем архивацию файла
+            $compression = Get-Compression $torrent $backuper
+            Write-Host ( '[torrent][{0:t}] Архивация начата, сжатие:{1}, ядра процессора:{2}.' -f (Get-Date), $compression, $backuper.cores )
+            $start_measure = Get-Date
+
+            New-ZipTopic $zip_path_progress $torrent.content_path $compression
+            if ( $LastExitCode -ne 0 ) {
+                Remove-Item $zip_path_progress
+                throw ( '[skip] Архивация завершилась ошибкой: {0}. Удаляем файл.' -f $LastExitCode )
+            }
+
+            # Считаем результаты архивации
+            $time_arch = [math]::Round( ((Get-Date) - $start_measure).TotalSeconds, 1 )
+            $zip_size = (Get-Item $zip_path_progress).Length
+            $comp_perc = [math]::Round( $zip_size * 100 / $torrent.size )
+            $speed_arch = (Get-BaseSize ($torrent.size / $time_arch) -SI speed_2)
+
+            $success_text = '[torrent] Успешно завершено за {0} [archSize:{3}, cores:{2}, comp:{1}, perc:{4}, speed:{5}]'
+            Write-Host ( $success_text -f (Get-BaseSize $time_arch -SI time), $compression, $backuper.cores, (Get-BaseSize $zip_size), $comp_perc, $speed_arch )
+
+            if ( Test-Path $zip_path_finished ) { Remove-Item $zip_path_finished }
+            Move-Item -Path $zip_path_progress -Destination $zip_path_finished -Force -ErrorAction Stop
         }
-
-        if ( $LastExitCode -ne 0 ) {
-            Remove-Item $zip_path_progress
-            throw ( '[skip] Архивация завершилась ошибкой: {0}. Удаляем файл.' -f $LastExitCode )
-        }
-
-        # Считаем результаты архивации
-        $time_arch = [math]::Round( ((Get-Date) - $start_measure).TotalSeconds, 1 )
-        $zip_size = (Get-Item $zip_path_progress).Length
-        $comp_perc = [math]::Round( $zip_size * 100 / $torrent.size )
-        $speed_arch = (Get-BaseSize ($torrent.size / $time_arch) -SI speed_2)
-
-        $success_text = '[torrent] Успешно завершено за {0} [archSize:{3}, cores:{2}, comp:{1}, perc:{4}, speed:{5}]'
-        Write-Host ( $success_text -f (Get-BaseSize $time_arch -SI time), $compression, $backuper.cores, (Get-BaseSize $zip_size), $comp_perc, $speed_arch )
 
         # Перед переносом проверяем доступный трафик.
         Compare-StoredUploads $google_name $uploads_all
@@ -180,7 +198,7 @@ foreach ( $torrent in $torrents_list ) {
             New-Item -ItemType Directory -Path ($google_path + $disk_path) -Force > $null
 
             $move_sec = [math]::Round( (Measure-Command {
-                Move-Item -Path $zip_path_progress -Destination $zip_google_path -Force -ErrorAction Stop
+                Move-Item -Path $zip_path_finished -Destination $zip_google_path -Force -ErrorAction Stop
             }).TotalSeconds, 1 )
             if ( !$move_sec ) {$move_sec = 0.1}
 
@@ -192,11 +210,11 @@ foreach ( $torrent in $torrents_list ) {
         }
         catch {
             Write-Host '[uploader] Не удалось отправить файл на гугл-диск'
-            Write-Host ( '{0} => {1}' -f $zip_path_progress, $zip_google_path )
+            Write-Host ( '{0} => {1}' -f $zip_path_finished, $zip_google_path )
             Pause
         }
     } catch {
-        if ( Test-Path $zip_path_progress ) { Remove-Item $zip_path_progress }
+        if ( Test-Path $zip_path_finished ) { Remove-Item $zip_path_finished }
         Write-Host $Error[0] -ForegroundColor Red
     }
 

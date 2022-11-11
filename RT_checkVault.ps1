@@ -36,7 +36,7 @@ function Hide-Password ( [string]$psw ) {
 }
 
 Write-Host ''
-Write-Host ( 'Система: {0}, версия скриптов: v{1}' -f $OS.name, $RT_version ) -ForegroundColor Yellow
+Write-Host ( 'Система: {0}, версия скриптов: {1}' -f $OS.name, $RT_version ) -ForegroundColor Yellow
 if ( $start_time -and $stop_time ) {
     Write-Host ( '[start_time,stop_time] Расписание работы, период ({0} - {1})' -f $start_time, $stop_time )
 }

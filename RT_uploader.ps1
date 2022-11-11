@@ -82,7 +82,7 @@ foreach ( $zip in $zip_list ) {
     $google_path = $google_params.folders[$folder_pointer]
     $google_name = ( '{0}({1})' -f $google_path, $order.account )
 
-    $zip_path_progress = $def_paths.finished + $OS.fsep + $zip.Name
+    $zip_path_finished = $def_paths.finished + $OS.fsep + $zip.Name
     $zip_google_path   = $google_path + $disk_path + $zip.Name
 
     Write-Host ''
@@ -93,12 +93,7 @@ foreach ( $zip in $zip_list ) {
             Write-Host '[check] Начинаем проверку целостности архива перед отправкой в гугл.'
             $start_measure = Get-Date
 
-            if ( $backuper.h7z ) {
-                & $backuper.p7z t $zip_path_progress "-p$pswd" > $null
-            } else {
-                & $backuper.p7z t $zip_path_progress "-p$pswd"
-            }
-
+            Test-ZipIntegrity $zip_path_finished
             if ( $LastExitCode -ne 0 ) {
                 throw ( '[check] Архив не прошёл проверку, код ошибки: {0}. Удаляем файл.' -f $LastExitCode )
             }
@@ -124,7 +119,7 @@ foreach ( $zip in $zip_list ) {
             New-Item -ItemType Directory -Path ($google_path + $disk_path) -Force > $null
 
             $move_sec = [math]::Round( (Measure-Command {
-                Move-Item -Path $zip_path_progress -Destination ( $zip_google_path ) -Force -ErrorAction Stop
+                Move-Item -Path $zip_path_finished -Destination ( $zip_google_path ) -Force -ErrorAction Stop
             }).TotalSeconds, 1 )
             if ( !$move_sec ) {$move_sec = 0.1}
 
@@ -136,11 +131,11 @@ foreach ( $zip in $zip_list ) {
         }
         catch {
             Write-Host '[uploader] Не удалось отправить файл на гугл-диск'
-            Write-Host ( '{0} => {1}' -f $zip_path_progress, $zip_google_path )
+            Write-Host ( '{0} => {1}' -f $zip_path_finished, $zip_google_path )
             Pause
         }
     } catch {
-        if ( Test-Path $zip_path_progress ) { Remove-Item $zip_path_progress }
+        if ( Test-Path $zip_path_finished ) { Remove-Item $zip_path_finished }
         Write-Host $Error[0] -ForegroundColor Red
     }
 

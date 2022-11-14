@@ -69,8 +69,9 @@ function Get-ClientTorrents ( $Hashes, $Completed = $true, $Sort = 'size' ) {
     }
     $torrents_list = (Read-Client 'torrents/info' $Params )
         | ConvertFrom-Json
-        | Select-Object name, hash, content_path, save_path, size, category,
+        | Select-Object name, content_path, save_path, size, category, infohash_v2,
             @{N='topic_id'; E={$null} },
+            @{N='hash';     E={$_.infohash_v1 ? $_.infohash_v1 : $_.hash} },
             @{N='forum_id'; E={$null} },
             @{N='comment';  E={$null} },
             @{N='status';   E={$_.state} }
@@ -81,8 +82,14 @@ function Get-ClientTorrents ( $Hashes, $Completed = $true, $Sort = 'size' ) {
 
 # Получить ид раздачи из данных торрента.
 function Get-ClientTopic ( $torrent ) {
-    $filter = @{hash = $torrent.hash }
+    # Если раздача гибридная, то получим ид раздачи на форуме.
+    if ( $torrent.infohash_v2 ) {
+        $forum_res = Get-ForumTopicId $torrent.hash
+        $torrent.topic_id = $forum_res[$torrent.hash]
+    }
+    # В общем случае получаем комментарий от клиента, а в нём ищем ид раздачи.
     if ( !$torrent.topic_id ) {
+        $filter = @{ hash = $torrent.hash }
         $props = (Read-Client 'torrents/properties' $filter ) | ConvertFrom-Json
         $torrent.topic_id = Get-TopicID $props.comment
     }

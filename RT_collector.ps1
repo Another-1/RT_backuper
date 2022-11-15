@@ -135,27 +135,27 @@ if ( $Analyze ) {
     }
     Write-Host ( 'Получаем данные от клиента и анализируем разделы {0}' -f ($Forums -Join ",") ) -ForegroundColor Green
 
-    # Получаем данные о раздачах клиента.
+    # Получаем данные о завершённых раздачах клиента.
     $torrents_list = @{}
-    Get-ClientTorrents -Completed $false | % { $torrents_list[ $_.hash ] = 1 }
+    Get-ClientTorrents | % { $torrents_list[ $_.hash ] = 1 }
 
     Write-Host ''
-    Write-Host ( '|| {0,6} || {1,-17} || {2,-25} || {3,-25} || {4,-25} ||' -f 'Раздел', 'Всего раздач' , 'Уже есть в облаке', 'Есть в клиенте', 'Выгрузить из клиента' )
-    $text = '|| {0,6} || {1,6} [{2,8}] || {3,6} [{4,8}] ({5,3} %) || {6,6} [{7,8}] ({8,3} %) || {9,6} [{10,8}] ({11,-3} %) ||'
+    Write-Host ( '| {0,6} | {1,-17} | {2,-25} | {3,-25} | {4,-25} |' -f 'Раздел', 'Всего раздач' , 'Уже есть в облаке', 'Есть в клиенте', 'Выгрузить из клиента' )
+    $text = '| {0,6} | {1,6} [{2,8}] | {3,6} [{4,8}] ({5,3} %) | {6,6} [{7,8}] ({8,3} %) | {9,6} [{10,8}] ({11,-3} %) |'
     $tracker.groups.GetEnumerator() | Sort-Object -Property name | % {
         $tracker_list = $_.value
-        $tracker_size = ( $tracker_list   | Measure-Object size -Sum ).Sum
+        $tracker_size = ( $tracker_list     | Measure-Object size -Sum ).Sum
         if ( $done_hashes ) {
-            $arch_list   = $tracker_list  | ? { $done_hashes[ $_.hash ] }
-            $arch_size   = ( $arch_list   | Measure-Object size -Sum ).Sum
+            $arch_list   = @( $tracker_list | ? { $done_hashes[ $_.hash ] } )
+            $arch_size   = ( $arch_list     | Measure-Object size -Sum ).Sum
         }
         if ( $torrents_list ) {
-            $client_list = $tracker_list  | ? { $torrents_list[ $_.hash ] }
-            $client_size = ( $client_list | Measure-Object size -Sum ).Sum
+            $client_list = @( $tracker_list | ? { $torrents_list[ $_.hash ] } )
+            $client_size = ( $client_list   | Measure-Object size -Sum ).Sum
         }
-        if ( $arch_list ) {
-            $load_list   = $client_list   | ? { !$arch_list[ $_.hash ] }
-            $load_size   = ( $load_list   | Measure-Object size -Sum ).Sum
+        if ( $done_hashes ) {
+            $load_list   = @( $client_list  | ? { !$done_hashes[ $_.hash ] } )
+            $load_size   = ( $load_list     | Measure-Object size -Sum ).Sum
         }
 
         $row = @(
@@ -178,6 +178,9 @@ if ( $Analyze ) {
 
         )
         Write-Host ( $text -f $row )
+
+        # Добавим незалитые раздачи в файл с завершёнными.
+        $load_list | % { $_.hash } | Out-File $stash_folder.downloaded -Append
     }
     Exit
 }

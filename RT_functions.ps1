@@ -126,7 +126,7 @@ function Sync-ArchList ( [switch]$Force, [string[]]$Name ) {
     if ( !$decay_hours ) { $decay_hours = 12 }
     if ( $Name )  { $decay_hours = [math]::Ceiling( $decay_hours / 2 ) }
     # Принудительно обновление.
-    if ( $Force ) { $decay_hours = 1 }
+    if ( $Force ) { $decay_hours = 2 }
 
     # Собираем список гугл-дисков и проверяем наличие файла со списком архивов для каждого. Создаём если нет.
     # Проверяем даты обновления файлов и размер. Если прошло decay_hours или файл пуст -> пора обновлять.

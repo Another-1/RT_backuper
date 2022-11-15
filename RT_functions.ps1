@@ -447,17 +447,6 @@ function Get-ForumTorrentFile ( [int]$Id, [string]$Type = 'temp' ) {
 # Получить данные о раздачах по списку ид или форумов.
 function Get-ForumTopics ( [int[]]$Topics, [int[]]$Forums, [int[]]$Status ) {
     # https://api.t-ru.org/v1/get_tor_status_titles
-    # "0": "не проверено",
-    # "1": "закрыто",
-    # "2": "проверено",
-    # "3": "недооформлено",
-    # "4": "не оформлено",
-    # "5": "повтор",
-    # "7": "поглощено",
-    # "8": "сомнительно",
-    # "9": "проверяется",
-    # "10": "временная",
-    # "11": "премодерация"
     $exclude_status = 5, 7
 
     $forum_topics = @()
@@ -521,13 +510,14 @@ function Get-ForumTopics ( [int[]]$Topics, [int[]]$Forums, [int[]]$Status ) {
 function Get-TodayTraffic ( $uploads_all, $zip_size, $google_folder ) {
     $uploads_all = Get-StoredUploads $uploads_all
     $now = Get-date
-    $daybefore = $now.AddDays( -1 )
+    $yesterday = $now.AddDays( -1 )
+
     $uploads_tmp = @{}
     $uploads = $uploads_all[ $google_folder ]
-    $uploads.keys | Where-Object { $_ -ge $daybefore } | ForEach-Object { $uploads_tmp += @{ $_ = $uploads[$_] } }
+    $uploads.keys | ? { $_ -ge $yesterday } | % { $uploads_tmp[$_] = $uploads[$_] }
     $uploads = $uploads_tmp
     if ( $zip_size -gt 0 ) {
-        $uploads += @{ $now = $zip_size }
+        $uploads[ $now ] = $zip_size
     }
     $uploads_all[$google_folder] = $uploads
     $uploads_all | Export-Clixml -Path $stash_folder.uploads_limit
@@ -569,28 +559,37 @@ function Show-StoredUploads ( $uploads_all ) {
     $time_diff = 1, 3, 6, 12
     $yesterday = ( Get-date ).AddDays( -1 )
 
-    Write-Host ( '[limit] Текущие использованные лимиты выгрузки (освободится через [1,3,6,12] часов):' ) -ForegroundColor Yellow
+    $upload_rows = @()
     $row_text = '[limit][{4}] Выгружено {5,9} => [{0,9}| {1,9}| {2,9}| {3,9}]'
     $uploads_all.GetEnumerator() | Sort-Object Key | % {
-        $disk_name = $_.key
-        $full_size = ( $_.value.values | Measure-Object -sum ).Sum
-
         $period = [ordered]@{}
         $time_diff | % { $period[ [string]$_ ] = 0 }
 
-        $upload = $_.value
-        $actual = $upload.keys | ? { $_ -ge $yesterday }
-        foreach ( $tmsp in $actual ) {
-            foreach ( $h in $time_diff ) {
-                if ( $tmsp -le $yesterday.addHours( $h ) ) {
-                    $period[ [string]$h ] += $upload[$tmsp]
-                    Break
+        $disk_name = $_.key
+        $upload    = $_.value
+
+        $actual = @{}
+        $upload.GetEnumerator() | ? { $_.key -ge $yesterday } | % { $actual[$_.key] = $_.value }
+        $full_size = ( $actual.values | Measure-Object -sum ).Sum
+
+        # Если общий размер пуст, выводить не нужно.
+        if ( $full_size ) {
+            foreach ( $tmsp in $upload.keys ) {
+                foreach ( $h in $time_diff ) {
+                    if ( $tmsp -le $yesterday.addHours( $h ) ) {
+                        $period[ [string]$h ] += $upload[$tmsp]
+                        Break
+                    }
                 }
             }
+            $upload_rows += ( $row_text -f @( ($period.values | % {Get-BaseSize $_}) + $disk_name + (Get-BaseSize $full_size) ) )
         }
-        Write-Host ( $row_text -f @( ($period.values | % {Get-BaseSize $_}) + $disk_name + (Get-BaseSize $full_size) ) )
     }
-    Write-Host ''
+    if ( $upload_rows ) {
+        Write-Host ( '[limit] Текущие использованные лимиты выгрузки (освободится через [1,3,6,12] часов):' ) -ForegroundColor Yellow
+        $upload_rows | Write-Host
+        Write-Host ''
+    }
 }
 
 # Проверка версии PowerShell.

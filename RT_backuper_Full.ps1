@@ -65,7 +65,7 @@ Write-Host ( '[backuper] Получаем номера топиков по ра�
 $exec_time = [math]::Round( (Measure-Command {
     $torrents_list = Get-TopicIDs $torrents_list $done_hashes
 }).TotalSeconds, 1 )
-Write-Host ( '[backuper] Топиков с номерами получено: {0} [{1}].' -f $torrents_list.count, (Get-BaseSize $exec_time -SI time) )
+Write-Host ( '[backuper] Топиков требущих загрузки обнаружено: {0} [{1}].' -f $torrents_list.count, (Get-BaseSize $exec_time -SI time) )
 
 # проверяем, что никакие раздачи не пересекаются по именам файлов (если файл один) или каталогов (если файлов много), чтобы не заархивировать не то
 if ( !$Hashes ) {

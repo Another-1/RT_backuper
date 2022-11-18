@@ -203,6 +203,7 @@ function Get-TopicID ( [string]$Comment ) {
 # Найти ид раздач(топиков) в [списке архивов, комменте раздачи из клиента, api трекера].
 # Если раздача уже есть в списке архивов, то она исключается из итогового набора раздач.
 function Get-TopicIDs ( $torrents_list, $hashes ) {
+    $filtered = @() # < Список раздач, требущих загрузки в облако.
     $removed = 0
     foreach ( $torrent in $torrents_list ) {
         # Если хеш есть в списке обработанных, скипаем его и отправляем в клинер.
@@ -234,14 +235,14 @@ function Get-TopicIDs ( $torrents_list, $hashes ) {
         if ( $OS.name -eq 'linux' ) {
             $torrent.content_path = $torrent.content_path.replace('"','\"')
         }
+        $filtered += $torrent
     }
 
     if ( $removed ) {
         Write-Host( '[skip] Пропущено раздач: {0}.' -f $removed )
     }
 
-    $torrents_list = @( $torrents_list | ? { $nul -ne $_.topic_id } )
-    return $torrents_list
+    return @( $filtered | ? { $_.topic_id } )
 }
 
 # Проверки содержимого раздачи.

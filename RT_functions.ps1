@@ -663,16 +663,21 @@ function Get-FolderSize ( $Path ) {
 }
 
 # Сравнить размер каталогов с максимально допустимым.
-function Compare-MaxSize ( [string]$Path, [long]$MaxSize ) {
-    While ( $true ) {
+function Compare-MaxSize ( [string]$Path, [long]$MaxSize, [long]$FileSize = 0 ) {
+    $wait_time = 1 #мин
+    while ( $true ) {
         $folder_size = Get-FolderSize $Path
-        if ( $folder_size -le $MaxSize ) {
+        if ( ($folder_size + $FileSize) -le $MaxSize ) {
             break
         }
 
-        $limit_text = '[limit][{0}] Занятый объём каталога ({1}) {2} больше допустимого {3}. Подождём пока освободится.'
-        Write-Host ( $limit_text -f (Get-Date -Format t), $Path, (Get-BaseSize $folder_size), (Get-BaseSize $MaxSize) )
-        Start-Sleep -Seconds 60
+        $file_text = ( $FileSize -gt 0 ) ? ("Файл размером {0} не влезет." -f (Get-BaseSize $FileSize)) : ""
+        $limit_text = '[limit][{0}] Допустимый размер каталога [{1}]: {2}. Занято {3}. {4} Подождём {5} мин, пока освободится.'
+        Write-Host ( $limit_text -f (Get-Date -Format t), $Path, (Get-BaseSize $MaxSize), (Get-BaseSize $folder_size), $file_text, $wait_time )
+        Start-Sleep -Seconds ( 60 * $wait_time )
+
+        # Увеличиваем интервал ожидание от 1 до 10 минут.
+        if ( $wait_time -lt 10 ) { $wait_time += 1 }
     }
 }
 

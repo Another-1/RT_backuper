@@ -156,6 +156,11 @@ foreach ( $torrent in $torrents_list ) {
         if ( !$alreadyFinished ) {
             Test-TorrentContent $torrent
 
+            # Проверка на переполнение каталога с архивами с учётом размера текущей раздачи.
+            if ( $backuper.zip_folder_size ) {
+                Compare-MaxSize -Path $backuper.zip_folder -MaxSize $backuper.zip_folder_size -FileSize $torrent.size
+            }
+
             # Начинаем архивацию файла
             $compression = Get-Compression $torrent $backuper
             Write-Host ( '[torrent][{0:t}] Архивация начата, сжатие:{1}, ядра процессора:{2}.' -f (Get-Date), $compression, $backuper.cores )

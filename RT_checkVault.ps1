@@ -103,7 +103,11 @@ Write-Host ( 'Настройки коллектора [collector]:' ) -Foregroun
 if ( !$collector ) {
     Write-Host '- отсутствуют' -ForegroundColor Yellow
 } else {
-    Write-Host ( '- {0,-18} каталог, в который будут добавлено содержимое раздач [{1}]' -f '[collect]', $collector.collect )
+    if ( $collector.collect ) {
+        Write-Host ( '- {0,-18} каталог новых раздач: [{1}]' -f '[collect]', $collector.collect )
+    } else {
+        Write-Host ( '- {0,-18} каталог новых раздач: будет использован путь клиента.' -f '[collect]' )
+    }
     Write-Host ( '- {0,-18} опция добавления раздачи в подкаталог по ИД: {1}' -f '[sub_folder]', ( $temp = if ($collector.sub_folder) {'включена'} else {'выключена'} ) )
     Write-Host ( '- {0,-18} категория для добавленных раздач [{1}]' -f '[category]', $collector.category )
     if ( $collector.collect_size ) {
@@ -131,12 +135,14 @@ if ( !$forum ) {
 }
 
 
+# Обновим списоки архивов если Full или пользователь выбрал это.
 if ( !$Full -and !$Skip ) {
-    Write-Host 'Принудительно обновить все списки существующих архивов? [y/n]: ' -ForegroundColor Green -NoNewLine
+    Write-Host 'Обновить списки существующих архивов? [y/n]: ' -ForegroundColor Green -NoNewLine
     $ch_refresh = ( Read-Host ).ToString().ToLower()
+    $arch_refresh = $ch_refresh -in 'y','д'
 }
-if ( !$Skip ) {
-    $done_list, $done_hashes = Get-Archives -Force:($Full -or $ch_refresh -in 'y','д')
+if ( (!$Skip -and $arch_refresh) -or $Full ) {
+    $done_list, $done_hashes = Get-Archives -Force:$Full
 }
 
 if ( !$client_list ) {
@@ -146,9 +152,14 @@ if ( $UsedClient ) {
     $client_list = @( $client_list | ? { $_.name -eq $UsedClient } )
 }
 
-if ( $client_list.count -gt 1 ) {
+if ( $client_list.count -gt 0 ) {
     Write-Host ''
     Write-Host ( 'Количество подключённых торрент-клиентов: {0}' -f $client_list.count ) -ForegroundColor Yellow
+
+    if ( !$Full -and !$Skip ) {
+        Write-Host 'Посчитать раздачи в клиентах? [y/n]: ' -ForegroundColor Green -NoNewLine
+        $ch_client = ( Read-Host ).ToString().ToLower()
+    }
 }
 foreach ( $cl in $client_list ) {
     Write-Host ''
@@ -163,10 +174,6 @@ foreach ( $cl in $client_list ) {
     Initialize-Client
     Get-ClientVersion
 
-    if ( !$Full -and !$Skip ) {
-        Write-Host 'Посчитать раздачи в клиенте? [y/n]: ' -ForegroundColor Green -NoNewLine
-        $ch_client = ( Read-Host ).ToString().ToLower()
-    }
     if ( $Full -or $ch_client -in 'y','д' ) {
         $torrents_list = Get-ClientTorrents
         $torrents_size = ( $torrents_list | Measure-Object size -Sum ).Sum
@@ -175,7 +182,7 @@ foreach ( $cl in $client_list ) {
         if ( $done_hashes ) {
             $torrents_left = $torrents_list | ? { !$done_hashes[ $_.hash ] }
             $torrents_size = ( $torrents_left | Measure-Object size -Sum ).Sum
-            Write-Host ( '[client] Раздач, которые нужно залить: {0} ({1})' -f $torrents_left.count, (Get-BaseSize $torrents_size) ) -ForegroundColor DarkCyan
+            Write-Host ( '[client] Раздач, которые нужно выгрузить: {0} ({1})' -f $torrents_left.count, (Get-BaseSize $torrents_size) ) -ForegroundColor DarkCyan
         }
     }
 }

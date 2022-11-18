@@ -656,10 +656,13 @@ function Get-FileFirstContent ( [string]$Path, [int]$First = 10 ) {
 
 # Вычислить размер содержимого каталога.
 function Get-FolderSize ( $Path ) {
-    New-Item -ItemType Directory $Path -Force > $null
-    $Size = (Get-ChildItem -LiteralPath $Path -File -Recurse | Measure-Object -Property $OS.sizeField -Sum).Sum
-    if ( !$Size ) { $Size = 0 }
-    return $Size
+    $temp_folder_size = 0
+    if ( $Path ) {
+        New-Item -ItemType Directory $Path -Force > $null
+        $temp_folder_size = (Get-ChildItem -LiteralPath $Path -File -Recurse | Measure-Object -Property $OS.sizeField -Sum).Sum
+    }
+    if ( !$temp_folder_size ) { $temp_folder_size = 0 }
+    return $temp_folder_size
 }
 
 # Сравнить размер каталогов с максимально допустимым.
@@ -681,8 +684,23 @@ function Compare-MaxSize ( [string]$Path, [long]$MaxSize, [long]$FileSize = 0 ) 
     }
 }
 
+# Собрать путь хранения добавляемой в клиент раздачи.
+function Get-TopicDownloadPath ( [int]$topic_id ) {
+    # Если в параметрах не указно место хранение, возьмём стандартный путь из клиента.
+    if ( !$collector.collect ) {
+        $collector.collect = Get-ClientDownloadDir
+    }
+
+    $download_dir = $collector.collect
+    if ( $collector.sub_folder ) {
+        $download_dir = $collector.collect + $OS.fsep + $topic_id
+    }
+    return $download_dir
+}
+
 # Удаление пустых каталогов по заданному пути.
 function Clear-EmptyFolders ( $Path ) {
+    if ( !$Path ) { return }
     if ( Test-Path $Path ) {
         Get-ChildItem $Path -Directory | ? { (Get-ChildItem -LiteralPath $_.Fullname).count -eq 0 } | % { Remove-Item $_.Fullname -Force } > $null
     }

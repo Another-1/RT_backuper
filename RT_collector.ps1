@@ -42,10 +42,16 @@ if ( !(Confirm-Version) ) { Exit }
 if ( !( Sync-Settings -Mode $ScriptName ) ) { Pause; Exit }
 
 if ( !$collector.collect ) {
+    $collector.collect = Get-ClientDownloadDir
+}
+if ( !$collector.collect ) {
     Write-Host 'Каталог хранения раздач ($collector.collect) не задан.'
     Exit
 }
 New-Item -ItemType Directory -Path $collector.collect -Force > $null
+if ( $collector.sub_folder ) {
+    Clear-EmptyFolders $collector.collect
+}
 
 # Если передан список раздач. работаем с ними.
 if ( $Topics.count ) {
@@ -222,9 +228,9 @@ $added = 0
 [long]$added_size = 0
 
 # Добавленый объём раздач за этот запуск коллектора.
-[long]$SizeLimit = ($SizeLimit * [math]::Pow(1024, 3)) # Гб
+[long]$SizeLimit = ($SizeLimit * 1gb) # Гб
 # Общий возможный занятый объём раздачами. Если не задан в параметрах вызова, берём настройку из скрипта.
-[long]$SizeTotal = if ( $SizeTotal ) { $SizeTotal * [math]::Pow(1024, 3) } else { $collector.collect_size }
+[long]$SizeTotal = if ( $SizeTotal ) { $SizeTotal * 1gb } else { $collector.collect_size }
 if ( !$TopicsTotal ) { $TopicsTotal = $collector.collect_count }
 
 
@@ -290,10 +296,7 @@ foreach ( $torrent in $tracker_list ) {
     }
 
     # Путь хранения раздачи, с учётом подпапки.
-    $extract_path = $collector.collect
-    if ( $collector.sub_folder ) {
-        $extract_path = $collector.collect + $OS.fsep + $torrent_id
-    }
+    $extract_path = Get-TopicDownloadPath $torrent_id
 
     # Скачиваем торрент с форума
     Write-Host ( 'Скачиваем торрент-файл раздачи {0} ({1}).' -f $torrent_id, (Get-BaseSize $torrent.size) )

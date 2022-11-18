@@ -124,4 +124,9 @@ function Remove-ClientTorrent ( [int]$torrent_id, [string]$torrent_hash ) {
         Write-Host ( '[delete] Почему-то не получилось удалить раздачу {0}.' -f $torrent_id )
     }
 }
+
+# Получить стандартный путь хранения раздач в клиенте.
+function Get-ClientDownloadDir {
+    return ( Read-Client 'app/defaultSavePath' ) -replace ( '[\/]$', '')
+}
 ###################################################################################################

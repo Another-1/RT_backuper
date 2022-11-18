@@ -17,6 +17,9 @@ if ( !(Confirm-Version) ) { Exit }
 if ( !( Sync-Settings ) ) { Pause; Exit }
 
 if ( !$collector.collect ) {
+    $collector.collect = Get-ClientDownloadDir
+}
+if ( !$collector.collect ) {
     Write-Host 'Каталог хранения раздач ($collector.collect) не задан.'
     Exit
 }
@@ -101,10 +104,7 @@ foreach ( $torrent in $tracker_list ) {
     if ( $DryRun ) { Exit }
 
     # Путь хранения раздачи, с учётом подпапки.
-    $extract_path = $collector.collect
-    if ( $collector.sub_folder ) {
-        $extract_path = $collector.collect + $OS.fsep + $torrent_id
-    }
+    $extract_path = Get-TopicDownloadPath $torrent_id
 
     Write-Host "Распаковываем $zip_google_path"
     Restore-ZipTopic $zip_google_path $extract_path

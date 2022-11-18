@@ -157,7 +157,7 @@ foreach ( $torrent in $torrents_list ) {
 
         New-ZipTopic $zip_path_progress $torrent.content_path $compression
         if ( $LastExitCode -ne 0 ) {
-            Remove-Item $zip_path_progress
+            if ( Test-Path $zip_path_progress ) { Remove-Item $zip_path_progress }
             throw ( '[skip] Архивация завершилась ошибкой: {0}. Удаляем файл.' -f $LastExitCode )
         }
 

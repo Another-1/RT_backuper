@@ -133,6 +133,7 @@ foreach ( $zip in $zip_list ) {
             Write-Host '[uploader] Не удалось отправить файл на гугл-диск'
             Write-Host ( '{0} => {1}' -f $zip_path_finished, $zip_google_path )
             Pause
+            Exit
         }
     } catch {
         if ( Test-Path $zip_path_finished ) { Remove-Item $zip_path_finished }

@@ -168,7 +168,7 @@ foreach ( $torrent in $torrents_list ) {
 
             New-ZipTopic $zip_path_progress $torrent.content_path $compression
             if ( $LastExitCode -ne 0 ) {
-                Remove-Item $zip_path_progress
+                if ( Test-Path $zip_path_progress ) { Remove-Item $zip_path_progress }
                 throw ( '[skip] Архивация завершилась ошибкой: {0}. Удаляем файл.' -f $LastExitCode )
             }
 
@@ -217,13 +217,18 @@ foreach ( $torrent in $torrents_list ) {
             Write-Host '[uploader] Не удалось отправить файл на гугл-диск'
             Write-Host ( '{0} => {1}' -f $zip_path_finished, $zip_google_path )
             Pause
+            Exit
         }
     } catch {
         if ( Test-Path $zip_path_finished ) { Remove-Item $zip_path_finished }
         Write-Host $Error[0] -ForegroundColor Red
     }
 
-    Dismount-ClientTorrent $torrent_id $torrent_hash $torrent.category
+    # Проверим наличие раздачи в облаке. Если раздача есть, то можно пробовать удалить её из клиента.
+    $zip_test = Test-CloudPath $zip_google_path
+    if ( $zip_test.result ) {
+        Dismount-ClientTorrent $torrent_id $torrent_hash $torrent.category
+    }
 
     $proc_size += $torrent.size
     $text = '[backuper][{4:t}] Обработано раздач {0} ({1}) из {2} ({3})'

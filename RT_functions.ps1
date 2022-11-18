@@ -690,15 +690,15 @@ function Clear-EmptyFolders ( $Path ) {
 
 # Проверка наличия архива по заданному пути с выводом таймеров.
 function Test-CloudPath ( [string]$Path ) {
-    Write-Host ( '[check] Проверяем путь к архиву в облаке: {0}' -f $Path )
+    Write-Host ( '[cloud] Проверяем путь к архиву в облаке: {0}' -f $Path )
     $exec_time = [math]::Round( (Measure-Command {
         $result = Test-Path $Path
     }).TotalSeconds, 1 )
 
-    $resultText = if ( $result ) { 'имеется' } else { 'отсутсвует' }
-    Write-Host ( '[check] Проверка выполнена за {0}, архив в облаке {1}' -f (Get-BaseSize $exec_time -SI time), $resultText )
+    $size = $result ? (Get-Item $Path).Length : 0
+    $resultText = $result ? ( 'имеется ({0})' -f (Get-BaseSize $size)) : 'отсутсвует'
+    Write-Host ( '[cloud] Проверка выполнена за {0}, архив в облаке {1}' -f (Get-BaseSize $exec_time -SI time), $resultText )
 
-    $size = if ( $result ) { (Get-Item $Path).Length } else { 0 }
 
     return @{ result = $result; size = $size; exec = $exec_time }
 }

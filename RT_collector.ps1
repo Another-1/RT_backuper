@@ -17,6 +17,7 @@ Param (
 
     [string]$Category,
     [switch]$Analyze,
+    [switch]$NoCloud,
     [switch]$DryRun,
     [switch]$Verbose,
 
@@ -128,11 +129,12 @@ if ( !$tracker_list ) {
 }
 Write-Host ( '- после фильтрации осталось раздач: {0}.' -f $tracker_list.count )
 
-# Получаем список дисков, которые нужно обновить для текущего набора раздач.
-$disk_names = Get-DiskList $tracker_list
-# Получаем список существующих архивов.
-$done_list, $done_hashes = Get-Archives -Force -Name $disk_names
-
+if ( !$NoCloud -or $Analyze ) {
+    # Получаем список дисков, которые нужно обновить для текущего набора раздач.
+    $disk_names = Get-DiskList $tracker_list
+    # Получаем список существующих архивов.
+    $done_list, $done_hashes = Get-Archives -Force -Name $disk_names
+}
 
 # Проверим указанные разделы и статус их выгрузки в облако.
 if ( $Analyze ) {
@@ -192,9 +194,11 @@ if ( $Analyze ) {
 }
 
 
-# Вычисляем раздачи, у которых нет архива в облаке.
-$tracker_list = @( $tracker_list | ? { !$done_hashes[ $_.hash ] } )
-Write-Host ( '- после исключения существущих архивов, осталось раздач: {0}.' -f $tracker_list.count )
+if ( $done_hashes ) {
+    # Вычисляем раздачи, у которых нет архива в облаке.
+    $tracker_list = @( $tracker_list | ? { !$done_hashes[ $_.hash ] } )
+    Write-Host ( '- после исключения существущих архивов, осталось раздач: {0}.' -f $tracker_list.count )
+}
 if ( !$tracker_list ) { Exit }
 
 # Определить категорию новых раздач.
@@ -289,10 +293,12 @@ foreach ( $torrent in $tracker_list ) {
 
     # Проверяем, наличие раздачи в облаке.
     $zip_path = Get-TorrentPath $torrent_id $torrent_hash
-    $zip_test = Test-CloudPath $zip_path
-    if ( $zip_test.result ) {
-        Write-Host ( 'Раздача уже имеется в облаке {0}. Пропускаем.' -f $torrent_id )
-        Continue
+    if ( !$NoCloud ) {
+        $zip_test = Test-CloudPath $zip_path
+        if ( $zip_test.result ) {
+            Write-Host ( 'Раздача уже имеется в облаке {0}. Пропускаем.' -f $torrent_id )
+            Continue
+        }
     }
 
     # Путь хранения раздачи, с учётом подпапки.

@@ -3,7 +3,7 @@ Param (
     [switch]$NoClient = $true
 )
 
-function Clear-ClientDownloads {
+function Clear-ClientDownloads ( $zip_list ) {
     $step = 30
     $finished_list = $stash_folder.finished_list
     Watch-FileExist $finished_list > $null
@@ -20,6 +20,8 @@ function Clear-ClientDownloads {
     $runs = [math]::Ceiling( $total_count / $step )
     For ( $i = 1; $i -le $runs; $i++ ) {
         $selected = Get-FileFirstContent $finished_list $step
+
+        $selected = $selected | ? { $_ -notin $zip_list }
 
         $hashes = @{}
         $selected | % { $id, $hash = ( $_.Split('.')[0] ).Split('_'); $hashes[$hash] = $id }
@@ -82,6 +84,9 @@ if ( !$client_list ) {
     $client_list = @( $client )
 }
 
+# Найдём архивы, которые ожидают выгрузки.
+$zip_list = Get-ChildItem $def_paths.finished -Filter '*.7z' | % { $_.BaseName }
+
 foreach ( $cl in $client_list ) {
     Write-Host ''
     Write-Host ( '[cleaner] Подключаемся к торрент-клиенту "{0}", ищем раздачи, которые следует удалить из него.' -f $cl.name ) -ForegroundColor DarkCyan
@@ -90,7 +95,7 @@ foreach ( $cl in $client_list ) {
     . (Connect-Client)
 
     # Ищем и удаляем раздачи.
-    Clear-ClientDownloads
+    Clear-ClientDownloads $zip_list
 }
 
 Start-Sleep 5

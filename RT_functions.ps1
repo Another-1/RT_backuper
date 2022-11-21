@@ -787,7 +787,7 @@ function Start-Pause {
                 }
             }
         }
-        if ( $needSleep ) {
+        if ( $needSleep -and $pausetime -gt 0) {
             Write-Host ( '[paused] Тормозим на ' + $pausetime + ' минут.' )
             Start-Sleep -Seconds ($pausetime * 60)
         } else {

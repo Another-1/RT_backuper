@@ -507,61 +507,86 @@ function Get-ForumTopics ( [int[]]$Topics, [int[]]$Forums, [int[]]$Status ) {
     return @{ topics = @( $forum_topics ); groups = $forum_groups }
 }
 
-# Записать размер выгруженного архива в файл и удалить старые записи.
-function Get-TodayTraffic ( $uploads_all, $zip_size, $google_folder ) {
-    $uploads_all = Get-StoredUploads $uploads_all
-    $now = Get-date
-    $yesterday = $now.AddDays( -1 )
 
-    $uploads_tmp = @{}
-    $uploads = $uploads_all[ $google_folder ]
-    $uploads.keys | ? { $_ -ge $yesterday } | % { $uploads_tmp[$_] = $uploads[$_] }
-    $uploads = $uploads_tmp
-    if ( $zip_size -gt 0 ) {
-        $uploads[ $now ] = $zip_size
-    }
-    $uploads_all[$google_folder] = $uploads
-    $uploads_all | Export-Clixml -Path $stash_folder.uploads_limit
-    return ( $uploads.values | Measure-Object -sum ).Sum, $uploads_all
-}
-
-# Ищем файлик с данными выгрузок на диск и подгружаем его.
+# Ищем файлик с данными выгрузок в облако и получаем данные из него.
 function Get-StoredUploads ( $uploads_old = @{} ) {
     $uploads_all = @{}
     If ( Test-Path $stash_folder.uploads_limit ) {
         try {
             $uploads_all = Import-Clixml -Path $stash_folder.uploads_limit
-        } catch {
-            $uploads_all = $uploads_old
-        }
+        } catch {}
     }
+    if ( !$uploads_all ) { $uploads_all = $uploads_old }
+
+    if ( $uploads_all ) {
+        $yesterday = (Get-date).AddDays( -1 )
+        # Чиним задвоение и убираем старые записи.
+        $temp = @{}
+        $uploads_all.keys | Sort-Object -Unique | % { $temp[$_] = @{} }
+        $uploads_all.GetEnumerator() | ? { $_.value.count } | % {
+            $cloud = $_.key
+            $_.value.GetEnumerator() | ? { $_.key -and $_.key -ge $yesterday } | % {
+                if ( !$temp[ $cloud ][ $_.key] ) {
+                    $temp[ $cloud ] += @{ $_.key = $_.value }
+                }
+            }
+        }
+        $uploads_all = @{}
+        $temp.GetEnumerator() | ? { $_.value.count } | % { $uploads_all[$_.key] = $_.value }
+    }
+
     return $uploads_all
 }
 
+# Запишем текущие данные выгрузок в временный файлик.
+function Write-StoredUploads ( $uploads_all = @{} ) {
+    if ( !$uploads_all ) { exit }
+    $uploads_all | Export-Clixml -Path $stash_folder.uploads_limit
+}
+
+# Записать размер выгруженного архива в файл и удалить старые записи.
+function Get-TodayTraffic ( $CloudFolder, $FileSize = 0, $uploads_all ) {
+    # Загружаем актуальные данные из файла.
+    $uploads_all = Get-StoredUploads $uploads_all
+    # Выбираем текущий путь.
+    $uploads = $uploads_all[ $CloudFolder ]
+    if ( !$uploads ) { $uploads = @{} }
+    # Если размер файла не нулевой, дописываем его и пишем в файл.
+    if ( $FileSize -gt 0 ) {
+        $uploads[ (Get-date) ] = $FileSize
+        $uploads_all[ $CloudFolder ] = $uploads
+        Write-StoredUploads $uploads_all
+    }
+    # Возвращаем суммарый размер выгруженных файлов и общие данные.
+    return ( $uploads.values | Measure-Object -Sum ).Sum, $uploads_all
+}
+
 # Проверим использованные лимиты выгрузки в облако.
-function Compare-StoredUploads ( $google_name, $uploads_all ) {
+function Compare-StoredUploads ( $CloudFolder ) {
     # Перед переносом проверяем доступный трафик. 0 для получения актуальных данных.
-    $today_size, $uploads_all = Get-TodayTraffic $uploads_all 0 $google_name
+    $today_size, $null = Get-TodayTraffic -CloudFolder $CloudFolder
 
     # Если за последние 24ч, по выбранному аккаунту, было отправлено более квоты, то ждём.
     while ( $today_size -gt $lv_750gb ) {
-        Write-Host ( '[limit][{0:t}] {1} выгружено {2} за прошедшие 24ч. Пауза на час.' -f (Get-Date), $google_name, (Get-BaseSize $today_size ) )
+        Write-Host ( '[limit][{0:t}] {1} выгружено {2} за прошедшие 24ч. Пауза на час.' -f (Get-Date), $CloudFolder, (Get-BaseSize $today_size ) )
         Start-Sleep -Seconds ( 60 * 60 )
 
         Start-Pause
-        $today_size, $uploads_all = Get-TodayTraffic $uploads_all 0 $google_name
+        $today_size, $null = Get-TodayTraffic -CloudFolder $CloudFolder
     }
-    Write-Host ( '[limit][{0:t}] {1} выгружено {2}.' -f (Get-Date), $google_name, (Get-BaseSize $today_size) )
+    Write-Host ( '[limit][{0:t}] {1} выгружено {2}.' -f (Get-Date), $CloudFolder, (Get-BaseSize $today_size) )
 }
 
 # Отобразить затраченные лимиты в разрезе периодов времени.
 function Show-StoredUploads ( $uploads_all ) {
     if ( !$uploads_all ) { Exit }
+
+    # Считаем значения
     $time_diff = 1, 3, 6, 12
     $yesterday = ( Get-date ).AddDays( -1 )
 
     $upload_rows = @()
-    $row_text = '[limit][{4}] Выгружено {5,9} => [{0,9}| {1,9}| {2,9}| {3,9}]'
+    $row_text = '[limit][{4,-16}] Выгружено {5,9} => [{0,9}| {1,9}| {2,9}| {3,9}]'
     $uploads_all.GetEnumerator() | Sort-Object Key | % {
         $period = [ordered]@{}
         $time_diff | % { $period[ [string]$_ ] = 0 }

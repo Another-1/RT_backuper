@@ -186,7 +186,7 @@ foreach ( $torrent in $torrents_list ) {
         }
 
         # Перед переносом проверяем доступный трафик.
-        Compare-StoredUploads $google_name $uploads_all
+        Compare-StoredUploads $google_name
 
         # Проверка переполнения каталога с кешем гугла.
         if ( $google_params.cache_size ) {
@@ -211,7 +211,7 @@ foreach ( $torrent in $torrents_list ) {
             Write-Host ( '[uploader] Готово! Завершено за {0}, средняя скорость {1}' -f (Get-BaseSize $move_sec -SI time) , $speed_move )
 
             # После успешного переноса архива записываем затраченный трафик
-            Get-TodayTraffic $uploads_all $zip_size $google_name > $null
+            $null, $uploads_all = Get-TodayTraffic $google_name $zip_size $uploads_all
         }
         catch {
             Write-Host '[uploader] Не удалось отправить файл на гугл-диск'

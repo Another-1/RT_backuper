@@ -14,6 +14,7 @@ Param (
     [ValidateRange('NonNegative')][int]$TopicsTotal,
     [ValidateRange('NonNegative')][int]$SizeLimit = 1024, #Гб
     [ValidateRange('NonNegative')][int]$SizeTotal, #Гб
+    [switch]$StartPaused,
 
     [string]$Category,
     [switch]$Analyze,
@@ -310,7 +311,7 @@ foreach ( $torrent in $tracker_list ) {
 
     # Добавляем раздачу в клиент.
     Write-Host ( 'Добавляем торрент-файл раздачи {0} в клиент.' -f $torrent_id )
-    Add-ClientTorrent $torrent_hash $torrent_file.FullName $extract_path $Category > $null
+    Add-ClientTorrent $torrent_hash $torrent_file.FullName $extract_path $Category $StartPaused > $null
     Remove-Item $torrent_file.FullName
 
 

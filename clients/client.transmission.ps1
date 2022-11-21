@@ -133,14 +133,14 @@ function Get-ClientTopic ( $torrent ) {
 }
 
 # Добавить заданный торрент файл в клиент
-function Add-ClientTorrent ( $Hash, $File, $Path, $Category ) {
+function Add-ClientTorrent ( $Hash, $File, $Path, $Category, $Paused = $false ) {
     $base64 = [convert]::ToBase64String(( Get-Content $File -AsByteStream -Raw ))
     $Params = @{
         method = 'torrent-add'
         arguments = @{
             'download-dir' = $Path
-            'metainfo' = $base64
-            'paused' = $false
+            'metainfo'     = $base64
+            'paused'       = $Paused
         }
     }
 

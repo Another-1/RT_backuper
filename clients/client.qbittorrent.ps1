@@ -96,13 +96,14 @@ function Get-ClientTopic ( $torrent ) {
 }
 
 # Добавить заданный торрент файл в клиент
-function Add-ClientTorrent ( $Hash, $File, $Path, $Category ) {
+function Add-ClientTorrent ( $Hash, $File, $Path, $Category, $Paused = $false ) {
     $Params = @{
         torrents    = Get-Item $File
         savepath    = $Path
         category    = $Category
         name        = 'torrents'
         root_folder = 'false'
+        paused      = $Paused
     }
 
     # Добавляем раздачу в клиент.

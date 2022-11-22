@@ -83,6 +83,7 @@ function Get-Archives ( [switch]$Force, [string[]]$Name ){
                 $restore = Import-Clixml -Path $stash_folder.archived_list
                 if ( $restore.hashes ) {
                     $archive = $restore
+                    $restore = $null
                 }
             }).TotalSeconds, 1 )
             $time_parse = 0
@@ -112,6 +113,7 @@ function Get-Archives ( [switch]$Force, [string[]]$Name ){
 
         $archive = @{ dones = $arch_dones; hashes = $arch_hashes }
         $archive | Export-Clixml -Path $stash_folder.archived_list
+        $arch_dones = $arch_hashes = $null
 
     }
     Write-Host ( '[archived] Обнаружено архивов: {0} [{1} сек], хешей: {2} [{3} сек]' -f $archive.dones.count, $time_collect, $archive.hashes.count, $time_parse )
@@ -147,14 +149,33 @@ function Sync-ArchList ( [switch]$Force, [string[]]$Name ) {
         $arch_path = ( $arch_folders | ? { $folder.BaseName -eq $_.BaseName } ).FullName
 
         Write-Host ( '[archived][{0}] Начинаем обновление..' -f $folder.BaseName )
-        $exec_time = (Measure-Command {
-            $zip_list = Get-ChildItem $arch_path -File -Filter '*.7z'
-            $zip_list | % { $_.BaseName } | Out-File $folder.FullName
-        }).TotalSeconds
+        $ls_time = [math]::Round((Measure-Command {
+            # Ищем список файлов. ls Для линукс, gci для винды.
+            if ( $OS.name -eq 'linux' ) {
+                $zip_list = &{ ls -U $arch_path }
+            } else {
+                $zip_list = Get-ChildItem $arch_path -File -Filter '*.7z' | % { $_.Name }
+            }
+        }).TotalSeconds)
+        $ls_time = Get-BaseSize $ls_time -SI time
+
+        $rw_time = [math]::Round((Measure-Command {
+            # Из полученных имён вытаскиваем базовое имя архива и пишем в файл.
+            $regex = "^\d+_.*(?=\.7z)"
+            $stream = [System.IO.StreamWriter] $folder.FullName;
+            foreach( $zip_name in $zip_list ) {
+                $zip_name = [regex]::matches($zip_name, $regex).value
+                if ( $zip_name ) { $stream.WriteLine( $zip_name ) }
+            }
+            $stream.Close(); $stream.Dispose();
+        }).TotalSeconds)
+        $rw_time = Get-BaseSize $rw_time -SI time
 
         $updated += $zip_list.count
-        $text = '[archived][{0}] Обновление списка раздач заняло {1} секунд. Найдено архивов: {2} шт.'
-        Write-Host ( $text -f $folder.BaseName, ([math]::Round( $exec_time, 2 )), $zip_list.count )
+        $text = '[archived][{0}] Обновлено за {2}/{3}. Найдено архивов: {1} шт.'
+        Write-Host ( $text -f $folder.BaseName, $zip_list.count, $ls_time, $rw_time )
+
+        $zip_list = $null
     }
 
     if ( $updated ) {

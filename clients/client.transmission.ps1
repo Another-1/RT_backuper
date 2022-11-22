@@ -86,7 +86,7 @@ function Get-ClientVersion {
 }
 
 # Обязательный список полей:
-# name, hash, topic_id, comment, status, content_path, save_path, size, category
+# name, hash, topic_id, comment, status, content_path, save_path, size, category, added_on
 # Получить список завершённых раздач.
 function Get-ClientTorrents ( $Hashes, $Completed = $true, $Sort = 'size' ) {
     $Params = @{
@@ -101,6 +101,7 @@ function Get-ClientTorrents ( $Hashes, $Completed = $true, $Sort = 'size' ) {
                 'downloadDir'
                 'percentDone'
                 'labels'
+                'addedDate'
             )
         }
     }
@@ -118,6 +119,7 @@ function Get-ClientTorrents ( $Hashes, $Completed = $true, $Sort = 'size' ) {
             @{N='forum_id';     E={$null } },
             @{N='size';         E={$_.totalSize} },
             @{N='category';     E={$_.labels -Join ''} },
+            @{N='added_on';     E={$_.addedDate} },
             @{N='save_path';    E={$_.downloadDir} },
             @{N='content_path'; E={$_.downloadDir + $OS.fsep + $_.name} }
         | Sort-Object -Property $Sort

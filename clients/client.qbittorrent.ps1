@@ -57,7 +57,8 @@ function Get-ClientVersion {
 }
 
 # Обязательный список полей:
-# name, hash, topic_id, forum_id, comment, status, content_path, save_path, size, category
+# name, hash, topic_id, forum_id, comment, status, content_path, save_path, size, category, added_on
+# infohash_v2 - только для кубика, дабы понимать, что шансов получить что-то от апи нет.
 # Получить список завершённых раздач.
 function Get-ClientTorrents ( $Hashes, $Completed = $true, $Sort = 'size' ) {
     $Params = @{}

@@ -710,15 +710,15 @@ function Compare-MaxSize ( [string]$Path, [long]$MaxSize, [long]$FileSize = 0 ) 
 }
 
 # Собрать путь хранения добавляемой в клиент раздачи.
-function Get-TopicDownloadPath ( [int]$topic_id ) {
+function Get-TopicDownloadPath ( $Params, [int]$topic_id ) {
     # Если в параметрах не указно место хранение, возьмём стандартный путь из клиента.
-    if ( !$collector.collect ) {
-        $collector.collect = Get-ClientDownloadDir
+    if ( !$Params.path ) {
+        $Params.path = Get-ClientDownloadDir
     }
 
-    $download_dir = $collector.collect
-    if ( $collector.sub_folder ) {
-        $download_dir = $collector.collect + $OS.fsep + $topic_id
+    $download_dir = $Params.path
+    if ( $Params.sub_folder ) {
+        $download_dir = $Params.path + $OS.fsep + $topic_id
     }
     return $download_dir
 }

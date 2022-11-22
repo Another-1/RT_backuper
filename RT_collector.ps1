@@ -303,7 +303,7 @@ foreach ( $torrent in $tracker_list ) {
     }
 
     # Путь хранения раздачи, с учётом подпапки.
-    $extract_path = Get-TopicDownloadPath $torrent_id
+    $extract_path = Get-TopicDownloadPath $collector $torrent_id
 
     # Скачиваем торрент с форума
     Write-Host ( 'Скачиваем торрент-файл раздачи {0} ({1}).' -f $torrent_id, (Get-BaseSize $torrent.size) )

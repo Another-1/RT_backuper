@@ -3,9 +3,9 @@ Param (
     [ValidateRange('Positive')][int[]]$Topics,
     [ValidateSet(0, 1, 2)][string]$Priority = -1,
     [string]$Category,
+    [switch]$Automated,
     [switch]$DryRun,
     [switch]$Verbose,
-    [switch]$Automated,
 
     [ArgumentCompleter({ param($cmd, $param, $word) [array](Get-Content "$PSScriptRoot/clients.txt") -like "$word*" })]
     [string]
@@ -18,20 +18,15 @@ $ProgressPreference = 'SilentlyContinue'
 if ( !(Confirm-Version) ) { Exit }
 if ( !( Sync-Settings ) ) { Pause; Exit }
 
-if ( !$collector.collect ) {
-    $collector.collect = Get-ClientDownloadDir
+if ( !$restorator ) { $restorator = @{} }
+if ( !$restorator.path ) {
+    $restorator.path = Get-ClientDownloadDir
 }
-if ( !$collector.collect ) {
-    Write-Host 'Каталог хранения раздач ($collector.collect) не задан.'
+if ( !$restorator.path ) {
+    Write-Host 'Каталог хранения раздач ($restorator.path) не задан.'
     Exit
 }
-
-if ( $Automated -and !$restorator) {
-    Write-Host 'НГе хватает настроек для автоматической работы по расписанию.'
-    Exit
-}
-
-New-Item -ItemType Directory -Path $collector.collect -Force > $null
+New-Item -ItemType Directory -Path $restorator.path -Force > $null
 
 function Read-IntValue ( $Prompt ) {
     try {
@@ -45,18 +40,27 @@ function Read-IntValue ( $Prompt ) {
 # В режиме "По расписанию" сами подтягиваем запрошенные к восстановлению раздачи.
 if ( $Automated ) {
     Write-Host 'Запуск по расписанию. Подбираем запрошенные раздачи самостоятельно.'
-    $date_epoch_since = Get-date -date ( Get-date ).AddDays( 0 - $restorator.look_behind_days ) -UFormat %s 
-    $topics = ( Invoke-WebRequest -Uri 'https://rutr.my.to/recovery.php?cmd=read' ).Content -split ("`n")| `
-        Where-Object { $_ -and $_.split(';')[1] -ge ( $date_epoch_since ) } | ForEach-Object { $_.Split(';')[0] }
+
+    $recovery_list = ( Invoke-WebRequest -Uri 'https://rutr.my.to/recovery.php?cmd=read' ).Content -split ("`n")
+        | ? { $_ -and $_ -match ';' } | % {
+            $topic_id, $date_ask = $_.Split(';')
+            @{
+                topic_id = $topic_id
+                date_ask = $date_ask
+                hash     = $null
+            }
+        }
+
+    $date_since = Get-date -date ( Get-date ).AddDays( 0 - $restorator.look_behind_days ) -UFormat %s
+    $Topics = [int[]]($recovery_list | ? { $_.date_ask -ge $date_since } | Sort-Object -Property topic_id -Unique | % { $_.topic_id })
 }
 
-# Если передан список раздач. работаем с ними.
+# Если есть список раздач. работаем с ними.
 if ( $Topics.count ) {
     $tracker = Get-ForumTopics -Topics $Topics
     $tracker_list = $tracker.topics
 }
 # Идем по обычной цепочке получения всех раздач раздела.
-
 elseif ( !$Automated ) {
     if ( !$Forums ) {
         $forum_id = Read-IntValue 'Введите раздел'
@@ -73,44 +77,65 @@ elseif ( !$Automated ) {
     }
 }
 
-# фильтруем по максимальному размеру. 
+# Отбираем раздачи, которые пролезают в лимит размера.
 if ( $restorator.max_size -and $restorator.max_size -gt 0) {
-    $tracker_list = @( $tracker_list | Where-Object { $_.size -lt $restorator.max_size } )
+    $tracker_list = @( $tracker_list | Where-Object { $_.size -le $restorator.max_size } )
 }
-
 if ( !$tracker_list ) {
     Write-Host 'По заданным фильтрам не получено ни одной раздачи.' -ForegroundColor Green
     Exit
 }
 Write-Host ( 'После фильтрации осталось раздач: {0}.' -f $tracker_list.count )
 
-# Получаем список дисков, которые нужно обновить для текущего набора раздач.
-$disk_names = Get-DiskList $tracker_list
-# Получаем список существующих архивов.
-$done_list, $done_hashes = Get-Archives -Force -Name $disk_names
+if ( !$Automated ) {
+    # Получаем список дисков, которые нужно обновить для текущего набора раздач.
+    $disk_names = Get-DiskList $tracker_list
+    # Получаем список существующих архивов.
+    $done_list, $done_hashes = Get-Archives -Force -Name $disk_names
+}
 
-# Вычисляем раздачи, у которых есть архив в облаке.
-$tracker_list = @( $tracker_list | Where-Object { $done_hashes[ $_.hash ] } )
-Write-Host ( 'Имеется архивов в облаке: {0}.' -f $tracker_list.count )
+if ( $done_hashes ) {
+    # Вычисляем раздачи, у которых есть архив в облаке.
+    $tracker_list = @( $tracker_list | ? { $done_hashes[ $_.hash ] } )
+    Write-Host ( '- после исключения существущих архивов, осталось раздач: {0}.' -f $tracker_list.count )
+}
 
 # Подключаемся к клиенту, получаем список существующих раздач.
 Write-Host 'Получаем список раздач из клиента..'
 Initialize-Client
 
 $torrents_list = @{}
-$torrents = Get-ClientTorrents -Completed $false
-$torrents | ForEach-Object { $torrents_list[ $_.hash ] = 1 }
+$torrents_all = Get-ClientTorrents -Completed $false
+$torrents_all | ForEach-Object { $torrents_list[ $_.hash ] = 1 }
 if ( $torrents_list ) {
     # Исключаем раздачи, которые уже есть в клиенте.
     $tracker_list = @( $tracker_list | Where-Object { !$torrents_list[ $_.hash ] } )
     Write-Host ( 'От клиента [{0}] получено раздач: {1}. Раздач доступных к восстановлению: {2}.' -f $client.name, $torrents_list.count, $tracker_list.count )
 }
 
+
+# удалим раздачи, по которым истёк срок хранения.
+if ( $Automated -and $recovery_list -and $torrents_list ) {
+    if ( $restorator.keep_seeding_days -and $restorator.keep_seeding_days -ge 1 ) {
+        Write-Host 'Удалим раздачи, по которым истёк срок хранения.'
+
+        $remove_topics = [int[]]($recovery_list | ? { $_.date_ask -ge $date_since } | Sort-Object -Property topic_id -Unique | % { $_.topic_id })
+        if ( $remove_topics ) {
+            $remove_topics = (Get-ForumTopics -Topics $remove_topics).topics
+
+            # Исключаем раздачи, которые уже есть в клиенте.
+            $remove_topics | ? { $torrents_list[ $_.hash ] } | % {
+                Remove-ClientTorrent $_.topic_id $_.hash
+            }
+        }
+    }
+}
+
 if ( !$tracker_list ) { Exit }
 
 # Определить категорию добавляемых раздач.
 if ( !$Category ) { $Category = $restorator.category }
-if ( !$Category ) { $Category = 'restored' }
+if ( !$Category ) { $Category = 'restore' }
 
 # Авторизуемся на форуме
 Write-Host ''
@@ -136,7 +161,7 @@ foreach ( $torrent in $tracker_list ) {
     if ( $DryRun ) { Exit }
 
     # Путь хранения раздачи, с учётом подпапки.
-    $extract_path = Get-TopicDownloadPath $torrent_id
+    $extract_path = Get-TopicDownloadPath $restorator $torrent_id
 
     Write-Host "Распаковываем $zip_google_path"
     Restore-ZipTopic $zip_google_path $extract_path
@@ -154,14 +179,5 @@ foreach ( $torrent in $tracker_list ) {
     Remove-Item $torrent_file.FullName
 
     Start-Sleep -Seconds 1
-
-    # удалим раздачи, по которым истёк срок хранения.
-    if ( $Automated -and $restorator.keep_seeding_days -and $restorator.keep_seeding_days -ge 1 ) {
-        Write-Host 'Удалим раздачи, по которым истёк срок хранения.'
-        $date_epoch_till = Get-date -date ( Get-date ).AddDays( 0 - $restorator.keep_seeding_days ) -UFormat %s 
-        $torrents | Where-Object ( $_.added_on -lt $date_epoch_till) | ForEach-Object {
-            Remove-ClientTorrent 0 $_.hash
-        }
-    }
 }
 # end foreach

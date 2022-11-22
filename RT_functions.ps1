@@ -2,7 +2,7 @@ function Write-Verbose ( [string]$Text ){
     if ( $Verbose ) { Write-Host ( '[{0:t}] {1}' -f (Get-Date), $Text ) }
 }
 
-$RT_version = 'v2.1.2'
+$RT_version = 'v2.1.4'
 Write-Verbose "RT_versios: $RT_version"
 
 New-Item -ItemType Directory -Path "$PSScriptRoot\config" -Force > $null

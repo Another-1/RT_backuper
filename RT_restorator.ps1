@@ -70,7 +70,13 @@ if ( $Automated ) {
                 $remove_topics | ? { $rm_hashes[ $_.hash ] } | % {
                     Remove-ClientTorrent $_.topic_id $_.hash
                 }
+
+                if ( $restorator.sub_folder ) {
+                    Start-Sleep 5
+                    Clear-EmptyFolders $restorator.path
+                }
             }
+
         }
     }
 

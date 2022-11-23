@@ -21,15 +21,16 @@ function Clear-ClientDownloads ( $zip_list ) {
     For ( $i = 1; $i -le $runs; $i++ ) {
         $selected = Get-FileFirstContent $finished_list $step
 
-        $selected = $selected | ? { $_ -notin $zip_list }
-
+        $selected = @( $selected | ? { $_ -notin $zip_list } )
         $hashes = @{}
-        $selected | % { $id, $hash = ( $_.Split('.')[0] ).Split('_'); $hashes[$hash] = $id }
+        $selected | % { [int]$id, $hash = ( $_.Split('.')[0] ).Split('_'); if ($id) {$hashes[$hash] = $id} }
+        $selected = $null
+        if ( !$hashes.count ) { Continue }
 
         Write-Host ( 'Итерация {0}/{1}, раздач {2}, опрашиваем клиент.' -f $i, $runs, $hashes.count )
         $torrents = Get-ClientTorrents $hashes.keys
         # Выбираем только раздачи подходящей категории.
-        $torrents = $torrents | ? { $_.category -eq $uploader.delete_category }
+        $torrents = @( $torrents | ? { $_.category -in $uploader.delete_category } )
         if ( !$torrents ) {
             Write-Host ( 'Нет раздач, которые требуется удалить. Пропускаем.' )
             Continue
@@ -39,15 +40,16 @@ function Clear-ClientDownloads ( $zip_list ) {
             $torrent_id = $hashes[$torrent.hash]
             # Собираем имя и путь хранения архива раздачи.
 
+            Write-Host ( '[cleaner] Проверяем раздачу {0}, {1}' -f $torrent_id, $torrent.name )
             $zip_google_path = Get-TorrentPath $torrent_id $torrent.hash
             $zip_test = Test-CloudPath $zip_google_path
             # Если в облаке раздача есть, то её можно смело удалять из клиента
             if ( $zip_test.result ) {
-                Write-Host ( '[cleaner] Пробуем удалить раздачу {0}, {1}' -f $torrent_id, $torrent.name )
                 $deleted++
+                Write-Host ( '[cleaner] Удаляем {0}, {1}' -f $torrent_id, $torrent.name )
                 Remove-ClientTorrent $torrent_id $torrent.hash
             } else {
-                Write-Host ( '[cleaner] Раздачи ещё нет в облаке {0}, {1}' -f $torrent_id, $torrent.name )
+                Write-Host ( '[cleaner] Раздачи ещё нет в облаке, пропускаем {0}, {1}' -f $torrent_id, $torrent.name )
                 Dismount-ClientTorrent $torrent_id $torrent.hash
             }
             Start-Sleep 1
@@ -98,8 +100,8 @@ foreach ( $cl in $client_list ) {
     Clear-ClientDownloads $zip_list
 }
 
-Start-Sleep 5
 # Очистим папку загрузок, если закачка происходит с учётом ид раздачи.
-if ( $collector.sub_folder ) {
+if ( $collector -and $collector.sub_folder ) {
+    Start-Sleep 5
     Clear-EmptyFolders $collector.collect
 }

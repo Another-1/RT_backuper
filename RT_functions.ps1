@@ -393,6 +393,20 @@ function Get-GoogleNum ( [int]$DiskId, [int]$Accounts = 1, [int]$Uploaders = 1 )
     }
 }
 
+# Проверить, вхождение раздачи в диапазон работы заданного номера Uploader.
+function Test-TopicBalance ( [int]$topic_id, [int]$Balance ) {
+    if ( !$topic_id -or (!$google_params.uploaders_count) -or ($google_params.uploaders_count -le 1) ) {
+        return $true
+    }
+
+    $disk_id, $null, $null = Get-DiskParams $topic_id
+    $order = Get-GoogleNum -DiskId $disk_id -Uploaders $google_params.uploaders_count
+    if ( $order.upload -eq $Balance ) {
+        return $true
+    }
+    return $false
+}
+
 # Вычисляем сжатие архива, в зависимости от раздела раздачи и параметров.
 function Get-Compression ( $torrent, $params ) {
     try {

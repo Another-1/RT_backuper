@@ -1,6 +1,7 @@
 Param (
     [ValidateRange(0,3)][int]$Balance,
 
+    [switch]$DryRun,
     [switch]$Verbose,
     [switch]$NoClient = $true
 )
@@ -31,6 +32,9 @@ Start-Stopping
 
 Write-Host '[uploader] Начинаем процесс выгрузки архивов в гугл.'
 
+# Ищем список архивов, которые нужно перенести.
+$zip_list = Get-ChildItem $def_paths.finished -Filter '*.7z' | Sort-Object $OS.sizeField
+
 # Если используемых акков >1 и передан параметр с номером, то используем балансировку.
 if ( $Balance -and $google_params.accounts_count -gt 1 ) {
     if ( $Balance -gt $google_params.uploaders_count ) {
@@ -38,10 +42,11 @@ if ( $Balance -and $google_params.accounts_count -gt 1 ) {
         Exit
     }
     Write-Host ( '[balance] Включена многопоточная выгрузка. Номер сервиса: {0}' -f $Balance ) -ForegroundColor Yellow
+
+    # Отфильтруем архивы подходящие для указанного номера сервиса.
+    $zip_list = @( $zip_list | ? { $topic_id, $null = ($_.BaseName -Split('_')); Test-TopicBalance $topic_id $Balance } )
 }
 
-# Ищем список архивов, которые нужно перенести
-$zip_list = Get-ChildItem $def_paths.finished -Filter '*.7z' | Sort-Object $OS.sizeField
 
 $proc_cnt = 0
 $proc_size = 0
@@ -49,6 +54,7 @@ $sum_cnt = $zip_list.count
 $sum_size = ( $zip_list | Measure-Object $OS.sizeField -Sum ).Sum
 Write-Host ( '[uploader] Найдено архивов: {0} ({1}), требующих переноса на гугл-диск.' -f $sum_cnt, (Get-BaseSize $sum_size) ) -ForegroundColor DarkCyan
 if ( !$sum_cnt ) { Exit }
+if ( $DryRun ) { Exit }
 
 Start-Sleep -Seconds (Get-Random -Minimum 2 -Maximum 10)
 
@@ -57,11 +63,12 @@ Start-Sleep -Seconds (Get-Random -Minimum 2 -Maximum 10)
 $uploads_all = Get-StoredUploads
 Show-StoredUploads $uploads_all
 
+
 # Перебираем архивы.
 Write-Host ( '[uploader][{0:t}] Начинаем перебирать раздачи.' -f (Get-Date) )
 foreach ( $zip in $zip_list ) {
     # Ид и прочие параметры раздачи.
-    $torrent_id, $torrent_hash = ( $zip.Name.Split('.')[0] ).Split('_')
+    $torrent_id, $torrent_hash = ( $zip.BaseName -Split('_') )
     $zip_size = $zip.($OS.sizeField)
 
     # Собираем имя и путь хранения архива раздачи.

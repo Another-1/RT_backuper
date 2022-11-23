@@ -51,8 +51,36 @@ if ( $Automated ) {
             }
         }
 
+
+    # удалим раздачи, по которым истёк срок хранения.
+    if ( $restorator.keep_seeding_days -and $restorator.keep_seeding_days -ge 1 ) {
+        $remove_topics = [int[]]($recovery_list | ? { $_.date_ask -ge $date_since } | Sort-Object -Property topic_id -Unique | % { $_.topic_id })
+
+        if ( $remove_topics ) {
+            Write-Host 'Удалим раздачи, по которым истёк срок хранения.'
+            # Получим данные об удаляемых раздачах на форуме.
+            $remove_topics = (Get-ForumTopics -Topics $remove_topics).topics
+            # Поищем удаляемые раздачи в клиенте.
+            $remove_torrents = Get-ClientTorrents @( $remove_topics | % { $_.hash } )
+            # Если в клиенте есть раздачи, которые унжно удалить - удалим.
+            if ( $remove_torrents ) {
+                $rm_hashes = @{}
+                $remove_torrents | % { $rm_hashes[ $_.hash ] = 1 }
+                # Исключаем раздачи, которые уже есть в клиенте.
+                $remove_topics | ? { $rm_hashes[ $_.hash ] } | % {
+                    Remove-ClientTorrent $_.topic_id $_.hash
+                }
+            }
+        }
+    }
+
     $date_since = Get-date -date ( Get-date ).AddDays( 0 - $restorator.look_behind_days ) -UFormat %s
-    $Topics = [int[]]($recovery_list | ? { $_.date_ask -ge $date_since } | Sort-Object -Property topic_id -Unique | % { $_.topic_id })
+    $recovery_topics = @( $recovery_list | ? { $_.date_ask -ge $date_since } | Sort-Object -Property topic_id -Unique | % { $_.topic_id } )
+    if ( !$recovery_topics ) {
+        Write-Host 'Запуск по расписанию. Нет раздач для восстановления.'
+        Exit
+    }
+    $Topics = [int[]]$recovery_topics
 }
 
 # Если есть список раздач. работаем с ними.
@@ -61,7 +89,7 @@ if ( $Topics.count ) {
     $tracker_list = $tracker.topics
 }
 # Идем по обычной цепочке получения всех раздач раздела.
-elseif ( !$Automated ) {
+else {
     if ( !$Forums ) {
         $forum_id = Read-IntValue 'Введите раздел'
         if ( $forum_id ) { $Forums = @( $forum_id ) }
@@ -76,6 +104,7 @@ elseif ( !$Automated ) {
         $tracker_list = @( $tracker_list | Where-Object { $_.priority -eq $Priority } )
     }
 }
+$tracker = $null
 
 # Отбираем раздачи, которые пролезают в лимит размера.
 if ( $restorator.max_size -and $restorator.max_size -gt 0) {
@@ -114,22 +143,6 @@ if ( $torrents_list ) {
 }
 
 
-# удалим раздачи, по которым истёк срок хранения.
-if ( $Automated -and $recovery_list -and $torrents_list ) {
-    if ( $restorator.keep_seeding_days -and $restorator.keep_seeding_days -ge 1 ) {
-        Write-Host 'Удалим раздачи, по которым истёк срок хранения.'
-
-        $remove_topics = [int[]]($recovery_list | ? { $_.date_ask -ge $date_since } | Sort-Object -Property topic_id -Unique | % { $_.topic_id })
-        if ( $remove_topics ) {
-            $remove_topics = (Get-ForumTopics -Topics $remove_topics).topics
-
-            # Исключаем раздачи, которые уже есть в клиенте.
-            $remove_topics | ? { $torrents_list[ $_.hash ] } | % {
-                Remove-ClientTorrent $_.topic_id $_.hash
-            }
-        }
-    }
-}
 
 if ( !$tracker_list ) { Exit }
 

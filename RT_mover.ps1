@@ -35,7 +35,7 @@ $torrents_list | ForEach-Object {
     Add-ClientTorrent $_.hash $torrent_file.FullName $move_path $_.Category > $null
     Remove-Item $torrent_file.FullName
     try {
-        Write-Host ( '[delete] Удаляем из клиента раздачу {0}' -f $torrent_id )
+        Write-Host ( '[delete] Удаляем из клиента раздачу {0}' -f $_.topic_id )
         $client = Select-Client $client_from
         $request_delete = @{ hashes = $_.hash; deleteFiles = $false }
         Read-Client 'torrents/delete' $request_delete > $null

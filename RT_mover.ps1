@@ -35,6 +35,7 @@ $torrents_list | ForEach-Object {
     $client = Select-Client $client_to
     Add-ClientTorrent $_.hash $torrent_file.FullName $move_path $_.Category > $null
     $client = Select-Client $client_from
+    Remove-ClientTorrent $_.topic_id $_.hash
     Remove-Item $torrent_file.FullName
     Start-Sleep -Seconds 1
 }

@@ -30,19 +30,10 @@ $torrents_list | ForEach-Object {
     foreach ( $key in $mover.keys ) {
         if ( $move_path -match $key ) { $move_path = $move_path -replace ( ".*$key", $mover[$key] ); break }
     }
-    Write-Host ( '[mover] Подхватываем ' + $_.name + ' в ' + $move_path )
+    Remove-ClientTorrent $_.topic_id $_.hash
+    Write-Host ( '[mover] Подхватываем ' + $_.name + ' в ' + $client.name + ', ' + $move_path )
     $client = Select-Client $client_to
     Add-ClientTorrent $_.hash $torrent_file.FullName $move_path $_.Category > $null
     Remove-Item $torrent_file.FullName
-    try {
-        Write-Host ( '[delete] Удаляем из клиента раздачу {0}' -f $_.topic_id )
-        $client = Select-Client $client_from
-        $request_delete = @{ hashes = $_.hash; deleteFiles = $false }
-        Read-Client 'torrents/delete' $request_delete > $null
-    }
-    catch {
-        Write-Host ( '[delete] Почему-то не получилось удалить раздачу {0}.' -f $torrent_id )
-    }
-
     Start-Sleep -Seconds 1
 }

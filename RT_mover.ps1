@@ -3,7 +3,8 @@ param (
     [ArgumentCompleter({ param($cmd, $param, $word) [array]( Get-Content "$PSScriptRoot/clients.txt" ) })]
     [Alias("scl")][string]$client_from = 'NAS-2',
     [ArgumentCompleter({ param($cmd, $param, $word) [array]( Get-Content "$PSScriptRoot/clients.txt" ) })]
-    [Alias("dcl")][string]$client_to = 'NAS'
+    [Alias("dcl")][string]$client_to = 'NAS',
+    [switch]$NoClient = $true
 )
 
 . "$PSScriptRoot\RT_functions.ps1"
@@ -30,10 +31,10 @@ $torrents_list | ForEach-Object {
     foreach ( $key in $mover.keys ) {
         if ( $move_path -match $key ) { $move_path = $move_path -replace ( ".*$key", $mover[$key] ); break }
     }
-    Remove-ClientTorrent $_.topic_id $_.hash
     Write-Host ( '[mover] Подхватываем ' + $_.name + ' в ' + $client.name + ', ' + $move_path )
     $client = Select-Client $client_to
     Add-ClientTorrent $_.hash $torrent_file.FullName $move_path $_.Category > $null
+    $client = Select-Client $client_from
     Remove-Item $torrent_file.FullName
     Start-Sleep -Seconds 1
 }

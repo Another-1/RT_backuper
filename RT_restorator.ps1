@@ -68,7 +68,7 @@ if ( $Automated ) {
                 $remove_torrents | % { $rm_hashes[ $_.hash ] = 1 }
                 # Исключаем раздачи, которые уже есть в клиенте.
                 $remove_topics | ? { $rm_hashes[ $_.hash ] } | % {
-                    Remove-ClientTorrent $_.topic_id $_.hash
+                    Remove-ClientTorrent $_.topic_id $_.hash -deleteFiles
                 }
 
                 if ( $restorator.sub_folder ) {

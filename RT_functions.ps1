@@ -206,7 +206,7 @@ function Dismount-ClientTorrent ( [int]$torrent_id, [string]$torrent_hash, [stri
     }
 
     if ( $uploader.delete_category -in $torrent_category ) {
-        Remove-ClientTorrent $torrent_id $torrent_hash
+        Remove-ClientTorrent $torrent_id $torrent_hash -deleteFiles
     }
 }
 

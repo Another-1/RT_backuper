@@ -47,7 +47,7 @@ function Clear-ClientDownloads ( $zip_list ) {
             if ( $zip_test.result ) {
                 $deleted++
                 Write-Host ( '[cleaner] Удаляем {0}, {1}' -f $torrent_id, $torrent.name )
-                Remove-ClientTorrent $torrent_id $torrent.hash
+                Remove-ClientTorrent $torrent_id $torrent.hash -deleteFiles
             } else {
                 Write-Host ( '[cleaner] Раздачи ещё нет в облаке, пропускаем {0}, {1}' -f $torrent_id, $torrent.name )
                 Dismount-ClientTorrent $torrent_id $torrent.hash

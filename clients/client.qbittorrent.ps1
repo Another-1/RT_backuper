@@ -113,12 +113,12 @@ function Add-ClientTorrent ( $Hash, $File, $Path, $Category, $Paused = $false ) 
 }
 
 # Удаляет раздачу и содержимое из клиента
-function Remove-ClientTorrent ( [int]$torrent_id, [string]$torrent_hash ) {
+function Remove-ClientTorrent ( [int]$torrent_id, [string]$torrent_hash, [switch]$deleteFiles ) {
     try {
         Write-Host ( '[delete] Удаляем из клиента раздачу {0}' -f $torrent_id )
         $request_delete = @{
             hashes = $torrent_hash
-            deleteFiles = $true
+            deleteFiles = $deleteFiles
         }
         Read-Client 'torrents/delete' $request_delete > $null
     }

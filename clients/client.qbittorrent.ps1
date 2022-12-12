@@ -49,9 +49,9 @@ function Read-Client ( [string]$Metod, $Params ) {
 # Получаем данные о клиенте.
 function Get-ClientVersion {
     $version_info = @()
-    $version_info += "- version: {0}"    -f (Read-Client 'app/version')
+    $version_info += "- version: {0}" -f (Read-Client 'app/version')
     $version_info += "- apiVersion: {0}" -f (Read-Client 'app/webapiVersion')
-    $version_info += "- build: {0}"      -f (Read-Client 'app/buildInfo')
+    $version_info += "- build: {0}" -f (Read-Client 'app/buildInfo')
 
     return $version_info
 }
@@ -69,14 +69,14 @@ function Get-ClientTorrents ( $Hashes, $Completed = $true, $Sort = 'size' ) {
         $Params.hashes = $Hashes -Join '|'
     }
     $torrents_list = (Read-Client 'torrents/info' $Params )
-        | ConvertFrom-Json
-        | Select-Object name, content_path, save_path, size, category, infohash_v2, added_on,
-            @{N='topic_id'; E={$null} },
-            @{N='hash';     E={$_.infohash_v1 ? $_.infohash_v1 : $_.hash} },
-            @{N='forum_id'; E={$null} },
-            @{N='comment';  E={$null} },
-            @{N='status';   E={$_.state} }
-        | Sort-Object -Property $Sort
+    | ConvertFrom-Json
+    | Select-Object name, content_path, save_path, size, category, infohash_v2, added_on,
+    @{N = 'topic_id'; E = { $null } },
+    @{N = 'hash'; E = { $_.infohash_v1 ? $_.infohash_v1 : $_.hash } },
+    @{N = 'forum_id'; E = { $null } },
+    @{N = 'comment'; E = { $null } },
+    @{N = 'status'; E = { $_.state } }
+    | Sort-Object -Property $Sort
 
     return $torrents_list
 }
@@ -97,14 +97,15 @@ function Get-ClientTopic ( $torrent ) {
 }
 
 # Добавить заданный торрент файл в клиент
-function Add-ClientTorrent ( $Hash, $File, $Path, $Category, $Paused = $false ) {
+function Add-ClientTorrent ( $Hash, $File, $Path, $Category, $Paused = $false, $Skip_checking = $false ) {
     $Params = @{
-        torrents    = Get-Item $File
-        savepath    = $Path
-        category    = $Category
-        name        = 'torrents'
-        root_folder = 'false'
-        paused      = $Paused
+        torrents      = Get-Item $File
+        savepath      = $Path
+        category      = $Category
+        name          = 'torrents'
+        root_folder   = 'false'
+        paused        = $Paused
+        skip_checking = $Skip_checking
     }
 
     # Добавляем раздачу в клиент.
@@ -117,7 +118,7 @@ function Remove-ClientTorrent ( [int]$torrent_id, [string]$torrent_hash, [switch
     try {
         Write-Host ( '[delete] Удаляем из клиента раздачу {0}' -f $torrent_id )
         $request_delete = @{
-            hashes = $torrent_hash
+            hashes      = $torrent_hash
             deleteFiles = $deleteFiles
         }
         Read-Client 'torrents/delete' $request_delete > $null
